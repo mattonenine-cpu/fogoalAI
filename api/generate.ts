@@ -1,6 +1,8 @@
 
 import { GoogleGenAI } from "@google/genai";
 
+declare const process: { env: { [key: string]: string | undefined } };
+
 export async function POST(request: Request) {
   try {
     const { model, contents, config } = await request.json();
