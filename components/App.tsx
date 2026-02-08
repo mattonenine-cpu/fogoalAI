@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme } from '../types';
+import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from '../types';
 import { Onboarding } from './Onboarding';
 import { Dashboard } from './Dashboard';
 import { Scheduler } from './Scheduler';
@@ -11,6 +11,7 @@ import { LanguageSelector } from './LanguageSelector';
 import { Logo } from './Logo';
 import { ThemeSelector } from './ThemeSelector';
 import { SettingsModal } from './SettingsModal';
+import { ContextHelpOverlay } from './ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
@@ -77,6 +78,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [activeEcosystem, setActiveEcosystem] = useState<EcosystemType | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [helpContext, setHelpContext] = useState<HelpContext | null>(null);
   
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
@@ -191,6 +193,16 @@ export default function App() {
       setLanguage(languages[nextIndex]);
   };
 
+  const handleTrackRequest = (taskId: string) => {
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+          setHelpContext({
+              blockName: 'Scheduler Task',
+              taskText: task.title
+          });
+      }
+  };
+
   const visibleNavItems = useMemo(() => {
     if (!profile?.settings?.visibleViews) return ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes'];
     return profile.settings.visibleViews;
@@ -208,7 +220,7 @@ export default function App() {
       case AppView.SCHEDULER:
         return <Scheduler 
           tasks={tasks} setTasks={setTasks} userProfile={profile} setUserProfile={handleUpdateProfile} 
-          lang={language!} onTrackRequest={() => {}} notes={notes} onUpdateNotes={setNotes}
+          lang={language!} onTrackRequest={handleTrackRequest} notes={notes} onUpdateNotes={setNotes}
           currentStats={dailyStats}
         />;
       case AppView.SMART_PLANNER:
@@ -270,23 +282,14 @@ export default function App() {
 
         <nav className="fixed bottom-6 left-0 right-0 z-[600] flex justify-center px-4 pointer-events-none">
           <div className="glass-liquid rounded-[32px] px-2 py-2 flex items-center justify-between shadow-2xl w-full max-w-md pointer-events-auto bg-[var(--bg-card)]">
-            
-            {/* Always Visible Core Navigation */}
             <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
             <NavBtn active={currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('scheduler')} />
-            
-            {/* Smart Planner - Explicitly placed 3rd */}
             <NavBtn active={currentView === AppView.SMART_PLANNER} onClick={() => { setCurrentView(AppView.SMART_PLANNER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
-
-            {/* Dynamic Ecosystems */}
             {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map(eco => (
                 <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
             ))}
-            
-            {/* Optional Views */}
             {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
             {visibleNavItems.includes('chat') && <NavBtn active={currentView === AppView.CHAT} onClick={() => { setCurrentView(AppView.CHAT); setActiveEcosystem(null); }} emoji={getNavEmoji('chat')} />}
-          
           </div>
         </nav>
       </div>
@@ -295,6 +298,15 @@ export default function App() {
         user={profile} lang={language} onUpdate={handleUpdateProfile} 
         onLanguageChange={setLanguage} onClose={() => setShowSettings(false)} 
       />}
+
+      {helpContext && profile && (
+        <ContextHelpOverlay
+            context={helpContext}
+            profile={profile}
+            lang={language || 'en'}
+            onClose={() => setHelpContext(null)}
+        />
+      )}
     </div>
   );
 }
