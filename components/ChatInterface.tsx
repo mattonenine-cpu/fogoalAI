@@ -46,7 +46,7 @@ const renderMessageContent = (text: string, isUser: boolean) => {
 };
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang, tasks, onSetTasks }) => {
-  const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
+  const t = TRANSLATIONS[lang];
   const MAX_HISTORY = 50;
   
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -206,3 +206,4 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
     </div>
   );
 };
+
