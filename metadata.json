@@ -1,0 +1,7 @@
+{
+  "name": "FoGoal AI Assistant",
+  "description": "An AI-powered personal productivity assistant featuring smart scheduling, habit tracking, and a companion chat based on psychological principles.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

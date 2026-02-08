@@ -1,0 +1,96 @@
+
+import React from 'react';
+import { Task } from '../types';
+import { PIXELS_PER_HOUR } from '../services/smartPlanner';
+import { GripVertical, CheckCircle2, Circle, Clock } from 'lucide-react';
+
+interface SmartBlockProps {
+  task: Task;
+  style?: React.CSSProperties;
+  onPointerDown: (e: React.PointerEvent, task: Task, type: 'DRAG' | 'RESIZE') => void;
+  onToggleStatus: (id: string) => void;
+  onClick: (task: Task) => void;
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  ROUTINE: 'bg-blue-500/20 border-blue-600/30 text-[var(--text-primary)]',
+  ONE_OFF: 'bg-purple-500/20 border-purple-600/30 text-[var(--text-primary)]',
+  EVENT: 'bg-amber-500/20 border-amber-600/30 text-[var(--text-primary)]',
+  RECURRING: 'bg-emerald-500/20 border-emerald-600/30 text-[var(--text-primary)]',
+  DEFAULT: 'bg-indigo-500/20 border-indigo-600/30 text-[var(--text-primary)]'
+};
+
+export const SmartBlock: React.FC<SmartBlockProps> = ({ 
+  task, 
+  style, 
+  onPointerDown, 
+  onToggleStatus,
+  onClick
+}) => {
+  const height = (task.durationMinutes / 60) * PIXELS_PER_HOUR;
+  // Use task color if available, otherwise fallback to type color
+  const baseColorClass = TYPE_COLORS[task.smartType || 'DEFAULT'] || TYPE_COLORS.DEFAULT;
+  const isDone = task.completed;
+
+  return (
+    <div
+      className={`absolute w-[95%] left-[2.5%] rounded-xl border shadow-sm group transition-all overflow-hidden select-none backdrop-blur-md ${baseColorClass} ${isDone ? 'opacity-50 grayscale' : ''}`}
+      style={{
+        ...style,
+        height: `${height}px`,
+        touchAction: 'none', // Crucial for Pointer Events
+        zIndex: 10,
+        backgroundColor: task.color && task.color !== 'transparent' ? `${task.color}30` : undefined,
+        borderColor: task.color && task.color !== 'transparent' ? `${task.color}50` : undefined,
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(task);
+      }}
+    >
+      {/* Header / Drag Handle */}
+      <div 
+        className="h-4 flex items-center justify-end px-1 cursor-grab active:cursor-grabbing border-b border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5"
+        onPointerDown={(e) => onPointerDown(e, task, 'DRAG')}
+      >
+        <GripVertical size={10} className="opacity-50 text-[var(--text-primary)]" />
+      </div>
+
+      {/* Content */}
+      <div className="p-2 flex flex-col h-[calc(100%-16px)] relative">
+        <div className="flex items-start gap-2">
+            <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleStatus(task.id);
+                }}
+                className="mt-0.5 hover:scale-110 transition-transform opacity-80 hover:opacity-100 text-[var(--text-primary)]"
+            >
+                {isDone ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+            </button>
+            <span className={`text-[12px] font-bold leading-tight line-clamp-3 text-[var(--text-primary)] ${isDone ? 'line-through opacity-70' : ''}`}>
+                {task.title}
+            </span>
+        </div>
+        
+        {/* Info Footer (only visible if tall enough) */}
+        {height > 70 && (
+            <div className="mt-auto pt-1 flex items-center justify-between text-[10px] opacity-70 text-[var(--text-primary)] font-medium">
+                 <div className="flex items-center gap-1">
+                    <Clock size={10} />
+                    <span>{task.durationMinutes}m</span>
+                 </div>
+            </div>
+        )}
+      </div>
+
+      {/* Resize Handle */}
+      <div 
+        className="absolute bottom-0 left-0 w-full h-3 cursor-ns-resize hover:bg-black/5 dark:hover:bg-white/10 transition-colors z-20 flex items-end justify-center pb-0.5"
+        onPointerDown={(e) => onPointerDown(e, task, 'RESIZE')}
+      >
+        <div className="w-8 h-1 rounded-full bg-black/20 dark:bg-white/20" />
+      </div>
+    </div>
+  );
+};
