@@ -2,11 +2,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, Task, Language, Goal, EcosystemType, HelpContext, EcosystemConfig, HealthDailyLog, WorkoutPlan, Ticket } from '../types';
 
-// Declare process for client-side environment variable access if needed by bundler
-declare const process: { env: { [key: string]: string | undefined } };
+// Safe access to environment variables
+const getApiKey = () => {
+  try {
+    // @ts-ignore
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      // @ts-ignore
+      return process.env.API_KEY;
+    }
+    // Fallback if replaced by Vite define
+    // @ts-ignore
+    return import.meta.env?.VITE_API_KEY || '';
+  } catch (e) {
+    return '';
+  }
+};
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-const MODEL_NAME = 'gemini-2.5-flash-lite-preview-02-05';
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
+const MODEL_NAME = 'gemini-2.0-flash-lite-preview';
 
 export const getLocalISODate = (date: Date = new Date()) => {
   const offset = date.getTimezoneOffset();
