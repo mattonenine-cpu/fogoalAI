@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, Language, TRANSLATIONS, AppTheme } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
@@ -157,10 +156,9 @@ const hydrateConfig = (savedConfig: HealthMetricConfig[]): HealthMetricConfig[] 
 const ITEMS_PER_PAGE = 3;
 
 export const HealthApp: React.FC<HealthAppProps> = ({ user, lang, onUpdateProfile, theme }) => {
-  // Safe translation combining
-  const tMain = TRANSLATIONS[lang] || TRANSLATIONS['en'];
+  // Ensure we have valid translations, fallback to English if current lang missing
   const tExt = TRANSLATIONS_EXT[lang] || TRANSLATIONS_EXT['en'];
-  const t = { ...tMain, ...tExt };
+  const t = { ...TRANSLATIONS[lang], ...tExt };
   const blockTitles = BLOCK_TITLES[lang] || BLOCK_TITLES['en'];
   
   const todayISO = getLocalISODate();
