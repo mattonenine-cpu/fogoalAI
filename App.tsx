@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme } from './types';
+import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from './types';
 import { Onboarding } from './components/Onboarding';
 import { Dashboard } from './components/Dashboard';
 import { Scheduler } from './components/Scheduler';
@@ -12,9 +11,27 @@ import { LanguageSelector } from './components/LanguageSelector';
 import { Logo } from './components/Logo';
 import { ThemeSelector } from './components/ThemeSelector';
 import { SettingsModal } from './components/SettingsModal';
+import { ContextHelpOverlay } from './components/ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound } from 'lucide-react';
 import { getLocalISODate } from './services/geminiService';
 import { authService } from './services/authService';
+
+// Safe storage helper to prevent QuotaExceededError from crashing the app
+const safeSave = (key: string, data: any) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.warn(`Storage quota exceeded or restricted for key: ${key}`);
+  }
+};
+
+const getLogoMood = (dailyMood: 'Happy' | 'Neutral' | 'Sad'): 'Great' | 'Good' | 'Okay' | 'Tired' | 'Stress' => {
+  switch (dailyMood) {
+    case 'Happy': return 'Good';
+    case 'Sad': return 'Tired';
+    default: return 'Okay';
+  }
+};
 
 export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(() => {
@@ -61,6 +78,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [activeEcosystem, setActiveEcosystem] = useState<EcosystemType | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [helpContext, setHelpContext] = useState<HelpContext | null>(null);
   
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
@@ -102,33 +120,33 @@ export default function App() {
 
   useEffect(() => {
     if (profile) {
-        localStorage.setItem('focu_profile', JSON.stringify(profile));
+        safeSave('focu_profile', profile);
         authService.syncToCloud({ profile, tasks, notes, folders, stats: dailyStats });
     }
   }, [profile, tasks, notes, folders, dailyStats]);
 
   useEffect(() => {
-    localStorage.setItem('focu_tasks', JSON.stringify(tasks));
+    safeSave('focu_tasks', tasks);
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem('focu_notes', JSON.stringify(notes));
+    safeSave('focu_notes', notes);
   }, [notes]);
   
   useEffect(() => {
-    localStorage.setItem('focu_folders', JSON.stringify(folders));
+    safeSave('focu_folders', folders);
   }, [folders]);
 
   useEffect(() => {
-    localStorage.setItem('focu_stats', JSON.stringify(dailyStats));
+    safeSave('focu_stats', dailyStats);
   }, [dailyStats]);
 
   useEffect(() => {
-    if (language) localStorage.setItem('focu_language', language);
+    if (language) safeSave('focu_language', language);
   }, [language]);
 
   useEffect(() => {
-      localStorage.setItem('focu_theme', theme);
+      safeSave('focu_theme', theme);
       const root = document.documentElement;
       const themeConfigs: Record<string, any> = {
           dark: { bgMain: '#09090b', bgCard: 'rgba(255, 255, 255, 0.05)', bgActive: '#FFFFFF', bgActiveText: '#000000', accent: '#6366f1', border: 'rgba(255, 255, 255, 0.08)', textPrimary: '#FAFAFA', textSecondary: 'rgba(255, 255, 255, 0.4)' },
@@ -147,7 +165,6 @@ export default function App() {
       root.style.setProperty('--border-glass', c.border);
       document.body.style.background = c.bgMain;
 
-      // Adjusted font scaling for more visible differences
       const fontScales = {
           small: '0.95',
           normal: '1.05',
@@ -156,7 +173,6 @@ export default function App() {
           xlarge: '1.4'
       };
       const currentFontSize = profile?.settings?.fontSize || 'large';
-      // Default to 1.15 if not found
       const scale = fontScales[currentFontSize] || '1.15';
       root.style.setProperty('--font-scale', scale);
 
@@ -177,6 +193,16 @@ export default function App() {
       setLanguage(languages[nextIndex]);
   };
 
+  const handleTrackRequest = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      setHelpContext({
+        blockName: 'Scheduler Task',
+        taskText: task.title
+      });
+    }
+  };
+
   const visibleNavItems = useMemo(() => {
     if (!profile?.settings?.visibleViews) return ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes'];
     return profile.settings.visibleViews;
@@ -194,7 +220,7 @@ export default function App() {
       case AppView.SCHEDULER:
         return <Scheduler 
           tasks={tasks} setTasks={setTasks} userProfile={profile} setUserProfile={handleUpdateProfile} 
-          lang={language!} onTrackRequest={() => {}} notes={notes} onUpdateNotes={setNotes}
+          lang={language!} onTrackRequest={handleTrackRequest} notes={notes} onUpdateNotes={setNotes}
           currentStats={dailyStats}
         />;
       case AppView.SMART_PLANNER:
@@ -235,7 +261,7 @@ export default function App() {
     <div className="min-h-screen text-[var(--text-primary)] overflow-hidden font-sans transition-colors duration-500 flex flex-col">
       <div className="w-full sm:max-w-md mx-auto h-[100dvh] flex flex-col relative z-10 overflow-hidden">
         <header className="p-3 sm:p-5 pb-2 flex justify-between items-center z-40 relative">
-           <Logo height={32} mood={dailyStats.mood} level={profile.level} />
+           <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
            <div className="flex items-center gap-2">
              <ThemeSelector currentTheme={theme} onSelect={setTheme} />
              <button 
@@ -255,24 +281,15 @@ export default function App() {
         </main>
 
         <nav className="fixed bottom-6 left-0 right-0 z-[600] flex justify-center px-4 pointer-events-none">
-          <div className="glass-liquid rounded-[32px] px-2 py-2 flex items-center justify-between shadow-2xl w-full pointer-events-auto bg-[var(--bg-card)]">
-            
-            {/* Always Visible Core Navigation */}
+          <div className="glass-liquid rounded-[32px] px-2 py-2 flex items-center justify-between shadow-2xl w-full max-w-md pointer-events-auto bg-[var(--bg-card)]">
             <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
             <NavBtn active={currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('scheduler')} />
-            
-            {/* Smart Planner - Explicitly placed 3rd */}
             <NavBtn active={currentView === AppView.SMART_PLANNER} onClick={() => { setCurrentView(AppView.SMART_PLANNER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
-
-            {/* Dynamic Ecosystems */}
             {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map(eco => (
                 <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
             ))}
-            
-            {/* Optional Views */}
             {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
             {visibleNavItems.includes('chat') && <NavBtn active={currentView === AppView.CHAT} onClick={() => { setCurrentView(AppView.CHAT); setActiveEcosystem(null); }} emoji={getNavEmoji('chat')} />}
-          
           </div>
         </nav>
       </div>
@@ -281,6 +298,15 @@ export default function App() {
         user={profile} lang={language} onUpdate={handleUpdateProfile} 
         onLanguageChange={setLanguage} onClose={() => setShowSettings(false)} 
       />}
+
+      {helpContext && profile && (
+        <ContextHelpOverlay
+            context={helpContext}
+            profile={profile}
+            lang={language || 'en'}
+            onClose={() => setHelpContext(null)}
+        />
+      )}
     </div>
   );
 }
