@@ -146,7 +146,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
                 try {
                     if (call.name === 'generate_image') {
                         const imageData = await generateFocuVisual((call.args as any).visual_prompt);
-                        setMessages(prev => [...prev, { id: `img_${Date.now()}`, role: 'model', text: "", imageData, timestamp: new Date() }]);
+                        setMessages(prev => [...prev, { id: `img_${Date.now()}`, role: 'model', text: "", imageData: imageData || undefined, timestamp: new Date() }]);
                         toolResult = "Image generated.";
                     } else if (call.name === 'add_task') {
                         const args = call.args as any;
