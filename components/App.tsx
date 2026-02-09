@@ -273,7 +273,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen text-[var(--text-primary)] overflow-hidden font-sans transition-colors duration-500 flex flex-col">
+    <div className="min-h-screen text-[var(--text-primary)] overflow-hidden transition-colors duration-500 flex flex-col">
       <div className="w-full sm:max-w-md mx-auto h-[100dvh] flex flex-col relative z-10 overflow-hidden">
         <header className="p-3 sm:p-5 pb-2 flex justify-between items-center z-40 relative">
            <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
@@ -332,4 +332,3 @@ const NavBtn: React.FC<{ active: boolean, onClick: (e: React.MouseEvent) => void
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
   </button>
 );
-
