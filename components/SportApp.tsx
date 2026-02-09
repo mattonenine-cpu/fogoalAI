@@ -269,10 +269,15 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
 
   const toggleComplete = (ex: Exercise) => {
       const isMarkingDone = !completedIds.includes(ex.id);
-      setCompletedIds(prev => isMarkingDone ? [...prev, ex.id] : prev.filter(i => i !== ex.id));
-      if (isMarkingDone && ex.restSeconds > 0) {
-          setRestSeconds(ex.restSeconds);
+      
+      if (isMarkingDone) {
+          setCompletedIds(prev => [...prev, ex.id]);
+          // Use exercise rest time or default to 60s
+          const time = ex.restSeconds && ex.restSeconds > 0 ? ex.restSeconds : 60;
+          setRestSeconds(time);
           setIsResting(true);
+      } else {
+          setCompletedIds(prev => prev.filter(i => i !== ex.id));
       }
   };
 
@@ -426,8 +431,13 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                       <button onClick={() => setIsPaused(!isPaused)} className="w-12 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-white transition-all active:scale-90">
                         {isPaused ? <Play size={24} fill="currentColor" /> : <Pause size={24} fill="currentColor" />}
                       </button>
-                      <div className="flex-1">
-                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">{isResting ? (lang === 'ru' ? 'ОТДЫХ' : 'REST') : (lang === 'ru' ? 'ВРЕМЯ' : 'TIME')}</p>
+                      <div 
+                        className={`flex-1 ${isResting ? 'cursor-pointer' : ''}`}
+                        onClick={() => { if(isResting) { setIsResting(false); setRestSeconds(0); } }}
+                      >
+                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">
+                            {isResting ? (lang === 'ru' ? 'ОТДЫХ • Пропустить' : 'REST • Tap to skip') : (lang === 'ru' ? 'ВРЕМЯ' : 'TIME')}
+                          </p>
                           <div className="text-4xl font-black text-white tracking-tighter tabular-nums">
                               {isResting ? formatTime(restSeconds) : formatTime(workoutSeconds)}
                           </div>
@@ -550,4 +560,3 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
     </div>
   );
 };
-
