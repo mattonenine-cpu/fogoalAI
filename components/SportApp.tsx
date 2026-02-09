@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput } from '../services/geminiService';
-import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot } from 'lucide-react';
+import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, Trophy } from 'lucide-react';
 
 interface SportAppProps {
   user: UserProfile;
@@ -124,6 +124,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
   const [isResting, setIsResting] = useState(false);
   
   const [showSummary, setShowSummary] = useState(false);
+  const [lastXp, setLastXp] = useState(0);
   
   const [showCoachChat, setShowCoachChat] = useState(false);
   const [coachMessages, setCoachMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
@@ -248,6 +249,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           activityHistory: [...(user.activityHistory || []), `SPORT: ${completionMsg}`]
       });
       
+      setLastXp(xp);
       setActivePlan(null);
       setShowSummary(true);
   };
@@ -358,11 +360,31 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       );
   }
 
+  if (showSummary) {
+      return (
+          <div className="flex flex-col items-center justify-center pt-20 animate-fadeIn space-y-8 h-full">
+              <div className="w-32 h-32 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500 border border-orange-500/20 shadow-[0_0_40px_rgba(249,115,22,0.3)]">
+                  <Trophy size={64} />
+              </div>
+              <div className="text-center space-y-2">
+                  <h2 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tighter">{lang === 'ru' ? 'Отличная работа!' : 'Great Job!'}</h2>
+                  <p className="text-4xl font-black text-orange-500">+{lastXp} XP</p>
+              </div>
+              <button 
+                  onClick={() => setShowSummary(false)} 
+                  className="px-12 py-4 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[12px] shadow-lg active:scale-95 transition-all hover:scale-105"
+              >
+                  {lang === 'ru' ? 'Продолжить' : 'Continue'}
+              </button>
+          </div>
+      );
+  }
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {!activePlan ? (
           <div className="space-y-6">
-              <GlassCard className={`p-4 sm:p-6 border-[var(--border-glass)] rounded-[32px] relative overflow-hidden shadow-2xl bg-[var(--bg-card)]`}>
+              <GlassCard className={`p-4 sm:p-6 border-[var(--border-glass)] rounded-[32px] relative overflow-hidden bg-[var(--bg-card)]`}>
                   <div className="flex justify-between items-start mb-4">
                       <div>
                           <h2 className="text-2xl font-black text-[var(--text-primary)] tracking-tighter uppercase leading-none mb-1">{t.sportHubTitle}</h2>
@@ -463,6 +485,14 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                                       </div>
                                       <button onClick={() => openTechnique(ex)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-white transition-all"><Info size={18}/></button>
                                   </div>
+                                  {!isDone && (
+                                      <button 
+                                        onClick={() => toggleComplete(ex)}
+                                        className="w-full mt-4 h-12 bg-white/5 border border-[var(--border-glass)] rounded-xl font-black uppercase text-[10px] tracking-widest text-[var(--text-secondary)] hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
+                                      >
+                                          <Check size={16} /> {lang === 'ru' ? 'Завершить' : 'Complete'}
+                                      </button>
+                                  )}
                                   {ex.notes && (
                                       <div className="mt-4 pt-4 border-t border-[var(--border-glass)]">
                                           <p className="text-[11px] font-medium text-[var(--text-secondary)] leading-relaxed">{ex.notes}</p>
