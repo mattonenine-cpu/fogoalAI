@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput } from '../services/geminiService';
-import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot } from 'lucide-react';
+import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward } from 'lucide-react';
 
 interface SportAppProps {
   user: UserProfile;
@@ -118,6 +118,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
   const [selectedEq, setSelectedEq] = useState<string[]>(user.fitnessEquipment || []);
   const [customEq, setCustomEq] = useState('');
   
+  // Timers
   const [workoutSeconds, setWorkoutSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
@@ -145,16 +146,19 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       goal: user.fitnessGoal || FitnessGoal.GENERAL
   });
 
+  // Main Workout Timer - Runs independently of Rest timer
   useEffect(() => {
     let interval: any;
-    if (activePlan && !isPaused && !isResting) {
+    // Updated: removed !isResting check so main timer keeps going during rest
+    if (activePlan && !isPaused) {
       interval = setInterval(() => {
         setWorkoutSeconds(s => s + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [activePlan, isPaused, isResting]);
+  }, [activePlan, isPaused]);
 
+  // Rest Timer - Runs only when resting
   useEffect(() => {
     let interval: any;
     if (isResting && restSeconds > 0) {
@@ -230,7 +234,9 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
   };
 
   const handleFinishWorkout = () => {
-      const xp = 50 + (completedIds.length * 15);
+      // Calculate XP based on exercises completed
+      const exercisesDone = completedIds.length;
+      const xp = 50 + (exercisesDone * 15);
       
       let newXp = (user.totalExperience || 0) + xp;
       let newLevel = user.level || 1;
@@ -245,7 +251,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           ...user,
           totalExperience: newXp,
           level: newLevel,
-          activityHistory: [...(user.activityHistory || []), `SPORT: ${completionMsg}`]
+          activityHistory: [...(user.activityHistory || []), `SPORT: ${completionMsg} (${exercisesDone} exercises)`]
       });
       
       setActivePlan(null);
@@ -279,6 +285,11 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       } else {
           setCompletedIds(prev => prev.filter(i => i !== ex.id));
       }
+  };
+
+  const skipRest = () => {
+      setIsResting(false);
+      setRestSeconds(0);
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -426,23 +437,38 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           </div>
       ) : (
           <div className="space-y-6 animate-fadeIn pb-32">
-              <div className="w-full bg-[#E85C1C] p-4 sm:p-6 rounded-[36px] flex items-center justify-between shadow-2xl shadow-orange-600/30">
-                  <div className="flex items-center gap-5">
-                      <button onClick={() => setIsPaused(!isPaused)} className="w-12 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-white transition-all active:scale-90">
+              <div className={`w-full p-4 sm:p-6 rounded-[36px] flex items-center justify-between shadow-2xl transition-all duration-500 ${isResting ? 'bg-orange-500 shadow-orange-600/30' : 'bg-[#E85C1C] shadow-orange-600/30'}`}>
+                  <div className="flex items-center gap-5 w-full">
+                      <button onClick={() => setIsPaused(!isPaused)} className="w-12 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-white transition-all active:scale-90 shrink-0">
                         {isPaused ? <Play size={24} fill="currentColor" /> : <Pause size={24} fill="currentColor" />}
                       </button>
-                      <div 
-                        className={`flex-1 ${isResting ? 'cursor-pointer' : ''}`}
-                        onClick={() => { if(isResting) { setIsResting(false); setRestSeconds(0); } }}
-                      >
-                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">
-                            {isResting ? (lang === 'ru' ? 'ОТДЫХ • Пропустить' : 'REST • Tap to skip') : (lang === 'ru' ? 'ВРЕМЯ' : 'TIME')}
+                      
+                      <div className="flex-1 flex flex-col justify-center">
+                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1 flex items-center gap-2">
+                            {isResting ? (
+                                <>
+                                    <Clock size={12} /> {lang === 'ru' ? 'ОТДЫХ' : 'REST'}
+                                </>
+                            ) : (
+                                <>
+                                    {lang === 'ru' ? 'ВРЕМЯ' : 'TIME'}
+                                </>
+                            )}
                           </p>
-                          <div className="text-4xl font-black text-white tracking-tighter tabular-nums">
-                              {isResting ? formatTime(restSeconds) : formatTime(workoutSeconds)}
+                          
+                          <div className="flex items-end gap-2">
+                              <span className="text-4xl font-black text-white tracking-tighter tabular-nums leading-none">
+                                  {isResting ? formatTime(restSeconds) : formatTime(workoutSeconds)}
+                              </span>
+                              {isResting && (
+                                  <button onClick={skipRest} className="px-3 py-1 bg-white/20 rounded-lg text-[9px] font-black text-white uppercase tracking-wider hover:bg-white/30 transition-all flex items-center gap-1 mb-1">
+                                      {lang === 'ru' ? 'Скип' : 'Skip'} <SkipForward size={10} fill="currentColor"/>
+                                  </button>
+                              )}
                           </div>
                       </div>
-                      <button onClick={handleFinishWorkout} className="px-6 h-16 rounded-2xl bg-white text-orange-600 font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">
+
+                      <button onClick={handleFinishWorkout} className="px-6 h-16 rounded-2xl bg-white text-orange-600 font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all shrink-0">
                           {t.sportFinishBtn}
                       </button>
                   </div>
@@ -459,14 +485,14 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                                       <div className="flex items-center gap-4">
                                           <button 
                                             onClick={() => toggleComplete(ex)}
-                                            className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all shadow-lg ${isDone ? 'bg-orange-500 border-orange-500 text-white' : 'border-white/10 text-[var(--text-secondary)] hover:border-orange-500 hover:text-orange-500'}`}
+                                            className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all shadow-lg ${isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-white/10 text-[var(--text-secondary)] hover:border-orange-500 hover:text-orange-500'}`}
                                           >
-                                              {isDone ? <Check size={20} strokeWidth={4} /> : <span className="text-lg font-black">{i + 1}</span>}
+                                              {isDone ? <Check size={24} strokeWidth={4} /> : <span className="text-lg font-black">{i + 1}</span>}
                                           </button>
                                           <div>
-                                              <h4 className="text-sm font-black text-[var(--text-primary)] uppercase leading-tight mb-1">{ex.name}</h4>
+                                              <h4 className="text-sm font-black text-[var(--text-primary)] uppercase leading-tight mb-2">{ex.name}</h4>
                                               <div className="flex items-center gap-3 text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
-                                                  <span className="bg-white/5 px-2 py-0.5 rounded-md">{ex.sets} x {ex.reps}</span>
+                                                  <span className="bg-white/5 px-2 py-1 rounded-md">{ex.sets} x {ex.reps}</span>
                                                   {ex.restSeconds > 0 && <span className="flex items-center gap-1"><Clock size={10} /> {ex.restSeconds}s</span>}
                                               </div>
                                           </div>
