@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from '../types';
+import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext, EcosystemConfig } from '../types';
 import { Onboarding } from './Onboarding';
 import { Dashboard } from './Dashboard';
 import { Scheduler } from './Scheduler';
@@ -67,12 +68,29 @@ export default function App() {
 
   const [language, setLanguage] = useState<Language | null>(() => {
     const saved = localStorage.getItem('focu_language');
-    return (saved as Language) || null;
+    if (!saved) return null;
+    try {
+        // Handle double-stringified values (e.g. "\"en\"") which happens because we use safeSave (JSON.stringify)
+        const parsed = JSON.parse(saved);
+        if (parsed === 'en' || parsed === 'ru') return parsed;
+        return null; 
+    } catch {
+        // Handle legacy raw values (e.g. "en")
+        if (saved === 'en' || saved === 'ru') return saved as Language;
+        return null;
+    }
   });
 
   const [theme, setTheme] = useState<AppTheme>(() => {
       const saved = localStorage.getItem('focu_theme');
-      return (saved as AppTheme) || 'dark';
+      if (!saved) return 'dark';
+      // Handle potentially stringified theme same as language
+      try {
+          const parsed = JSON.parse(saved);
+          return (['dark', 'white', 'ice', 'lilac'].includes(parsed)) ? parsed : 'dark';
+      } catch {
+          return (['dark', 'white', 'ice', 'lilac'].includes(saved)) ? saved as AppTheme : 'dark';
+      }
   });
 
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
@@ -165,7 +183,7 @@ export default function App() {
       root.style.setProperty('--border-glass', c.border);
       document.body.style.background = c.bgMain;
 
-      const fontScales = {
+      const fontScales: Record<string, string> = {
           small: '0.95',
           normal: '1.05',
           medium: '1.15',
@@ -215,7 +233,7 @@ export default function App() {
         return <Dashboard 
           user={profile} stats={dailyStats} lang={language!} tasks={tasks} 
           onUpdateProfile={handleUpdateProfile} onUpdateStats={setDailyStats} onNavigate={setCurrentView}
-          onAddTasks={(newTasks) => setTasks(prev => [...prev, ...newTasks])}
+          onAddTasks={(newTasks: Task[]) => setTasks(prev => [...prev, ...newTasks])}
         />;
       case AppView.SCHEDULER:
         return <Scheduler 
@@ -285,7 +303,7 @@ export default function App() {
             <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
             <NavBtn active={currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('scheduler')} />
             <NavBtn active={currentView === AppView.SMART_PLANNER} onClick={() => { setCurrentView(AppView.SMART_PLANNER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
-            {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map(eco => (
+            {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map((eco: EcosystemConfig) => (
                 <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
             ))}
             {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
