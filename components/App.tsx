@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from '../types';
 import { Onboarding } from './Onboarding';
@@ -68,29 +67,12 @@ export default function App() {
 
   const [language, setLanguage] = useState<Language | null>(() => {
     const saved = localStorage.getItem('focu_language');
-    if (!saved) return null;
-    try {
-        // Handle double-stringified values (e.g. "\"en\"") which happens because we use safeSave (JSON.stringify)
-        const parsed = JSON.parse(saved);
-        if (parsed === 'en' || parsed === 'ru') return parsed;
-        return null; 
-    } catch {
-        // Handle legacy raw values (e.g. "en")
-        if (saved === 'en' || saved === 'ru') return saved as Language;
-        return null;
-    }
+    return (saved as Language) || null;
   });
 
   const [theme, setTheme] = useState<AppTheme>(() => {
       const saved = localStorage.getItem('focu_theme');
-      if (!saved) return 'dark';
-      // Handle potentially stringified theme same as language
-      try {
-          const parsed = JSON.parse(saved);
-          return (['dark', 'white', 'ice', 'lilac'].includes(parsed)) ? parsed : 'dark';
-      } catch {
-          return (['dark', 'white', 'ice', 'lilac'].includes(saved)) ? saved as AppTheme : 'dark';
-      }
+      return (saved as AppTheme) || 'dark';
   });
 
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
