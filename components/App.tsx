@@ -70,12 +70,10 @@ export default function App() {
     const saved = localStorage.getItem('focu_language');
     if (!saved) return null;
     try {
-        // Handle double-stringified values (e.g. "\"en\"") which happens because we use safeSave (JSON.stringify)
         const parsed = JSON.parse(saved);
         if (parsed === 'en' || parsed === 'ru') return parsed;
         return null; 
     } catch {
-        // Handle legacy raw values (e.g. "en")
         if (saved === 'en' || saved === 'ru') return saved as Language;
         return null;
     }
@@ -84,7 +82,6 @@ export default function App() {
   const [theme, setTheme] = useState<AppTheme>(() => {
       const saved = localStorage.getItem('focu_theme');
       if (!saved) return 'dark';
-      // Handle potentially stringified theme same as language
       try {
           const parsed = JSON.parse(saved);
           return (['dark', 'white', 'ice', 'lilac'].includes(parsed)) ? parsed : 'dark';
@@ -329,9 +326,10 @@ export default function App() {
   );
 }
 
-const NavBtn: React.FC<{ active: boolean, onClick: () => void, emoji: string }> = ({ active, onClick, emoji }) => (
+const NavBtn: React.FC<{ active: boolean, onClick: (e: React.MouseEvent) => void, emoji: string }> = ({ active, onClick, emoji }) => (
   <button onClick={onClick} className={`w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-[14px] sm:rounded-[22px] flex items-center justify-center transition-all duration-300 relative ${active ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg scale-110' : 'grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:bg-white/5'}`}>
     <span className="text-sm sm:text-xl">{emoji}</span>
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
   </button>
 );
+
