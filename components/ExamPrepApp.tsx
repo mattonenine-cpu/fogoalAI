@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Exam, Ticket, UserProfile, Language, TRANSLATIONS, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
-import { X, BookOpen, ChevronLeft, Sparkles, FileText, Trophy, Loader2, CheckCircle2, Plus, Layers, BrainCircuit } from 'lucide-react';
+import { X, BookOpen, ChevronLeft, Sparkles, FileText, Trophy, Loader2, CheckCircle2, Plus, Layers, BrainCircuit, Target, Star } from 'lucide-react';
 
 const getDaysLeft = (dateStr: string) => {
   const target = new Date(dateStr);
@@ -188,11 +188,11 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       }
   };
 
-  const startQuiz = async () => {
+  const startQuiz = async (count: number) => {
       if (!activeTicket) return;
       setIsGeneratingQuiz(true);
       try {
-          const questions = await generateQuiz(activeTicket.question, activeExam?.subject || "", lang, 5);
+          const questions = await generateQuiz(activeTicket.question, activeExam?.subject || "", lang, count);
           setQuizQuestions(questions);
           setTicketMode('quiz');
           setCurrentQuizStep(0);
@@ -227,6 +227,14 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       if (!activeTicket || !activeExam) return;
       const percentage = (finalScore / quizQuestions.length) * 100;
       
+      const xpGained = finalScore * 10;
+      let newXp = (user.totalExperience || 0) + xpGained;
+      let newLevel = user.level || 1;
+      while (newXp >= newLevel * 100) {
+          newXp -= newLevel * 100;
+          newLevel += 1;
+      }
+
       const updatedExams = (user.exams || []).map(e => {
           if (e.id === activeExam.id) {
               return {
@@ -236,7 +244,15 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
           }
           return e;
       });
-      onUpdateProfile({ ...user, exams: updatedExams });
+      
+      onUpdateProfile({ 
+          ...user, 
+          exams: updatedExams,
+          totalExperience: newXp,
+          level: newLevel,
+          activityHistory: [...(user.activityHistory || []), `STUDY: Quiz on ${activeTicket.number} - ${percentage}%`]
+      });
+      
       setActiveExam(updatedExams.find(e => e.id === activeExam.id) || null);
       setTicketMode('result');
   };
@@ -315,10 +331,26 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                               {activeTicket.note ? <NoteRenderer text={activeTicket.note} lang={lang} /> : <div className="text-center opacity-50 mt-10">No content</div>}
                           </div>
                       )}
-                      <div className="p-4 border-t border-[var(--border-glass)] bg-black/20 backdrop-blur-md">
-                          <button onClick={startQuiz} className="w-full h-14 bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-                              <BrainCircuit size={18} /> {lang === 'ru' ? 'Проверить себя' : 'Take Quiz'}
-                          </button>
+                      
+                      <div className="p-5 border-t border-[var(--border-glass)] bg-black/40 backdrop-blur-md">
+                          <div className="flex items-center gap-2 mb-3">
+                              <Target size={14} className="text-indigo-400" />
+                              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{lang === 'ru' ? 'ПРОВЕРИТЬ ЗНАНИЯ' : 'TEST YOUR KNOWLEDGE'}</p>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                              <button onClick={() => startQuiz(3)} className="h-12 bg-white/5 hover:bg-indigo-500/20 text-[var(--text-primary)] rounded-xl font-bold text-[10px] uppercase tracking-wide border border-white/10 hover:border-indigo-500/30 transition-all flex flex-col items-center justify-center active:scale-95">
+                                  <span className="text-lg leading-none">3</span>
+                                  <span className="opacity-50 text-[8px]">{lang === 'ru' ? 'вопроса' : 'Qs'}</span>
+                              </button>
+                              <button onClick={() => startQuiz(5)} className="h-12 bg-white/5 hover:bg-indigo-500/20 text-[var(--text-primary)] rounded-xl font-bold text-[10px] uppercase tracking-wide border border-white/10 hover:border-indigo-500/30 transition-all flex flex-col items-center justify-center active:scale-95">
+                                  <span className="text-lg leading-none">5</span>
+                                  <span className="opacity-50 text-[8px]">{lang === 'ru' ? 'вопросов' : 'Qs'}</span>
+                              </button>
+                              <button onClick={() => startQuiz(10)} className="h-12 bg-white/5 hover:bg-indigo-500/20 text-[var(--text-primary)] rounded-xl font-bold text-[10px] uppercase tracking-wide border border-white/10 hover:border-indigo-500/30 transition-all flex flex-col items-center justify-center active:scale-95">
+                                  <span className="text-lg leading-none">10</span>
+                                  <span className="opacity-50 text-[8px]">{lang === 'ru' ? 'вопросов' : 'Qs'}</span>
+                              </button>
+                          </div>
                       </div>
                   </GlassCard>
               )}
@@ -366,14 +398,20 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
 
               {ticketMode === 'result' && (
                   <GlassCard className="flex-1 flex flex-col items-center justify-center p-8 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[32px] text-center gap-6">
-                      <div className="w-24 h-24 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+                      <div className="w-24 h-24 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 shadow-[0_0_40px_rgba(99,102,241,0.3)]">
                           <Trophy size={48} className="text-indigo-400" />
                       </div>
                       <div>
-                          <h2 className="text-3xl font-black text-[var(--text-primary)]">{quizScore} / {quizQuestions.length}</h2>
-                          <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mt-2">{lang === 'ru' ? 'Результат' : 'Result'}</p>
+                          <h2 className="text-4xl font-black text-[var(--text-primary)] tracking-tighter mb-2">{quizScore} / {quizQuestions.length}</h2>
+                          <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'Результат' : 'Result'}</p>
                       </div>
-                      <button onClick={() => setTicketMode('note')} className="px-8 py-4 bg-white/10 rounded-full text-[var(--text-primary)] font-bold text-xs hover:bg-white/20 transition-all">{t.back}</button>
+                      <div className="flex flex-col gap-3 w-full">
+                          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">XP Earned</span>
+                              <span className="text-sm font-black text-emerald-400">+{quizScore * 10} XP</span>
+                          </div>
+                          <button onClick={() => setTicketMode('note')} className="w-full h-14 bg-[var(--bg-active)] rounded-2xl text-[var(--bg-active-text)] font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg active:scale-95">{t.back}</button>
+                      </div>
                   </GlassCard>
               )}
           </div>
@@ -390,22 +428,24 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                   <span className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{currentCardIndex + 1} / {activeExam.flashcards.length}</span>
               </div>
               
-              <div className="flex-1 flex flex-col items-center justify-center perspective-1000 relative">
+              <div className="flex-1 flex flex-col items-center justify-center perspective-1000 relative px-4">
                   <div 
                     onClick={() => setIsFlipped(!isFlipped)}
-                    className={`w-full aspect-[3/4] relative transition-all duration-500 transform-style-3d cursor-pointer ${isFlipped ? 'rotate-y-180' : ''}`}
+                    className={`w-full max-w-sm aspect-[3/4] relative transition-all duration-500 transform-style-3d cursor-pointer ${isFlipped ? 'rotate-y-180' : ''}`}
                   >
                       {/* Front */}
-                      <GlassCard className="absolute inset-0 backface-hidden flex flex-col items-center justify-center p-8 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[40px] text-center">
-                          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4">Question</span>
-                          <p className="text-xl font-bold text-[var(--text-primary)]">{card.question}</p>
-                          <p className="absolute bottom-8 text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest opacity-50">Tap to flip</p>
+                      <GlassCard className="absolute inset-0 backface-hidden flex flex-col items-center justify-center p-8 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[40px] text-center shadow-2xl">
+                          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-6 border border-indigo-500/30 px-3 py-1 rounded-full">Question</span>
+                          <p className="text-2xl font-bold text-[var(--text-primary)] leading-tight">{card.question}</p>
+                          <p className="absolute bottom-8 text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest opacity-50 flex items-center gap-2">
+                              <span className="w-1 h-1 bg-[var(--text-secondary)] rounded-full"/> Tap to flip
+                          </p>
                       </GlassCard>
 
                       {/* Back */}
-                      <GlassCard className="absolute inset-0 backface-hidden rotate-y-180 flex flex-col items-center justify-center p-8 bg-indigo-600 border-indigo-500 rounded-[40px] text-center shadow-2xl">
-                          <span className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-4">Answer</span>
-                          <p className="text-lg font-medium text-white leading-relaxed">{card.answer}</p>
+                      <GlassCard className="absolute inset-0 backface-hidden rotate-y-180 flex flex-col items-center justify-center p-8 bg-indigo-600 border-indigo-500 rounded-[40px] text-center shadow-[0_0_50px_rgba(99,102,241,0.4)]">
+                          <span className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-6 border border-white/20 px-3 py-1 rounded-full">Answer</span>
+                          <p className="text-xl font-bold text-white leading-relaxed">{card.answer}</p>
                       </GlassCard>
                   </div>
               </div>
@@ -417,7 +457,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                         setCurrentCardIndex(prev => Math.max(0, prev - 1));
                     }}
                     disabled={currentCardIndex === 0}
-                    className="flex-1 h-14 rounded-2xl bg-white/5 border border-[var(--border-glass)] flex items-center justify-center text-[var(--text-secondary)] disabled:opacity-30"
+                    className="flex-1 h-14 rounded-2xl bg-white/5 border border-[var(--border-glass)] flex items-center justify-center text-[var(--text-secondary)] disabled:opacity-30 active:scale-95 transition-all"
                   >
                       <ChevronLeft />
                   </button>
@@ -507,7 +547,8 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                                     <span className="text-[12px] font-bold text-[var(--text-primary)] truncate">{ticket.question}</span>
                                 </div>
                                 {ticket.lastScore !== undefined && (
-                                    <div className="px-2 py-1 rounded-md bg-black/20 text-[9px] font-black text-[var(--text-primary)]">
+                                    <div className={`px-2 py-1 rounded-md text-[9px] font-black text-[var(--text-primary)] flex items-center gap-1 ${ticket.lastScore >= 50 ? 'bg-black/20' : 'bg-rose-500/20 text-rose-200'}`}>
+                                        {ticket.lastScore >= 75 && <Star size={8} fill="currentColor"/>}
                                         {Math.round(ticket.lastScore)}%
                                     </div>
                                 )}
