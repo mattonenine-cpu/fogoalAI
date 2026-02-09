@@ -4,7 +4,6 @@ import { GoogleGenAI } from "@google/genai";
 declare const process: { env: { [key: string]: string | undefined } };
 
 export default async function handler(req: any, res: any) {
-  // Add diagnostics for GET request to check status
   if (req.method === 'GET') {
       const hasKey = !!process.env.API_KEY;
       return res.status(200).json({ 
@@ -31,6 +30,7 @@ export default async function handler(req: any, res: any) {
 
     const ai = new GoogleGenAI({ apiKey });
     
+    // Fallback model if not specified
     const usedModel = model || 'gemini-3-flash-preview';
 
     const response = await ai.models.generateContent({
