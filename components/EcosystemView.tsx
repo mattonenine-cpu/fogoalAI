@@ -366,14 +366,21 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
     setInputValue('');
     setChatLoading(true);
 
+    const streamIdx = Date.now();
+    setMessages(prev => [...prev, {role: 'model', text: '', _streamId: streamIdx} as any]);
+
     try {
         if (!practiceSessionRef.current) {
             practiceSessionRef.current = createChatSession(user, [], lang, domainTasks, type);
         }
-        const res = await practiceSessionRef.current.sendMessage({ message: text });
-        setMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(res.text || "")}]);
+        await practiceSessionRef.current.sendMessage({ 
+            message: text,
+            onChunk: (fullText: string) => {
+                setMessages(prev => prev.map((m: any) => m._streamId === streamIdx ? {...m, text: cleanTextOutput(fullText)} : m));
+            }
+        });
     } catch (e) {
-        setMessages(prev => [...prev, {role: 'model', text: t.chatError}]);
+        setMessages(prev => prev.map((m: any) => m._streamId === streamIdx ? {...m, text: t.chatError} : m));
     } finally {
         setChatLoading(false);
     }
@@ -386,14 +393,21 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
     setDomainInputValue('');
     setDomainLoading(true);
 
+    const streamIdx = Date.now();
+    setDomainMessages(prev => [...prev, {role: 'model', text: '', _streamId: streamIdx} as any]);
+
     try {
         if (!domainSessionRef.current) {
             domainSessionRef.current = createChatSession(user, [], lang, domainTasks, type);
         }
-        const res = await domainSessionRef.current.sendMessage({ message: text });
-        setDomainMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(res.text || "")}]);
+        await domainSessionRef.current.sendMessage({ 
+            message: text,
+            onChunk: (fullText: string) => {
+                setDomainMessages(prev => prev.map((m: any) => m._streamId === streamIdx ? {...m, text: cleanTextOutput(fullText)} : m));
+            }
+        });
     } catch (e) {
-        setDomainMessages(prev => [...prev, {role: 'model', text: t.chatError}]);
+        setDomainMessages(prev => prev.map((m: any) => m._streamId === streamIdx ? {...m, text: t.chatError} : m));
     } finally {
         setDomainLoading(false);
     }

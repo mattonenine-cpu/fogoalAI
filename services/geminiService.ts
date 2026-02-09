@@ -22,7 +22,7 @@ export const cleanTextOutput = (text: string = "") => {
 };
 
 /**
- * Helper to call the Vercel API endpoints
+ * Helper to call the Vercel API endpoints (non-streaming)
  */
 async function callApi(endpoint: string, body: any) {
     try {
@@ -42,7 +42,6 @@ async function callApi(endpoint: string, body: any) {
             }
             return data;
         } else {
-            // If response is not JSON (e.g., Vercel 500 HTML error page)
             const text = await response.text();
             console.error(`Non-JSON response from ${endpoint}:`, text.substring(0, 200));
             throw new Error(`Connection Error (${response.status}). Please check Vercel logs and ensure API_KEY is set in Settings.`);
@@ -54,6 +53,62 @@ async function callApi(endpoint: string, body: any) {
 }
 
 /**
+ * Streaming helper -- reads SSE from the API and calls onChunk for each piece of text
+ */
+async function callApiStream(
+    endpoint: string, 
+    body: any, 
+    onChunk: (text: string) => void
+): Promise<string> {
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, stream: true })
+    });
+
+    if (!response.ok) {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await response.json();
+            throw new Error(data.error || `Server error: ${response.status}`);
+        }
+        throw new Error(`Connection Error (${response.status}).`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("No response body");
+
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+            const payload = trimmed.slice(6);
+            if (payload === '[DONE]') continue;
+            try {
+                const parsed = JSON.parse(payload);
+                if (parsed.text) {
+                    fullText += parsed.text;
+                    onChunk(fullText);
+                }
+            } catch {}
+        }
+    }
+
+    return fullText;
+}
+
+/**
  * Creates a helper session for contextual advice
  */
 export function createHelpSession(context: HelpContext, profile: UserProfile, lang: Language) {
@@ -61,18 +116,26 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
     const systemInstruction = `You are a helpful assistant providing contextual help for ${context.blockName}. Task: ${context.taskText}. User: ${profile.name || 'User'}. Lang: ${lang}. Be extremely concise.`;
 
     return {
-        sendMessage: async ({ message }: { message: string }) => {
+        sendMessage: async ({ message, onChunk }: { message: string; onChunk?: (text: string) => void }) => {
             localHistory.push({ role: 'user', parts: [{ text: message }] });
             
-            const result = await callApi('/api/generate', {
-                model: 'gemini-3-flash-preview',
-                contents: localHistory,
-                config: { systemInstruction }
-            });
+            let text: string;
+            if (onChunk) {
+                text = await callApiStream('/api/generate', {
+                    model: 'gemini-3-flash-preview',
+                    contents: localHistory,
+                    config: { systemInstruction }
+                }, onChunk);
+            } else {
+                const result = await callApi('/api/generate', {
+                    model: 'gemini-3-flash-preview',
+                    contents: localHistory,
+                    config: { systemInstruction }
+                });
+                text = result.text || "";
+            }
 
-            const text = result.text || "";
             localHistory.push({ role: 'model', parts: [{ text }] });
-            
             return { text };
         }
     };
@@ -86,18 +149,26 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
     const systemInstruction = `You are FoGoal AI, an expert AI coach for the ${type} ecosystem. User: ${user.name || 'User'}. Lang: ${lang}. Recent tasks context: ${JSON.stringify(tasks.slice(0, 5))}. Be concise and motivating.`;
 
     return {
-        sendMessage: async ({ message }: { message: string }) => {
+        sendMessage: async ({ message, onChunk }: { message: string; onChunk?: (text: string) => void }) => {
             localHistory.push({ role: 'user', parts: [{ text: message }] });
             
-            const result = await callApi('/api/generate', {
-                model: 'gemini-3-flash-preview',
-                contents: localHistory,
-                config: { systemInstruction }
-            });
+            let text: string;
+            if (onChunk) {
+                text = await callApiStream('/api/generate', {
+                    model: 'gemini-3-flash-preview',
+                    contents: localHistory,
+                    config: { systemInstruction }
+                }, onChunk);
+            } else {
+                const result = await callApi('/api/generate', {
+                    model: 'gemini-3-flash-preview',
+                    contents: localHistory,
+                    config: { systemInstruction }
+                });
+                text = result.text || "";
+            }
 
-            const text = result.text || "";
             localHistory.push({ role: 'model', parts: [{ text }] });
-            
             return { text };
         }
     };

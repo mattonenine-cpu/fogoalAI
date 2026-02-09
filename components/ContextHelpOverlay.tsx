@@ -41,8 +41,14 @@ export const ContextHelpOverlay: React.FC<ContextHelpOverlayProps> = ({ context,
       try {
         const session = createHelpSession(context, profile, lang);
         sessionRef.current = session;
-        const result = await session.sendMessage({ message: "Привет. Дай ОЧЕНЬ короткий совет (1 предложение) по этой задаче." });
-        setMessages([{ role: 'model', text: cleanTextOutput(result.text || "") }]);
+        // Stream first message
+        setMessages([{ role: 'model', text: '' }]);
+        await session.sendMessage({ 
+            message: "Привет. Дай ОЧЕНЬ короткий совет (1 предложение) по этой задаче.",
+            onChunk: (fullText: string) => {
+                setMessages([{ role: 'model', text: cleanTextOutput(fullText) }]);
+            }
+        });
       } catch (e) {
         setMessages([{ role: 'model', text: "Error." }]);
       } finally {
@@ -64,11 +70,18 @@ export const ContextHelpOverlay: React.FC<ContextHelpOverlayProps> = ({ context,
     setInputValue('');
     setLoading(true);
 
+    const streamIdx = Date.now();
+    setMessages(prev => [...prev, { role: 'model', text: '', _streamId: streamIdx } as any]);
+
     try {
-        const result = await sessionRef.current.sendMessage({ message: text + " (Ответь кратко)" });
-        setMessages(prev => [...prev, { role: 'model', text: cleanTextOutput(result.text || "") }]);
+        await sessionRef.current.sendMessage({ 
+            message: text + " (Ответь кратко)",
+            onChunk: (fullText: string) => {
+                setMessages(prev => prev.map((m: any) => m._streamId === streamIdx ? {...m, text: cleanTextOutput(fullText)} : m));
+            }
+        });
     } catch (e) {
-        setMessages(prev => [...prev, { role: 'model', text: "Error." }]);
+        setMessages(prev => prev.map((m: any) => m._streamId === streamIdx ? {...m, text: "Error."} : m));
     } finally {
         setLoading(false);
     }

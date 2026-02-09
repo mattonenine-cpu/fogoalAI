@@ -18,7 +18,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { model, contents, config } = req.body || {};
+    const { model, contents, config, stream } = req.body || {};
     const apiKey = process.env.API_KEY;
 
     if (!apiKey) {
@@ -29,10 +29,32 @@ export default async function handler(req: any, res: any) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
-    
-    // Fallback model if not specified
     const usedModel = model || 'gemini-3-flash-preview';
 
+    // Streaming mode for chat responses
+    if (stream) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      const response = await ai.models.generateContentStream({
+        model: usedModel,
+        contents,
+        config
+      });
+
+      for await (const chunk of response) {
+        const text = chunk.text || '';
+        if (text) {
+          res.write(`data: ${JSON.stringify({ text })}\n\n`);
+        }
+      }
+      res.write(`data: [DONE]\n\n`);
+      res.end();
+      return;
+    }
+
+    // Non-streaming mode for structured JSON responses (tasks, schedules, etc.)
     const response = await ai.models.generateContent({
       model: usedModel,
       contents,

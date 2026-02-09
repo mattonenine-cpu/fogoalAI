@@ -111,6 +111,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
     setIsLoading(true);
     setQuotaError(false);
 
+    const streamMsgId = (Date.now() + 1).toString();
+
     try {
         // Initialize or reuse session
         if (!chatSessionRef.current) {
@@ -123,14 +125,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
             chatSessionRef.current = createChatSession(userProfile, historyForSdk, lang, tasks);
         }
 
-        const result = await chatSessionRef.current.sendMessage({ message: textToSend });
+        // Add an empty model message that will be filled by streaming
+        setMessages(prev => [...prev, { id: streamMsgId, role: 'model', text: '', timestamp: new Date() }]);
 
-        if (result.text) {
-          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: result.text, timestamp: new Date() }]);
-        }
+        await chatSessionRef.current.sendMessage({ 
+            message: textToSend,
+            onChunk: (fullText: string) => {
+                setMessages(prev => prev.map(m => m.id === streamMsgId ? { ...m, text: fullText } : m));
+            }
+        });
     } catch (error: any) {
         console.error("Chat Error:", error);
-        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: t.chatError, timestamp: new Date() }]);
+        // If stream message was added but errored, replace it; otherwise add new error message
+        setMessages(prev => {
+            const hasStream = prev.some(m => m.id === streamMsgId);
+            if (hasStream) {
+                return prev.map(m => m.id === streamMsgId ? { ...m, text: t.chatError } : m);
+            }
+            return [...prev, { id: streamMsgId, role: 'model', text: t.chatError, timestamp: new Date() }];
+        });
     } finally { 
         setIsLoading(false); 
     }
@@ -149,7 +162,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
        </div>
 
        <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-2 scrollbar-hide pb-32">
-         {messages.map((msg) => (
+         {messages.filter(msg => msg.text || msg.role === 'user' || msg.imageData).map((msg) => (
            <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'model' ? 'bg-[var(--theme-accent)]/20 text-[var(--theme-accent)]' : 'bg-[var(--bg-card)] text-[var(--text-secondary)]'}`}>
                {msg.role === 'model' ? <Bot size={16} /> : <User size={16} />}
@@ -172,7 +185,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
            </div>
          ))}
          
-         {isLoading && (
+         {isLoading && (() => { const last = messages[messages.length - 1]; return !last || last.role !== 'model' || last.text === ''; })() && (
             <div className="flex gap-3 animate-pulse">
                 <div className="w-8 h-8 rounded-full bg-[var(--bg-card)] flex items-center justify-center"><Bot size={16} className="text-[var(--theme-accent)]"/></div>
                 <div className="bg-[var(--bg-card)] px-4 py-3 rounded-[20px] rounded-tl-md flex items-center gap-2 text-[10px] text-[var(--theme-accent)] border border-[var(--border-glass)]">

@@ -288,16 +288,22 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       setCoachMessages(prev => [...prev, {role: 'user', text: textToSend}]);
       setCoachInput('');
       setCoachLoading(true);
+
+      const streamIdx = Date.now();
+      setCoachMessages(prev => [...prev, {role: 'model', text: '', _streamId: streamIdx} as any]);
+
       try {
           if (!coachSessionRef.current) {
               coachSessionRef.current = createChatSession(user, [], lang, [], 'sport');
           }
-          let response = await coachSessionRef.current.sendMessage({ message: textToSend });
-          if (response.text) {
-              setCoachMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(response.text || "")}]);
-          }
+          await coachSessionRef.current.sendMessage({ 
+              message: textToSend,
+              onChunk: (fullText: string) => {
+                  setCoachMessages(prev => prev.map((m: any) => m._streamId === streamIdx ? {...m, text: cleanTextOutput(fullText)} : m));
+              }
+          });
       } catch (e) {
-          setCoachMessages(prev => [...prev, {role: 'model', text: t.chatError}]);
+          setCoachMessages(prev => prev.map((m: any) => m._streamId === streamIdx ? {...m, text: t.chatError} : m));
       } finally {
           setCoachLoading(false);
       }
