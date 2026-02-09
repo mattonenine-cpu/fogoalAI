@@ -3,13 +3,19 @@ import { GoogleGenAI } from "@google/genai";
 
 declare const process: { env: { [key: string]: string | undefined } };
 
-export async function POST(request: Request) {
+export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
   try {
-    const { model, contents, config } = await request.json();
+    // Vercel parses JSON body automatically if Content-Type is application/json
+    const { model, contents, config } = req.body;
     const apiKey = process.env.API_KEY;
 
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "API Key not configured on server" }), { status: 500 });
+      console.error("API Key missing");
+      return res.status(500).json({ error: "API Key not configured on server" });
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -23,11 +29,9 @@ export async function POST(request: Request) {
       config
     });
 
-    return new Response(JSON.stringify({ text: response.text }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(200).json({ text: response.text });
   } catch (error: any) {
     console.error("API Error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Internal Server Error" }), { status: 500 });
+    return res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 }
