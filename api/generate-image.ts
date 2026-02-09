@@ -1,20 +1,14 @@
-
 import { GoogleGenAI } from "@google/genai";
 
 declare const process: { env: { [key: string]: string | undefined } };
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
+export async function POST(request: Request) {
   try {
-    const { prompt, refImageBase64 } = req.body;
+    const { prompt, refImageBase64 } = await request.json();
     const apiKey = process.env.API_KEY;
 
     if (!apiKey) {
-      console.error("API Key missing");
-      return res.status(500).json({ error: "API Key not configured on server" });
+      return new Response(JSON.stringify({ error: "API Key not configured on server" }), { status: 500 });
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -52,9 +46,11 @@ export default async function handler(req: any, res: any) {
         }
     }
 
-    return res.status(200).json({ imageUrl });
+    return new Response(JSON.stringify({ imageUrl }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error: any) {
     console.error("Image API Error:", error);
-    return res.status(500).json({ error: error.message || "Internal Server Error" });
+    return new Response(JSON.stringify({ error: error.message || "Internal Server Error" }), { status: 500 });
   }
 }
