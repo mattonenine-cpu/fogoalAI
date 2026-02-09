@@ -1,160 +1,96 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { UserProfile, Language, TRANSLATIONS, AppTheme, FitnessLevel, FitnessGoal, WorkoutPlan, Exercise, Task } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput } from '../services/geminiService';
-import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, Trophy } from 'lucide-react';
+import { Trophy, RefreshCw, MessageCircle, Play, Pause, Clock, Check, Info, X, Loader2, Bot, Send, User, Plus, Dumbbell } from 'lucide-react';
 
 interface SportAppProps {
   user: UserProfile;
   lang: Language;
   onUpdateProfile: (profile: UserProfile) => void;
-  onAddTasks?: (tasks: Task[]) => void;
+  onAddTasks: (tasks: Task[]) => void;
   theme: AppTheme;
 }
 
 const EQUIPMENT_LIST = [
-  { id: 'dumbbells', en: "Dumbbells", ru: "Гантели" },
-  { id: 'barbell', en: "Barbell", ru: "Штанга" },
-  { id: 'pullup', en: "Pull-up Bar", ru: "Турник" },
-  { id: 'dip', en: "Dip Bars", ru: "Брусья" },
-  { id: 'smith', en: "Smith Machine", ru: "Тренажер Смита" },
-  { id: 'leg_press', en: "Leg Press", ru: "Жим ногами" },
-  { id: 'cable', en: "Cable Machine", ru: "Тяга блока" },
-  { id: 'mat', en: "Yoga Mat", ru: "Коврик" },
-  { id: 'kettlebell', en: "Kettlebells", ru: "Гири" },
-  { id: 'crossover', en: "Crossover", ru: "Кроссовер" }
+    { id: 'db', en: 'Dumbbells', ru: 'Гантели' },
+    { id: 'bw', en: 'Bodyweight', ru: 'Свой вес' },
+    { id: 'gym', en: 'Gym Machine', ru: 'Тренажеры' },
+    { id: 'res', en: 'Resistance Bands', ru: 'Резинки' },
+    { id: 'mat', en: 'Yoga Mat', ru: 'Коврик' },
+    { id: 'kb', en: 'Kettlebell', ru: 'Гиря' }
 ];
 
-const FIT_LEVEL_LABELS: Record<FitnessLevel, { en: string, ru: string }> = {
-    [FitnessLevel.BEGINNER]: { en: 'Beginner', ru: 'Новичок' },
-    [FitnessLevel.INTERMEDIATE]: { en: 'Intermediate', ru: 'Любитель' },
-    [FitnessLevel.ADVANCED]: { en: 'Advanced', ru: 'Профи' }
-};
-
-const FIT_GOAL_LABELS: Record<FitnessGoal, { en: string, ru: string }> = {
+const FIT_GOAL_LABELS: any = {
     [FitnessGoal.WEIGHT_LOSS]: { en: 'Weight Loss', ru: 'Похудение' },
     [FitnessGoal.MUSCLE_GAIN]: { en: 'Muscle Gain', ru: 'Набор массы' },
-    [FitnessGoal.GENERAL]: { en: 'General Fitness', ru: 'Общая форма' },
+    [FitnessGoal.GENERAL]: { en: 'General Fitness', ru: 'Тонус' },
     [FitnessGoal.ENDURANCE]: { en: 'Endurance', ru: 'Выносливость' }
 };
 
-// --- Text Rendering Helpers for Chat ---
-const parseBold = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, idx) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={idx} className="font-black opacity-90">{part.slice(2, -2)}</strong>;
-        }
-        return part;
-    });
+const FIT_LEVEL_LABELS: any = {
+    [FitnessLevel.BEGINNER]: { en: 'Beginner', ru: 'Новичок' },
+    [FitnessLevel.INTERMEDIATE]: { en: 'Intermediate', ru: 'Средний' },
+    [FitnessLevel.ADVANCED]: { en: 'Advanced', ru: 'Профи' }
 };
 
-const renderMessageContent = (text: string, isUser: boolean) => {
-    return text.split('\n').map((line, i) => {
-        const trimmed = line.trim();
-        if (!trimmed) return <div key={i} className="h-2" />;
-        
-        if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
-            const content = trimmed.replace(/^#+\s+/, '');
-            return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-orange-500'}`}>{parseBold(content)}</h3>;
-        }
-        
-        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-             return (
-                <div key={i} className="flex gap-2 pl-2 mb-1">
-                    <span className={`font-black ${isUser ? 'text-white/60' : 'text-orange-400'}`}>•</span>
-                    <span className="text-[13px] leading-relaxed">{parseBold(trimmed.replace(/^[\-\*]\s+/, ''))}</span>
-                </div>
-            );
-        }
+// Markdown renderer for technique text
+const SportNoteRenderer = ({ text }: { text: string }) => (
+    <div className="prose prose-invert prose-sm max-w-none">
+        {text.split('\n').map((line, i) => <p key={i} className="mb-2">{line}</p>)}
+    </div>
+);
 
-        return <p key={i} className="text-[13px] leading-relaxed mb-1">{parseBold(line)}</p>;
-    });
-};
-
-const SportNoteRenderer: React.FC<{ text: string }> = ({ text }) => {
-    const lines = text.split('\n');
-    return (
-        <div className="space-y-5 text-[var(--text-secondary)] leading-relaxed font-medium">
-            {lines.map((line, idx) => {
-                const trimmed = line.trim();
-                if (!trimmed) return <div key={idx} className="h-2" />;
-                if (trimmed.startsWith('# ')) {
-                    return (
-                        <h1 key={idx} className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-200 tracking-tighter pt-1 pb-4 mb-4 uppercase text-center border-b border-orange-500/20">
-                            {trimmed.substring(2)}
-                        </h1>
-                    );
-                }
-                if (trimmed.startsWith('## ')) {
-                    return (
-                        <div key={idx} className="pt-6 mt-2 mb-3">
-                            <h2 className="text-lg font-black text-orange-500 tracking-widest uppercase flex items-center gap-3">
-                                <span className="w-1 h-5 bg-orange-600 rounded-full"></span>
-                                {trimmed.substring(3)}
-                            </h2>
-                        </div>
-                    );
-                }
-                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-                    return (
-                        <div key={idx} className="flex items-start gap-3 pl-1 group">
-                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-2.5 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
-                            <p className="text-[15px] leading-relaxed text-[var(--text-primary)] flex-1">{parseBold(trimmed.substring(2))}</p>
-                        </div>
-                    );
-                }
-                return <p key={idx} className="text-[15px] leading-7 text-[var(--text-primary)] font-normal tracking-wide pl-1">{parseBold(trimmed)}</p>;
-            })}
-        </div>
-    );
-};
+// Message renderer
+const renderMessageContent = (text: string, isUser: boolean) => (
+    <div className="whitespace-pre-wrap">{text}</div>
+);
 
 export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile, onAddTasks, theme }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
+  
+  // State
   const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedEq, setSelectedEq] = useState<string[]>(user.fitnessEquipment || []);
-  const [customEq, setCustomEq] = useState('');
-  
-  const [workoutSeconds, setWorkoutSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [restSeconds, setRestSeconds] = useState(0);
+  const [workoutSeconds, setWorkoutSeconds] = useState(0);
+  const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [isResting, setIsResting] = useState(false);
-  
-  const [showSummary, setShowSummary] = useState(false);
-  const [lastXp, setLastXp] = useState(0);
-  
+  const [restSeconds, setRestSeconds] = useState(0);
   const [showCoachChat, setShowCoachChat] = useState(false);
   const [coachMessages, setCoachMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
   const [coachInput, setCoachInput] = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
-  const coachSessionRef = useRef<any>(null);
-  const coachEndRef = useRef<HTMLDivElement>(null);
-
+  const [selectedEq, setSelectedEq] = useState<string[]>(user.fitnessEquipment || []);
+  const [customEq, setCustomEq] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [lastXp, setLastXp] = useState(0);
+  const [showSummary, setShowSummary] = useState(false);
+  
   const [activeExercise, setActiveExercise] = useState<Exercise | null>(null);
-  const [techniqueText, setTechniqueText] = useState('');
   const [isLoadingTechnique, setIsLoadingTechnique] = useState(false);
-  const [completedIds, setCompletedIds] = useState<string[]>([]);
+  const [techniqueText, setTechniqueText] = useState('');
 
   const [onboardingProfile, setOnboardingProfile] = useState({
       weight: user.weight || 70,
       height: user.height || 175,
-      gender: user.gender || 'male',
       level: user.fitnessLevel || FitnessLevel.BEGINNER,
-      goal: user.fitnessGoal || FitnessGoal.GENERAL
+      goal: user.fitnessGoal || FitnessGoal.GENERAL,
+      gender: user.gender || 'male'
   });
+
+  const coachEndRef = useRef<HTMLDivElement>(null);
+  const coachSessionRef = useRef<any>(null);
 
   useEffect(() => {
     let interval: any;
-    if (activePlan && !isPaused && !isResting) {
+    if (activePlan && !isPaused) {
       interval = setInterval(() => {
         setWorkoutSeconds(s => s + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [activePlan, isPaused, isResting]);
+  }, [activePlan, isPaused]);
 
   useEffect(() => {
     let interval: any;
@@ -448,11 +384,19 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                       <button onClick={() => setIsPaused(!isPaused)} className="w-12 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-white transition-all active:scale-90">
                         {isPaused ? <Play size={24} fill="currentColor" /> : <Pause size={24} fill="currentColor" />}
                       </button>
-                      <div className="flex-1">
-                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">{isResting ? (lang === 'ru' ? 'ОТДЫХ' : 'REST') : (lang === 'ru' ? 'ВРЕМЯ' : 'TIME')}</p>
-                          <div className="text-4xl font-black text-white tracking-tighter tabular-nums">
-                              {isResting ? formatTime(restSeconds) : formatTime(workoutSeconds)}
+                      <div className="flex-1 flex flex-col justify-center pl-2">
+                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5">{lang === 'ru' ? 'ВРЕМЯ' : 'TIME'}</p>
+                          <div className="text-4xl font-black text-white tracking-tighter tabular-nums leading-none">
+                              {formatTime(workoutSeconds)}
                           </div>
+                          {isResting && (
+                              <div className="mt-1.5 flex items-center gap-2 animate-fade-in-up">
+                                   <Clock size={12} className="text-white/80 animate-pulse"/>
+                                   <span className="text-xs font-bold text-white/90 uppercase tracking-wider tabular-nums">
+                                      {formatTime(restSeconds)}
+                                   </span>
+                              </div>
+                          )}
                       </div>
                       <button onClick={handleFinishWorkout} className="px-6 h-16 rounded-2xl bg-white text-orange-600 font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">
                           {t.sportFinishBtn}
