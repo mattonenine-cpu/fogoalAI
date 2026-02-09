@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserProfile, ChatMessage, Language, TRANSLATIONS, Task, Category } from '../types';
-import { getLocalISODate, generateFocuVisual, createChatSession, cleanTextOutput } from '../services/geminiService';
-import { Bot, User, Loader2, X, AlertTriangle, Key, ArrowUp, Trash2 } from 'lucide-react';
+import { GlassTextArea, GlassButton } from './GlassCard';
+import { createChatSession, generateFocuVisual, getLocalISODate } from '../services/geminiService';
+import { Send, Bot, User, Loader2, X, AlertTriangle, Key, Download, ArrowUp, CheckCircle, Trash2 } from 'lucide-react';
 
 interface ChatInterfaceProps {
   userProfile: UserProfile;
@@ -27,26 +28,30 @@ const renderMessageContent = (text: string, isUser: boolean) => {
         const trimmed = line.trim();
         if (!trimmed) return <div key={i} className="h-2" />;
         
+        // Headers
         if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
             const content = trimmed.replace(/^#+\s+/, '');
             return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-[var(--theme-accent)]'}`}>{parseBold(content, isUser)}</h3>;
         }
         
-        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        // Lists
+        if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
              return (
                 <div key={i} className="flex gap-2 pl-2 mb-1">
                     <span className={`font-black ${isUser ? 'text-white/60' : 'text-[var(--theme-accent)]'}`}>•</span>
-                    <span className="text-[13px] leading-relaxed">{parseBold(trimmed.replace(/^[\-\*]\s+/, ''), isUser)}</span>
+                    <span className="text-[13px] leading-relaxed">{parseBold(trimmed.replace(/^[\-•]\s+/, ''), isUser)}</span>
                 </div>
             );
         }
 
+        // Paragraphs
         return <p key={i} className="text-[13px] leading-relaxed mb-1">{parseBold(line, isUser)}</p>;
     });
 };
+// ------------------------------
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang, tasks, onSetTasks }) => {
-  const t = TRANSLATIONS[lang];
+  const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const MAX_HISTORY = 50;
   
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -65,6 +70,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
 
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [tasksPendingCount, setTasksPendingCount] = useState(0);
   const [quotaError, setQuotaError] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -80,25 +86,38 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
   }, [userProfile.name, lang, t.chatInit, messages.length]);
 
   useEffect(() => {
-    try {
-        localStorage.setItem('focu_chat_history', JSON.stringify(messages));
-    } catch (e) {
-        console.warn('Failed to save chat history');
-    }
+    localStorage.setItem('focu_chat_history', JSON.stringify(messages));
   }, [messages]);
 
-  useEffect(() => { scrollToBottom(); }, [messages, isLoading]);
+  const initChat = useCallback((currentTasks: Task[]) => {
+    const history = messages
+        .filter(msg => msg.id !== 'init' && msg.text && msg.text.trim().length > 0)
+        .map(msg => ({ role: msg.role, parts: [{ text: msg.text }] }));
+    chatSessionRef.current = createChatSession(userProfile, history, lang, currentTasks);
+  }, [userProfile, lang, messages]);
+
+  useEffect(() => {
+    if (!chatSessionRef.current) initChat(tasks);
+  }, [initChat, tasks]);
+
+  useEffect(() => { scrollToBottom(); }, [messages, isLoading, tasksPendingCount]);
 
   const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); };
+
+  const handleOpenKeySelection = async () => {
+    if (typeof (window as any).aistudio?.openSelectKey === 'function') {
+      await (window as any).aistudio.openSelectKey();
+      setQuotaError(false);
+      initChat(tasks);
+    }
+  };
 
   const handleClearHistory = () => {
     if (window.confirm(lang === 'ru' ? "Очистить историю чата?" : "Clear chat history?")) {
       const name = userProfile.name?.trim() || (lang === 'ru' ? 'друг' : 'friend');
       setMessages([{ id: 'init', role: 'model', text: t.chatInit.replace('{name}', name), timestamp: new Date() }]);
-      try { 
-          localStorage.removeItem('focu_chat_history'); 
-          chatSessionRef.current = null;
-      } catch(e){}
+      localStorage.removeItem('focu_chat_history');
+      initChat(tasks);
     }
   };
 
@@ -111,29 +130,67 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
     setInputValue('');
     setIsLoading(true);
     setQuotaError(false);
+    setTasksPendingCount(0);
 
     try {
-        // Initialize or reuse session
-        if (!chatSessionRef.current) {
-            const historyForSdk = messages
-                .filter(msg => msg.text && msg.text.trim().length > 0)
-                .map(msg => ({ 
-                    role: msg.role === 'user' ? 'user' : 'model', 
-                    parts: [{ text: msg.text }] 
-                }));
-            chatSessionRef.current = createChatSession(userProfile, historyForSdk, lang, tasks);
+        if (!chatSessionRef.current) initChat(tasks);
+        
+        let response = await chatSessionRef.current.sendMessage({ message: textToSend });
+        
+        let loopCount = 0;
+        while (response.functionCalls && response.functionCalls.length > 0 && loopCount < 15) {
+            loopCount++;
+            const functionResponses = [];
+            for (const call of response.functionCalls) {
+                let toolResult = "Success";
+                try {
+                    if (call.name === 'generate_image') {
+                        const imageData = await generateFocuVisual((call.args as any).visual_prompt);
+                        setMessages(prev => [...prev, { id: `img_${Date.now()}`, role: 'model', text: "", imageData, timestamp: new Date() }]);
+                        toolResult = "Image generated.";
+                    } else if (call.name === 'add_task') {
+                        const args = call.args as any;
+                        const newTask: Task = {
+                            id: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                            title: args.title,
+                            category: Category.WORK,
+                            durationMinutes: args.durationMinutes || 30,
+                            completed: false,
+                            priority: args.priority || 'Medium',
+                            energyRequired: args.energyRequired || 'medium',
+                            cognitiveLoad: 'medium',
+                            emotionalResistance: 'low',
+                            date: args.date || getLocalISODate(),
+                            scheduledTime: args.scheduledTime,
+                            zoneId: args.zoneId,
+                            flexibility: 'flexible',
+                            status: 'planned'
+                        };
+                        onSetTasks(prev => [...prev, newTask]);
+                        setTasksPendingCount(prev => prev + 1);
+                        toolResult = `Task added for ${args.date || getLocalISODate()}.`;
+                    }
+                } catch (toolErr) { toolResult = "Execution failed."; }
+                functionResponses.push({ id: call.id, name: call.name, response: { result: toolResult } });
+            }
+            response = await chatSessionRef.current.sendMessage({ message: functionResponses.map(fr => ({ functionResponse: fr })) });
         }
 
-        const result = await chatSessionRef.current.sendMessage({ message: textToSend });
-
-        if (result.text) {
-          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: result.text, timestamp: new Date() }]);
+        if (response.text) {
+          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: response.text, timestamp: new Date() }]);
         }
     } catch (error: any) {
         console.error("Chat Error:", error);
-        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: t.chatError, timestamp: new Date() }]);
+        if (error.message?.includes("entity was not found") || error.status === 404) {
+            handleOpenKeySelection();
+        } else if (error?.status === 429) {
+            setQuotaError(true);
+        } else {
+            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: t.chatError, timestamp: new Date() }]);
+        }
     } finally { 
         setIsLoading(false); 
+        setTasksPendingCount(0);
     }
   };
 
@@ -142,14 +199,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
   };
 
   return (
-    <div className="h-full flex flex-col animate-fadeIn">
-       <div className="flex justify-end px-2 py-1">
+    <div className="flex flex-col animate-fadeIn relative">
+       <div className="flex justify-end px-2 py-1 mb-2">
           <button onClick={handleClearHistory} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-red-500/10 text-slate-500 hover:text-red-400 transition-all text-[10px] font-bold uppercase tracking-wider active:scale-95">
             <Trash2 size={12} /> {lang === 'ru' ? 'Очистить' : 'Clear'}
           </button>
        </div>
 
-       <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-2 scrollbar-hide pb-32">
+       <div className="space-y-4 pr-1 pt-2 pb-32">
          {messages.map((msg) => (
            <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'model' ? 'bg-[var(--theme-accent)]/20 text-[var(--theme-accent)]' : 'bg-[var(--bg-card)] text-[var(--text-secondary)]'}`}>
@@ -173,6 +230,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
            </div>
          ))}
          
+         {quotaError && (
+             <div className="flex gap-3 animate-fade-in-up">
+                 <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center"><AlertTriangle size={16} className="text-amber-500"/></div>
+                 <div className="bg-[var(--bg-card)] px-5 py-4 rounded-[20px] rounded-tl-md border border-amber-500/20 max-w-[85%]">
+                     <p className="text-[12px] text-amber-200 font-medium mb-3">{lang === 'ru' ? 'Лимит бесплатных запросов исчерпан. Вы можете подключить свой платный API-ключ для продолжения работы.' : 'Free quota exhausted. You can use your own paid API key to continue.'}</p>
+                     <button onClick={handleOpenKeySelection} className="w-full py-2 bg-amber-500 text-black rounded-full font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
+                         <Key size={14}/> {lang === 'ru' ? 'Выбрать API Ключ' : 'Select API Key'}
+                     </button>
+                 </div>
+             </div>
+         )}
+
          {isLoading && (
             <div className="flex gap-3 animate-pulse">
                 <div className="w-8 h-8 rounded-full bg-[var(--bg-card)] flex items-center justify-center"><Bot size={16} className="text-[var(--theme-accent)]"/></div>
@@ -206,4 +275,3 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
     </div>
   );
 };
-
