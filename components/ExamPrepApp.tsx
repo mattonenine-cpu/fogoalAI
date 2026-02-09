@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Exam, Ticket, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
@@ -147,7 +148,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
     setErrorStatus(null);
     try {
         const parsed = await parseTicketsFromText(rawTicketsText, lang);
-        const tickets: Ticket[] = (parsed || []).filter(p => !!p && p.question).map((p, i) => ({ 
+        const tickets: Ticket[] = (parsed || []).filter((p: any) => !!p && p.question).map((p: any, i: number) => ({ 
             id: `t_${Date.now()}_${i}`, 
             number: p.number || (i + 1), 
             question: p.question || '', 
