@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput } from '../services/geminiService';
-import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, Trophy } from 'lucide-react';
+import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot } from 'lucide-react';
 
 interface SportAppProps {
   user: UserProfile;
@@ -39,50 +39,99 @@ const FIT_GOAL_LABELS: Record<FitnessGoal, { en: string, ru: string }> = {
     [FitnessGoal.ENDURANCE]: { en: 'Endurance', ru: 'Выносливость' }
 };
 
-// Safe Text Renderer
+// --- Text Rendering Helpers for Chat ---
+const parseBold = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, idx) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={idx} className="font-black opacity-90">{part.slice(2, -2)}</strong>;
+        }
+        return part;
+    });
+};
+
+const renderMessageContent = (text: string, isUser: boolean) => {
+    return text.split('\n').map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} className="h-2" />;
+        
+        if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
+            const content = trimmed.replace(/^#+\s+/, '');
+            return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-orange-500'}`}>{parseBold(content)}</h3>;
+        }
+        
+        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+             return (
+                <div key={i} className="flex gap-2 pl-2 mb-1">
+                    <span className={`font-black ${isUser ? 'text-white/60' : 'text-orange-400'}`}>•</span>
+                    <span className="text-[13px] leading-relaxed">{parseBold(trimmed.replace(/^[\-\*]\s+/, ''))}</span>
+                </div>
+            );
+        }
+
+        return <p key={i} className="text-[13px] leading-relaxed mb-1">{parseBold(line)}</p>;
+    });
+};
+
 const SportNoteRenderer: React.FC<{ text: string }> = ({ text }) => {
+    const lines = text.split('\n');
     return (
-        <div className="space-y-3 text-sm text-[var(--text-secondary)] leading-relaxed font-medium">
-            {text.split('\n').map((line, idx) => {
+        <div className="space-y-5 text-[var(--text-secondary)] leading-relaxed font-medium">
+            {lines.map((line, idx) => {
                 const trimmed = line.trim();
-                if (!trimmed) return <div key={idx} className="h-1" />;
-                if (trimmed.startsWith('#')) {
-                    return <h4 key={idx} className="text-[var(--text-primary)] font-bold uppercase tracking-wide pt-2">{trimmed.replace(/^#+\s*/, '')}</h4>;
+                if (!trimmed) return <div key={idx} className="h-2" />;
+                if (trimmed.startsWith('# ')) {
+                    return (
+                        <h1 key={idx} className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-200 tracking-tighter pt-1 pb-4 mb-4 uppercase text-center border-b border-orange-500/20">
+                            {trimmed.substring(2)}
+                        </h1>
+                    );
                 }
-                if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-                    return <div key={idx} className="flex gap-2 pl-2"><span className="text-[var(--theme-accent)]">•</span><span>{trimmed.replace(/^[-*]\s*/, '')}</span></div>;
+                if (trimmed.startsWith('## ')) {
+                    return (
+                        <div key={idx} className="pt-6 mt-2 mb-3">
+                            <h2 className="text-lg font-black text-orange-500 tracking-widest uppercase flex items-center gap-3">
+                                <span className="w-1 h-5 bg-orange-600 rounded-full"></span>
+                                {trimmed.substring(3)}
+                            </h2>
+                        </div>
+                    );
                 }
-                return <p key={idx}>{trimmed}</p>;
+                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                    return (
+                        <div key={idx} className="flex items-start gap-3 pl-1 group">
+                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-2.5 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
+                            <p className="text-[15px] leading-relaxed text-[var(--text-primary)] flex-1">{parseBold(trimmed.substring(2))}</p>
+                        </div>
+                    );
+                }
+                return <p key={idx} className="text-[15px] leading-7 text-[var(--text-primary)] font-normal tracking-wide pl-1">{parseBold(trimmed)}</p>;
             })}
         </div>
     );
 };
 
-const renderMessageContent = (text: string) => {
-    return text.split('\n').map((line, i) => <p key={i} className="mb-1 last:mb-0">{line}</p>);
-};
-
-export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile, theme }) => {
+export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile, onAddTasks, theme }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedEq, setSelectedEq] = useState<string[]>(user.fitnessEquipment || []);
   const [customEq, setCustomEq] = useState('');
   
-  // Independent Timers
   const [workoutSeconds, setWorkoutSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
   const [isResting, setIsResting] = useState(false);
   
   const [showSummary, setShowSummary] = useState(false);
-  const [lastXp, setLastXp] = useState(0);
   
   const [showCoachChat, setShowCoachChat] = useState(false);
   const [coachMessages, setCoachMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
   const [coachInput, setCoachInput] = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
-  
+  const coachSessionRef = useRef<any>(null);
+  const coachEndRef = useRef<HTMLDivElement>(null);
+
   const [activeExercise, setActiveExercise] = useState<Exercise | null>(null);
   const [techniqueText, setTechniqueText] = useState('');
   const [isLoadingTechnique, setIsLoadingTechnique] = useState(false);
@@ -96,21 +145,16 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       goal: user.fitnessGoal || FitnessGoal.GENERAL
   });
 
-  const coachSessionRef = useRef<any>(null);
-  const coachEndRef = useRef<HTMLDivElement>(null);
-
-  // Main Workout Timer
   useEffect(() => {
     let interval: any;
-    if (activePlan && !isPaused) {
+    if (activePlan && !isPaused && !isResting) {
       interval = setInterval(() => {
         setWorkoutSeconds(s => s + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [activePlan, isPaused]);
+  }, [activePlan, isPaused, isResting]);
 
-  // Rest Timer (Independent)
   useEffect(() => {
     let interval: any;
     if (isResting && restSeconds > 0) {
@@ -204,7 +248,6 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           activityHistory: [...(user.activityHistory || []), `SPORT: ${completionMsg}`]
       });
       
-      setLastXp(xp);
       setActivePlan(null);
       setShowSummary(true);
   };
@@ -227,8 +270,6 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
   const toggleComplete = (ex: Exercise) => {
       const isMarkingDone = !completedIds.includes(ex.id);
       setCompletedIds(prev => isMarkingDone ? [...prev, ex.id] : prev.filter(i => i !== ex.id));
-      
-      // Auto-start rest timer if marking as done and exercise has rest time defined
       if (isMarkingDone && ex.restSeconds > 0) {
           setRestSeconds(ex.restSeconds);
           setIsResting(true);
@@ -317,31 +358,11 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       );
   }
 
-  if (showSummary) {
-      return (
-          <div className="flex flex-col items-center justify-center pt-20 animate-fadeIn space-y-8 h-full">
-              <div className="w-32 h-32 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500 border border-orange-500/20 shadow-[0_0_40px_rgba(249,115,22,0.3)]">
-                  <Trophy size={64} />
-              </div>
-              <div className="text-center space-y-2">
-                  <h2 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tighter">{lang === 'ru' ? 'Отличная работа!' : 'Great Job!'}</h2>
-                  <p className="text-4xl font-black text-orange-500">+{lastXp} XP</p>
-              </div>
-              <button 
-                  onClick={() => setShowSummary(false)} 
-                  className="px-12 py-4 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[12px] shadow-lg active:scale-95 transition-all hover:scale-105"
-              >
-                  {lang === 'ru' ? 'Продолжить' : 'Continue'}
-              </button>
-          </div>
-      );
-  }
-
   return (
     <div className="space-y-6 animate-fadeIn">
       {!activePlan ? (
           <div className="space-y-6">
-              <GlassCard className={`p-4 sm:p-6 border-[var(--border-glass)] rounded-[32px] relative overflow-hidden bg-[var(--bg-card)]`}>
+              <GlassCard className={`p-4 sm:p-6 border-[var(--border-glass)] rounded-[32px] relative overflow-hidden shadow-2xl bg-[var(--bg-card)]`}>
                   <div className="flex justify-between items-start mb-4">
                       <div>
                           <h2 className="text-2xl font-black text-[var(--text-primary)] tracking-tighter uppercase leading-none mb-1">{t.sportHubTitle}</h2>
@@ -405,19 +426,11 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                       <button onClick={() => setIsPaused(!isPaused)} className="w-12 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-white transition-all active:scale-90">
                         {isPaused ? <Play size={24} fill="currentColor" /> : <Pause size={24} fill="currentColor" />}
                       </button>
-                      <div className="flex-1 flex flex-col justify-center pl-2">
-                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5">{lang === 'ru' ? 'ВРЕМЯ' : 'TIME'}</p>
-                          <div className="text-4xl font-black text-white tracking-tighter tabular-nums leading-none">
-                              {formatTime(workoutSeconds)}
+                      <div className="flex-1">
+                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">{isResting ? (lang === 'ru' ? 'ОТДЫХ' : 'REST') : (lang === 'ru' ? 'ВРЕМЯ' : 'TIME')}</p>
+                          <div className="text-4xl font-black text-white tracking-tighter tabular-nums">
+                              {isResting ? formatTime(restSeconds) : formatTime(workoutSeconds)}
                           </div>
-                          {isResting && (
-                              <div className="mt-1.5 flex items-center gap-2 animate-fade-in-up">
-                                   <Clock size={12} className="text-white/80 animate-pulse"/>
-                                   <span className="text-xs font-bold text-white/90 uppercase tracking-wider tabular-nums">
-                                      {formatTime(restSeconds)}
-                                   </span>
-                              </div>
-                          )}
                       </div>
                       <button onClick={handleFinishWorkout} className="px-6 h-16 rounded-2xl bg-white text-orange-600 font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">
                           {t.sportFinishBtn}
@@ -450,14 +463,6 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                                       </div>
                                       <button onClick={() => openTechnique(ex)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-white transition-all"><Info size={18}/></button>
                                   </div>
-                                  {!isDone && (
-                                      <button 
-                                        onClick={() => toggleComplete(ex)}
-                                        className="w-full mt-4 h-12 bg-white/5 border border-[var(--border-glass)] rounded-xl font-black uppercase text-[10px] tracking-widest text-[var(--text-secondary)] hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
-                                      >
-                                          <Check size={16} /> {lang === 'ru' ? 'Завершить' : 'Complete'}
-                                      </button>
-                                  )}
                                   {ex.notes && (
                                       <div className="mt-4 pt-4 border-t border-[var(--border-glass)]">
                                           <p className="text-[11px] font-medium text-[var(--text-secondary)] leading-relaxed">{ex.notes}</p>
@@ -511,7 +516,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                     {coachMessages.map((msg, i) => (
                         <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[85%] px-5 py-3.5 rounded-[24px] text-[13px] leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] font-medium' : 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border-glass)]'}`}>
-                                {renderMessageContent(msg.text)}
+                                {renderMessageContent(msg.text, msg.role === 'user')}
                             </div>
                         </div>
                     ))}
@@ -545,3 +550,4 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
     </div>
   );
 };
+
