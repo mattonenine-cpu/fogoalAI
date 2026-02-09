@@ -1,7 +1,7 @@
 
 import { UserProfile, Task, Language, Goal, EcosystemType, HelpContext, EcosystemConfig, HealthDailyLog, WorkoutPlan, Ticket } from '../types';
 
-// Helper for type compatibility without importing the full SDK
+// Mock Type enum for schemas to avoid importing the heavy SDK on client
 export const Type = {
   STRING: 'STRING',
   NUMBER: 'NUMBER',
@@ -17,9 +17,12 @@ export const getLocalISODate = (date: Date = new Date()) => {
   return localDate.toISOString().split('T')[0];
 };
 
+/**
+ * Ensures text is clean of markdown code blocks before parsing
+ */
 export const cleanTextOutput = (text: string = "") => {
     return text.replace(/```json/g, '').replace(/```/g, '').trim();
-};
+}
 
 /**
  * Helper to call the Vercel API endpoints
@@ -66,6 +69,7 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
             const text = result.text || "";
             localHistory.push({ role: 'model', parts: [{ text }] });
             
+            // Return object compatible with SDK response for frontend compatibility
             return { text };
         }
     };
@@ -76,7 +80,7 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
  */
 export function createChatSession(user: UserProfile, history: any[], lang: Language, tasks: Task[], type: string = 'General') {
     const localHistory = [...history];
-    const systemInstruction = `You are FoGoal AI, an expert AI coach for the ${type} ecosystem. User: ${user.name || 'User'}. Lang: ${lang}. Recent tasks context: ${JSON.stringify(tasks.slice(0, 5))}. Be concise and motivating.`;
+    const systemInstruction = `You are FoGoal AI, an expert AI coach for the ${type} ecosystem. User: ${user.name || 'User'}. Lang: ${lang}. Recent tasks context: ${JSON.stringify(tasks.slice(0, 10))}.`;
 
     return {
         sendMessage: async ({ message }: { message: string }) => {
@@ -303,7 +307,6 @@ export async function generateTicketNote(question: string, subject: string, lang
 
 export async function generateGlossaryAndCards(tickets: Ticket[], subject: string, lang: Language) {
     const prompt = `Create a glossary and flashcards for studying the subject: "${subject}". 
-    IMPORTANT: Flashcard answers MUST be very short (maximum 10-12 words) to fit on a mobile card.
     Questions: ${JSON.stringify(tickets.map(t => t.question))}. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
