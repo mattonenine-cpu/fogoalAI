@@ -60,51 +60,93 @@ async function callApiStream(
     body: any, 
     onChunk: (text: string) => void
 ): Promise<string> {
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...body, stream: true })
-    });
+    console.log("[v0] callApiStream: starting stream request to", endpoint);
+    
+    let response: Response;
+    try {
+        response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...body, stream: true })
+        });
+    } catch (fetchErr: any) {
+        console.error("[v0] callApiStream: fetch failed", fetchErr);
+        throw fetchErr;
+    }
+
+    console.log("[v0] callApiStream: response status", response.status, "content-type", response.headers.get("content-type"));
 
     if (!response.ok) {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-            const data = await response.json();
-            throw new Error(data.error || `Server error: ${response.status}`);
+        let errMsg = `Connection Error (${response.status}).`;
+        try {
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                errMsg = data.error || errMsg;
+                console.error("[v0] callApiStream: server error JSON", data);
+            } else {
+                const text = await response.text();
+                console.error("[v0] callApiStream: server error text", text.substring(0, 500));
+            }
+        } catch (parseErr) {
+            console.error("[v0] callApiStream: could not parse error response", parseErr);
         }
-        throw new Error(`Connection Error (${response.status}).`);
+        throw new Error(errMsg);
     }
 
     const reader = response.body?.getReader();
-    if (!reader) throw new Error("No response body");
+    if (!reader) {
+        console.error("[v0] callApiStream: no response body reader");
+        throw new Error("No response body");
+    }
 
     const decoder = new TextDecoder();
     let fullText = '';
     let buffer = '';
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || !trimmed.startsWith('data: ')) continue;
-            const payload = trimmed.slice(6);
-            if (payload === '[DONE]') continue;
-            try {
-                const parsed = JSON.parse(payload);
-                if (parsed.text) {
-                    fullText += parsed.text;
-                    onChunk(fullText);
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data: ')) continue;
+                const payload = trimmed.slice(6);
+                if (payload === '[DONE]') continue;
+                try {
+                    const parsed = JSON.parse(payload);
+                    if (parsed.error) {
+                        console.error("[v0] callApiStream: server sent error event", parsed.error);
+                        throw new Error(parsed.error);
+                    }
+                    if (parsed.text) {
+                        fullText += parsed.text;
+                        onChunk(fullText);
+                    }
+                } catch (jsonErr: any) {
+                    if (jsonErr.message && !jsonErr.message.includes('JSON')) {
+                        throw jsonErr; // re-throw error events
+                    }
+                    console.warn("[v0] callApiStream: could not parse chunk", payload.substring(0, 100));
                 }
-            } catch {}
+            }
         }
+    } catch (readErr: any) {
+        console.error("[v0] callApiStream: read error", readErr);
+        // If we already have some text, return it; otherwise rethrow
+        if (fullText) {
+            console.warn("[v0] callApiStream: returning partial text after error");
+            return fullText;
+        }
+        throw readErr;
     }
 
+    console.log("[v0] callApiStream: complete, total length", fullText.length);
     return fullText;
 }
 
@@ -114,6 +156,7 @@ async function callApiStream(
 export function createHelpSession(context: HelpContext, profile: UserProfile, lang: Language) {
     const localHistory: any[] = [];
     const systemInstruction = `You are a helpful assistant providing contextual help for ${context.blockName}. Task: ${context.taskText}. User: ${profile.name || 'User'}. Lang: ${lang}. Be extremely concise.`;
+    const chatConfig = { systemInstruction, thinkingConfig: { thinkingLevel: 'low' } };
 
     return {
         sendMessage: async ({ message, onChunk }: { message: string; onChunk?: (text: string) => void }) => {
@@ -124,13 +167,13 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
                 text = await callApiStream('/api/generate', {
                     model: 'gemini-3-flash-preview',
                     contents: localHistory,
-                    config: { systemInstruction }
+                    config: chatConfig
                 }, onChunk);
             } else {
                 const result = await callApi('/api/generate', {
                     model: 'gemini-3-flash-preview',
                     contents: localHistory,
-                    config: { systemInstruction }
+                    config: chatConfig
                 });
                 text = result.text || "";
             }
@@ -147,6 +190,7 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
 export function createChatSession(user: UserProfile, history: any[], lang: Language, tasks: Task[], type: string = 'General') {
     const localHistory = [...history];
     const systemInstruction = `You are FoGoal AI, an expert AI coach for the ${type} ecosystem. User: ${user.name || 'User'}. Lang: ${lang}. Recent tasks context: ${JSON.stringify(tasks.slice(0, 5))}. Be concise and motivating.`;
+    const chatConfig = { systemInstruction, thinkingConfig: { thinkingLevel: 'low' } };
 
     return {
         sendMessage: async ({ message, onChunk }: { message: string; onChunk?: (text: string) => void }) => {
@@ -157,13 +201,13 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
                 text = await callApiStream('/api/generate', {
                     model: 'gemini-3-flash-preview',
                     contents: localHistory,
-                    config: { systemInstruction }
+                    config: chatConfig
                 }, onChunk);
             } else {
                 const result = await callApi('/api/generate', {
                     model: 'gemini-3-flash-preview',
                     contents: localHistory,
-                    config: { systemInstruction }
+                    config: chatConfig
                 });
                 text = result.text || "";
             }
