@@ -1,21 +1,20 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from '../types';
-import { Onboarding } from './Onboarding';
-import { Dashboard } from './Dashboard';
-import { Scheduler } from './Scheduler';
-import { SmartPlanner } from './SmartPlanner';
-import { ChatInterface } from './ChatInterface';
-import { EcosystemView } from './EcosystemView';
-import { NotesView } from './NotesView';
-import { LanguageSelector } from './LanguageSelector';
-import { Logo } from './Logo';
-import { ThemeSelector } from './ThemeSelector';
-import { SettingsModal } from './SettingsModal';
-import { ContextHelpOverlay } from './ContextHelpOverlay';
+import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from './types';
+import { Onboarding } from './components/Onboarding';
+import { Dashboard } from './components/Dashboard';
+import { Scheduler } from './components/Scheduler';
+import { SmartPlanner } from './components/SmartPlanner';
+import { ChatInterface } from './components/ChatInterface';
+import { EcosystemView } from './components/EcosystemView';
+import { NotesView } from './components/NotesView';
+import { LanguageSelector } from './components/LanguageSelector';
+import { Logo } from './components/Logo';
+import { ThemeSelector } from './components/ThemeSelector';
+import { SettingsModal } from './components/SettingsModal';
+import { ContextHelpOverlay } from './components/ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound } from 'lucide-react';
-import { getLocalISODate } from '../services/geminiService';
-import { authService } from '../services/authService';
+import { getLocalISODate } from './services/geminiService';
+import { authService } from './services/authService';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
 const safeSave = (key: string, data: any) => {
@@ -68,29 +67,12 @@ export default function App() {
 
   const [language, setLanguage] = useState<Language | null>(() => {
     const saved = localStorage.getItem('focu_language');
-    if (!saved) return null;
-    try {
-        // Handle double-stringified values (e.g. "\"en\"") which happens because we use safeSave (JSON.stringify)
-        const parsed = JSON.parse(saved);
-        if (parsed === 'en' || parsed === 'ru') return parsed;
-        return null; 
-    } catch {
-        // Handle legacy raw values (e.g. "en")
-        if (saved === 'en' || saved === 'ru') return saved as Language;
-        return null;
-    }
+    return (saved as Language) || null;
   });
 
   const [theme, setTheme] = useState<AppTheme>(() => {
       const saved = localStorage.getItem('focu_theme');
-      if (!saved) return 'dark';
-      // Handle potentially stringified theme same as language
-      try {
-          const parsed = JSON.parse(saved);
-          return (['dark', 'white', 'ice', 'lilac'].includes(parsed)) ? parsed : 'dark';
-      } catch {
-          return (['dark', 'white', 'ice', 'lilac'].includes(saved)) ? saved as AppTheme : 'dark';
-      }
+      return (saved as AppTheme) || 'dark';
   });
 
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
@@ -212,13 +194,13 @@ export default function App() {
   };
 
   const handleTrackRequest = (taskId: string) => {
-      const task = tasks.find(t => t.id === taskId);
-      if (task) {
-          setHelpContext({
-              blockName: 'Scheduler Task',
-              taskText: task.title
-          });
-      }
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      setHelpContext({
+        blockName: 'Scheduler Task',
+        taskText: task.title
+      });
+    }
   };
 
   const visibleNavItems = useMemo(() => {
