@@ -11,7 +11,7 @@ export const Type = {
   OBJECT: 'OBJECT'
 };
 
-const FAST_MODEL = 'gemini-2.5-flash-lite-preview-02-05';
+const FAST_MODEL = 'gemini-2.0-flash-lite-preview-02-05';
 const COMPLEX_MODEL = 'gemini-3-flash-preview';
 
 export const getLocalISODate = (date: Date = new Date()) => {
@@ -41,7 +41,7 @@ async function callApi(endpoint: string, body: any) {
         if (contentType && contentType.indexOf("application/json") !== -1) {
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || `Server error: ${response.status}`);
+                throw new Error(data.error || data.message || `Server error: ${response.status}`);
             }
             return data;
         } else {
@@ -89,8 +89,24 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
     const systemInstruction = `You are FoGoal AI, an expert AI coach for the ${type} ecosystem. User: ${user.name || 'User'}. Lang: ${lang}. Recent tasks context: ${JSON.stringify(tasks.slice(0, 5))}. Be concise and motivating.`;
 
     return {
-        sendMessage: async ({ message }: { message: string }) => {
-            localHistory.push({ role: 'user', parts: [{ text: message }] });
+        sendMessage: async (payload: { message?: string, parts?: any[] }) => {
+            // Handle both string message and parts array (for flexibility)
+            let newParts: any[] = [];
+            
+            if (payload.parts) {
+                newParts = payload.parts;
+            } else if (payload.message) {
+                if (typeof payload.message === 'string') {
+                    newParts = [{ text: payload.message }];
+                } else if (Array.isArray(payload.message)) {
+                    // ChatInterface might pass array of function responses as 'message'
+                    newParts = payload.message;
+                }
+            }
+
+            if (newParts.length > 0) {
+                localHistory.push({ role: 'user', parts: newParts });
+            }
             
             const result = await callApi('/api/generate', {
                 model: FAST_MODEL,
@@ -99,9 +115,11 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
             });
 
             const text = result.text || "";
-            localHistory.push({ role: 'model', parts: [{ text }] });
+            if (text) {
+                localHistory.push({ role: 'model', parts: [{ text }] });
+            }
             
-            return { text };
+            return result;
         }
     };
 }
