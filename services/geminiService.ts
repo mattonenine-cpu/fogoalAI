@@ -377,8 +377,9 @@ export async function generateQuiz(question: string, subject: string, lang: Lang
     return JSON.parse(cleanTextOutput(result.text || "[]"));
 }
 
-export async function generateWorkout(user: UserProfile, lang: Language): Promise<WorkoutPlan> {
-    const prompt = `Generate a workout plan for a user with goal: ${user.fitnessGoal}, level: ${user.fitnessLevel}, and equipment: ${user.fitnessEquipment?.join(', ')}. Lang: ${lang}`;
+export async function generateWorkout(user: UserProfile, lang: Language, muscleGroups: string[] = []): Promise<WorkoutPlan> {
+    const muscleContext = muscleGroups.length > 0 ? `Focus ONLY on these muscle groups: ${muscleGroups.join(', ')}.` : 'Create a balanced full-body workout.';
+    const prompt = `Generate a workout plan for a user with goal: ${user.fitnessGoal}, level: ${user.fitnessLevel}, and equipment: ${user.fitnessEquipment?.join(', ')}. ${muscleContext} Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
         model: 'gemini-3-flash-preview', 
