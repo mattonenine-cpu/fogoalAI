@@ -1,10 +1,12 @@
 
+// ... imports unchanged ...
 import React, { useState, useMemo, useEffect } from 'react';
 import { Exam, Ticket, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
 import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2 } from 'lucide-react';
 
+// ... helper functions (getDaysLeft, NoteRenderer, renderBoldText) unchanged ...
 const getDaysLeft = (dateStr: string) => {
   const target = new Date(dateStr);
   const now = new Date();
@@ -148,7 +150,6 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
     setErrorStatus(null);
     try {
         const parsed = await parseTicketsFromText(rawTicketsText, lang);
-        // Explicitly typed parameters 'p' and 'i' to fix TS7006 error
         const tickets: Ticket[] = (parsed || []).filter((p: any) => !!p && p.question).map((p: any, i: number) => ({ 
             id: `t_${Date.now()}_${i}`, 
             number: p.number || (i + 1), 
@@ -300,6 +301,8 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       setIsGeneratingQuiz(true);
       setErrorStatus(null);
       setQuizScore(0);
+      setAnswerFeedback(null); // Fix: Reset feedback state
+      setSelectedAnswer(null); // Fix: Reset selected answer state
       try {
           const quiz = await generateQuiz(activeTicket.question, activeExam!.subject, lang, quizCount);
           setQuizQuestions(quiz || []);
@@ -339,6 +342,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   if (showWizard) {
       return (
           <div className="h-full flex flex-col animate-fadeIn bg-[var(--bg-main)] relative">
+                {/* ... Wizard Content (Unchanged) ... */}
                 <header className="flex justify-between items-center mb-6 shrink-0 px-2">
                     {user.exams && user.exams.length > 0 ? (
                         <button onClick={() => setShowWizard(false)} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><X size={20} /></button>
@@ -356,18 +360,13 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                                 placeholder={t.examSubject}
                                 className="h-14"
                             />
-                            {/* Updated Date Input to fix iOS layout issue */}
                             <div className="relative">
                                 <GlassInput 
                                     type="date" 
                                     value={newExam.date} 
                                     onChange={e => setNewExam({...newExam, date: e.target.value})} 
                                     className="h-14 w-full block text-left min-h-[56px] bg-white/5 px-4 text-[var(--text-primary)]"
-                                    style={{ 
-                                        appearance: 'none', 
-                                        WebkitAppearance: 'none',
-                                        boxSizing: 'border-box'
-                                    }}
+                                    style={{ appearance: 'none', WebkitAppearance: 'none', boxSizing: 'border-box' }}
                                 />
                             </div>
                             <button onClick={() => setWizardStep(2)} disabled={!newExam.subject || !newExam.date} className="w-full h-16 bg-[var(--bg-active)] text-[var(--bg-active-text)] font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95 transition-all disabled:opacity-30">{t.next}</button>
@@ -415,6 +414,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
 
       return (
           <div className="animate-fadeIn w-full">
+                {/* ... Header & Progress ... */}
                 <header className="flex justify-between items-center mb-6 shrink-0">
                     <div className="flex items-center gap-4">
                         <button onClick={() => setActiveExam(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-[var(--text-primary)]"><ChevronLeft size={22} /></button>
@@ -547,11 +547,11 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                     </div>
                 )}
 
-                {/* FLASHCARD STUDY SESSION OVERLAY */}
+                {/* FLASHCARD STUDY SESSION OVERLAY - OPTIMIZED LAYOUT */}
                 {isFlashcardSession && (
                   <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-3xl flex items-center justify-center p-4 animate-fadeIn">
-                      <div className="w-full max-w-md h-[85vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-2xl flex flex-col relative overflow-hidden p-8">
-                          <header className="flex justify-between items-center mb-6 shrink-0">
+                      <div className="w-full max-w-md h-[85vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-2xl flex flex-col relative overflow-hidden">
+                          <header className="flex justify-between items-center p-6 shrink-0 bg-[var(--bg-main)] z-20">
                               <button onClick={() => setIsFlashcardSession(false)} className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-slate-400 active:scale-90 transition-all hover:text-white"><X size={20} /></button>
                               <div className="text-center">
                                   <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">{lang === 'ru' ? 'Изучение' : 'Studying'}</p>
@@ -560,7 +560,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                               <div className="w-12" />
                           </header>
 
-                          <div className="flex-1 flex flex-col items-center justify-center pb-24">
+                          <div className="flex-1 flex flex-col items-center justify-center p-4">
                               {sessionQueue.length === 0 ? (
                                   <div className="text-center space-y-8 animate-fade-in-up">
                                       <div className="w-28 h-28 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto text-indigo-400 border border-indigo-500/30 shadow-[0_0_30px_rgba(99,102,241,0.2)]">
@@ -601,7 +601,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                           </div>
 
                           {sessionQueue.length > 0 && isFlipped && (
-                              <footer className="mt-8 flex gap-4 pb-20 animate-fade-in-up shrink-0">
+                              <footer className="shrink-0 p-6 flex gap-4 pb-8 animate-fade-in-up bg-[var(--bg-main)] border-t border-[var(--border-glass)] z-20">
                                   <button 
                                     onClick={() => processCardResult(false)} 
                                     className="flex-1 h-16 bg-white/5 text-[var(--text-secondary)] rounded-3xl font-black uppercase text-[10px] active:scale-95 border border-[var(--border-glass)] transition-all hover:bg-white/10"
@@ -723,9 +723,13 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       );
   }
 
+  // ... (main return remains similar but layout was fixed in previous steps)
+  // Re-pasting just the main return block to ensure consistency if needed, but it was mostly unchanged.
+  // Assuming the `handleStartQuiz` fix and flashcard layout fix are key.
+  // The logic above includes the full component with changes.
+  
   return (
     <div className="animate-fadeIn space-y-6 max-w-md mx-auto h-full flex flex-col">
-        {/* ... (Main exam list view - unchanged) ... */}
         <div className="flex justify-between items-center mb-2 px-1">
             <div>
                 <h1 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter">{t.examAcademy}</h1>
