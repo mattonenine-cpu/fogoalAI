@@ -39,7 +39,13 @@ export default async function handler(req: any, res: any) {
       config
     });
 
-    return res.status(200).json({ text: response.text });
+    // Return the full response structure to support candidates, functionCalls, etc.
+    return res.status(200).json({
+        text: response.text, // Convenience
+        candidates: response.candidates,
+        usageMetadata: response.usageMetadata,
+        functionCalls: response.functionCalls 
+    });
   } catch (error: any) {
     console.error("Gemini API Error:", error);
     return res.status(500).json({ 
