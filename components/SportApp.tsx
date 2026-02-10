@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput } from '../services/geminiService';
-import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward } from 'lucide-react';
+import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward, ArrowLeft } from 'lucide-react';
 
 interface SportAppProps {
   user: UserProfile;
@@ -146,10 +146,9 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       goal: user.fitnessGoal || FitnessGoal.GENERAL
   });
 
-  // Main Workout Timer - Runs independently of Rest timer
+  // Main Workout Timer - Runs independently
   useEffect(() => {
     let interval: any;
-    // Updated: removed !isResting check so main timer keeps going during rest
     if (activePlan && !isPaused) {
       interval = setInterval(() => {
         setWorkoutSeconds(s => s + 1);
@@ -437,41 +436,45 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           </div>
       ) : (
           <div className="space-y-6 animate-fadeIn pb-32">
-              <div className={`w-full p-4 sm:p-6 rounded-[36px] flex items-center justify-between shadow-2xl transition-all duration-500 ${isResting ? 'bg-orange-500 shadow-orange-600/30' : 'bg-[#E85C1C] shadow-orange-600/30'}`}>
-                  <div className="flex items-center gap-5 w-full">
-                      <button onClick={() => setIsPaused(!isPaused)} className="w-12 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-white transition-all active:scale-90 shrink-0">
+              {/* UPDATED TIMER CARD */}
+              <div className="w-full p-4 sm:p-6 rounded-[36px] bg-[#E85C1C] shadow-2xl shadow-orange-600/30 flex flex-col gap-4">
+                  {/* Top Row: Main Timer Control */}
+                  <div className="flex items-center justify-between">
+                      <button onClick={() => setIsPaused(!isPaused)} className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white transition-all active:scale-90 hover:bg-white/30">
                         {isPaused ? <Play size={24} fill="currentColor" /> : <Pause size={24} fill="currentColor" />}
                       </button>
                       
-                      <div className="flex-1 flex flex-col justify-center">
+                      <div className="flex flex-col items-center justify-center">
                           <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1 flex items-center gap-2">
-                            {isResting ? (
-                                <>
-                                    <Clock size={12} /> {lang === 'ru' ? 'ОТДЫХ' : 'REST'}
-                                </>
-                            ) : (
-                                <>
-                                    {lang === 'ru' ? 'ВРЕМЯ' : 'TIME'}
-                                </>
-                            )}
+                             {lang === 'ru' ? 'ВРЕМЯ' : 'TIME'}
                           </p>
-                          
-                          <div className="flex items-end gap-2">
-                              <span className="text-4xl font-black text-white tracking-tighter tabular-nums leading-none">
-                                  {isResting ? formatTime(restSeconds) : formatTime(workoutSeconds)}
-                              </span>
-                              {isResting && (
-                                  <button onClick={skipRest} className="px-3 py-1 bg-white/20 rounded-lg text-[9px] font-black text-white uppercase tracking-wider hover:bg-white/30 transition-all flex items-center gap-1 mb-1">
-                                      {lang === 'ru' ? 'Скип' : 'Skip'} <SkipForward size={10} fill="currentColor"/>
-                                  </button>
-                              )}
-                          </div>
+                          <span className="text-4xl font-black text-white tracking-tighter tabular-nums leading-none">
+                              {formatTime(workoutSeconds)}
+                          </span>
                       </div>
 
-                      <button onClick={handleFinishWorkout} className="px-6 h-16 rounded-2xl bg-white text-orange-600 font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all shrink-0">
+                      <button onClick={handleFinishWorkout} className="px-4 h-12 rounded-2xl bg-white text-orange-600 font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all">
                           {t.sportFinishBtn}
                       </button>
                   </div>
+
+                  {/* Bottom Row: Rest Timer (Conditionnal) */}
+                  {isResting && (
+                      <div className="bg-black/20 rounded-2xl p-4 flex items-center justify-between animate-fade-in-up border border-white/10">
+                          <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+                                <Clock size={16} className="text-white"/>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-white/70 uppercase tracking-widest">{lang === 'ru' ? 'ОТДЫХ' : 'REST'}</span>
+                                <span className="text-2xl font-black text-white tabular-nums leading-none">{formatTime(restSeconds)}</span>
+                              </div>
+                          </div>
+                          <button onClick={skipRest} className="px-4 py-2 bg-white rounded-xl text-[10px] font-black text-orange-600 uppercase tracking-wider hover:bg-white/90 transition-all flex items-center gap-2 active:scale-95">
+                              {lang === 'ru' ? 'Скип' : 'Skip'} <SkipForward size={14} fill="currentColor"/>
+                          </button>
+                      </div>
+                  )}
               </div>
               
               <div className="px-2">
@@ -512,73 +515,80 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           </div>
       )}
 
-      {/* Technique Modal */}
+      {/* Technique Window (Full Screen) */}
       {activeExercise && (
-          <div className="fixed inset-0 z-[900] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-              <GlassCard className="w-full max-w-lg max-h-[80vh] bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[40px] flex flex-col overflow-hidden relative shadow-2xl">
-                   <div className="p-6 border-b border-[var(--border-glass)] flex justify-between items-center bg-white/5">
-                      <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{activeExercise.name}</h3>
-                      <button onClick={() => setActiveExercise(null)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/20 transition-all"><X size={18}/></button>
-                   </div>
-                   <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-                       {isLoadingTechnique ? (
-                           <div className="flex flex-col items-center justify-center py-20 gap-4">
-                               <Loader2 className="animate-spin text-orange-500" size={32} />
-                               <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{t.thinking}</p>
-                           </div>
-                       ) : (
-                           <SportNoteRenderer text={techniqueText} />
-                       )}
-                   </div>
-                   <div className="p-6 border-t border-[var(--border-glass)] bg-white/5">
-                       <button onClick={() => setActiveExercise(null)} className="w-full h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase text-[11px] tracking-widest">{t.sportTechniqueClose}</button>
-                   </div>
-              </GlassCard>
+          <div className="fixed inset-0 z-[900] bg-[var(--bg-main)] flex flex-col animate-slide-up">
+               <div className="p-6 border-b border-[var(--border-glass)] flex justify-between items-center bg-white/5">
+                  <div className="flex items-center gap-3">
+                      <button onClick={() => setActiveExercise(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] active:scale-90 transition-all">
+                          <ArrowLeft size={20} />
+                      </button>
+                      <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest line-clamp-1">{activeExercise.name}</h3>
+                  </div>
+               </div>
+               <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                   {isLoadingTechnique ? (
+                       <div className="flex flex-col items-center justify-center h-full gap-4">
+                           <Loader2 className="animate-spin text-orange-500" size={40} />
+                           <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{t.thinking}</p>
+                       </div>
+                   ) : (
+                       <SportNoteRenderer text={techniqueText} />
+                   )}
+               </div>
+               <div className="p-6 border-t border-[var(--border-glass)] bg-white/5 shrink-0">
+                   <button onClick={() => setActiveExercise(null)} className="w-full h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase text-[11px] tracking-widest active:scale-95 transition-all shadow-lg">{t.sportTechniqueClose}</button>
+               </div>
           </div>
       )}
 
-      {/* Chat Modal */}
+      {/* Coach Chat Window (Full Screen) */}
       {showCoachChat && (
-        <div className="fixed inset-0 z-[900] bg-black/80 backdrop-blur-sm flex flex-col p-4 animate-fadeIn">
-            <div className="flex-1 flex flex-col pb-[110px] w-full max-w-lg mx-auto">
-                <header className="flex justify-between items-center p-6 bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-t-[40px] shadow-2xl">
-                    <div className="flex items-center gap-3">
-                        <Bot size={24} className="text-orange-500" />
+        <div className="fixed inset-0 z-[900] bg-[var(--bg-main)] flex flex-col animate-slide-up">
+            <header className="flex justify-between items-center p-6 bg-[var(--bg-main)] border-b border-[var(--border-glass)] shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500 border border-orange-500/20">
+                        <Bot size={20} />
+                    </div>
+                    <div>
                         <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{t.sportCoachChat}</h3>
+                        <p className="text-[10px] text-orange-500 font-bold uppercase tracking-wider">AI Trainer</p>
                     </div>
-                    <button onClick={() => setShowCoachChat(false)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"><X size={20}/></button>
-                </header>
-                <div className="flex-1 overflow-y-auto space-y-4 px-6 py-6 bg-[var(--bg-main)] border-x border-[var(--border-glass)] scrollbar-hide">
-                    {coachMessages.map((msg, i) => (
-                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] px-5 py-3.5 rounded-[24px] text-[13px] leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] font-medium' : 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border-glass)]'}`}>
-                                {renderMessageContent(msg.text, msg.role === 'user')}
-                            </div>
-                        </div>
-                    ))}
-                    {coachLoading && (
-                        <div className="flex justify-start animate-pulse">
-                            <div className="bg-[var(--bg-card)] px-5 py-3 rounded-[24px] flex items-center gap-2 text-[10px] text-orange-400 font-bold uppercase tracking-widest border border-[var(--border-glass)]">
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                                <span>{t.thinking}</span>
-                            </div>
-                        </div>
-                    )}
-                    <div ref={coachEndRef} />
                 </div>
-                <div className="p-6 bg-[var(--bg-main)] border-x border-b border-[var(--border-glass)] rounded-b-[40px]">
-                    <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-2xl focus-within:border-white/20 transition-all w-full">
-                        <input 
-                            value={coachInput} 
-                            onChange={e => setCoachInput(e.target.value)} 
-                            onKeyDown={e => e.key === 'Enter' && handleSendCoachMsg()}
-                            placeholder={lang === 'ru' ? 'Спросить тренера...' : 'Ask coach...'} 
-                            className="flex-1 bg-transparent border-none text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] py-3 px-5 focus:outline-none"
-                        />
-                        <button onClick={handleSendCoachMsg} disabled={coachLoading || !coachInput.trim()} className="w-10 h-10 rounded-full flex items-center justify-center transition-all bg-orange-600 text-white active:scale-90">
-                            <Send size={18} />
-                        </button>
+                <button onClick={() => setShowCoachChat(false)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-90"><X size={20}/></button>
+            </header>
+            
+            <div className="flex-1 overflow-y-auto space-y-4 px-6 py-6 bg-[var(--bg-main)] scrollbar-hide">
+                {coachMessages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] px-5 py-3.5 rounded-[24px] text-[13px] leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] font-medium rounded-tr-md' : 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border-glass)] rounded-tl-md'}`}>
+                            {renderMessageContent(msg.text, msg.role === 'user')}
+                        </div>
                     </div>
+                ))}
+                {coachLoading && (
+                    <div className="flex justify-start animate-pulse">
+                        <div className="bg-[var(--bg-card)] px-5 py-3 rounded-[24px] rounded-tl-md flex items-center gap-2 text-[10px] text-orange-400 font-bold uppercase tracking-widest border border-[var(--border-glass)]">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>{t.thinking}</span>
+                        </div>
+                    </div>
+                )}
+                <div ref={coachEndRef} />
+            </div>
+            
+            <div className="p-6 bg-[var(--bg-main)] border-t border-[var(--border-glass)] shrink-0">
+                <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-2xl focus-within:border-white/20 transition-all w-full">
+                    <input 
+                        value={coachInput} 
+                        onChange={e => setCoachInput(e.target.value)} 
+                        onKeyDown={e => e.key === 'Enter' && handleSendCoachMsg()}
+                        placeholder={lang === 'ru' ? 'Спросить тренера...' : 'Ask coach...'} 
+                        className="flex-1 bg-transparent border-none text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] py-3 px-5 focus:outline-none"
+                    />
+                    <button onClick={handleSendCoachMsg} disabled={coachLoading || !coachInput.trim()} className="w-10 h-10 rounded-full flex items-center justify-center transition-all bg-orange-600 text-white active:scale-90 shadow-lg">
+                        <Send size={18} />
+                    </button>
                 </div>
             </div>
         </div>
