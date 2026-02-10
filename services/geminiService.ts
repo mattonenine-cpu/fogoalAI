@@ -11,9 +11,6 @@ export const Type = {
   OBJECT: 'OBJECT'
 };
 
-const FAST_MODEL = 'gemini-2.0-flash-lite-preview-02-05';
-const COMPLEX_MODEL = 'gemini-3-flash-preview';
-
 export const getLocalISODate = (date: Date = new Date()) => {
   const offset = date.getTimezoneOffset();
   const localDate = new Date(date.getTime() - (offset * 60 * 1000));
@@ -41,7 +38,7 @@ async function callApi(endpoint: string, body: any) {
         if (contentType && contentType.indexOf("application/json") !== -1) {
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || data.message || `Server error: ${response.status}`);
+                throw new Error(data.error || `Server error: ${response.status}`);
             }
             return data;
         } else {
@@ -68,7 +65,7 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
             localHistory.push({ role: 'user', parts: [{ text: message }] });
             
             const result = await callApi('/api/generate', {
-                model: FAST_MODEL,
+                model: 'gemini-3-flash-preview',
                 contents: localHistory,
                 config: { systemInstruction }
             });
@@ -89,37 +86,19 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
     const systemInstruction = `You are FoGoal AI, an expert AI coach for the ${type} ecosystem. User: ${user.name || 'User'}. Lang: ${lang}. Recent tasks context: ${JSON.stringify(tasks.slice(0, 5))}. Be concise and motivating.`;
 
     return {
-        sendMessage: async (payload: { message?: string, parts?: any[] }) => {
-            // Handle both string message and parts array (for flexibility)
-            let newParts: any[] = [];
-            
-            if (payload.parts) {
-                newParts = payload.parts;
-            } else if (payload.message) {
-                if (typeof payload.message === 'string') {
-                    newParts = [{ text: payload.message }];
-                } else if (Array.isArray(payload.message)) {
-                    // ChatInterface might pass array of function responses as 'message'
-                    newParts = payload.message;
-                }
-            }
-
-            if (newParts.length > 0) {
-                localHistory.push({ role: 'user', parts: newParts });
-            }
+        sendMessage: async ({ message }: { message: string }) => {
+            localHistory.push({ role: 'user', parts: [{ text: message }] });
             
             const result = await callApi('/api/generate', {
-                model: FAST_MODEL,
+                model: 'gemini-3-flash-preview',
                 contents: localHistory,
                 config: { systemInstruction }
             });
 
             const text = result.text || "";
-            if (text) {
-                localHistory.push({ role: 'model', parts: [{ text }] });
-            }
+            localHistory.push({ role: 'model', parts: [{ text }] });
             
-            return result;
+            return { text };
         }
     };
 }
@@ -131,7 +110,7 @@ export async function decomposeTask(task: Task, profile: UserProfile, lang: Lang
     Lang: ${lang}`;
     
     const result = await callApi('/api/generate', {
-        model: FAST_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -160,7 +139,7 @@ export async function optimizeDailySchedule(tasks: Task[], profile: UserProfile,
     Return a schedule mapping IDs to times.`;
 
     const result = await callApi('/api/generate', {
-        model: COMPLEX_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
             responseMimeType: "application/json",
@@ -189,7 +168,7 @@ export async function optimizeDailySchedule(tasks: Task[], profile: UserProfile,
 export async function analyzeEcosystemSignals(profile: Partial<UserProfile>, lang: Language): Promise<EcosystemConfig[]> {
     const prompt = `Analyze this user profile to recommend life ecosystems. User: ${JSON.stringify(profile)}. Return JSON array of recommendations. Language: ${lang}`;
     const result = await callApi('/api/generate', {
-        model: COMPLEX_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
             responseMimeType: "application/json",
@@ -230,7 +209,7 @@ export async function evaluateProgress(logText: string, tasks: Task[], goals: Go
     Lang: ${lang}`;
     
     const result = await callApi('/api/generate', {
-        model: FAST_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -264,7 +243,7 @@ export async function generateDrawingTutorial(prompt: string, lang: Language, st
     const contentPrompt = `Create a step-by-step drawing tutorial for "${prompt}" in ${style} style using ${material}. Difficulty: ${difficulty}. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', {
-        model: COMPLEX_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: contentPrompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -298,7 +277,7 @@ export async function parseTicketsFromText(text: string, lang: Language) {
     const prompt = `Extract exam tickets/questions from this text: "${text.substring(0, 5000)}". Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: COMPLEX_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -323,7 +302,7 @@ export async function generateTicketNote(question: string, subject: string, lang
     Format using Markdown. Lang: ${lang}. Focus on being educational and well-structured.`;
     
     const result = await callApi('/api/generate', { 
-        model: COMPLEX_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
     return result.text || "";
@@ -336,7 +315,7 @@ export async function generateGlossaryAndCards(tickets: Ticket[], subject: strin
     Questions: ${JSON.stringify(tickets.map(t => t.question))}. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: COMPLEX_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -377,7 +356,7 @@ export async function generateQuiz(question: string, subject: string, lang: Lang
     const prompt = `Generate ${count} multiple-choice quiz questions for the topic: "${question}". Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: FAST_MODEL, // Quiz generation can be fast
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -403,7 +382,7 @@ export async function generateWorkout(user: UserProfile, lang: Language, muscleG
     const prompt = `Generate a workout plan for a user with goal: ${user.fitnessGoal}, level: ${user.fitnessLevel}, and equipment: ${user.fitnessEquipment?.join(', ')}. ${muscleContext} Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: COMPLEX_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -441,7 +420,7 @@ export async function getExerciseTechnique(exerciseName: string, equipment: stri
     const prompt = `Explain the proper technique and safety tips for the exercise: "${exerciseName}" using ${equipment}. Format using Markdown. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: FAST_MODEL, // Technique is usually simple retrieval/generation
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
     return result.text || "";
@@ -451,7 +430,7 @@ export async function analyzeHealthLog(log: { sleep: number, stress: number, ene
     const prompt = `Analyze health log: Sleep ${log.sleep}/10, Stress ${log.stress}/10, Energy ${log.energy}/10. User Profile: ${JSON.stringify(user.energyProfile)}. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: FAST_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
