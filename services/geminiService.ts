@@ -310,7 +310,8 @@ export async function generateTicketNote(question: string, subject: string, lang
 
 export async function generateGlossaryAndCards(tickets: Ticket[], subject: string, lang: Language) {
     const prompt = `Create a glossary and flashcards for studying the subject: "${subject}". 
-    IMPORTANT: Flashcard answers MUST be extremly concise (max 15 words) for quick review. No long paragraphs.
+    IMPORTANT: Flashcard answers MUST be extremly concise (max 15 words).
+    For EACH question in the provided list, generate between 2 to 5 flashcards depending on the complexity and volume of the topic. Ensure comprehensive coverage.
     Questions: ${JSON.stringify(tickets.map(t => t.question))}. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
