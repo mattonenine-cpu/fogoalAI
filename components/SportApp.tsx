@@ -118,6 +118,10 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
   const [selectedEq, setSelectedEq] = useState<string[]>(user.fitnessEquipment || []);
   const [customEq, setCustomEq] = useState('');
   
+  // Muscle Groups State
+  const [targetMuscles, setTargetMuscles] = useState<string[]>([]);
+  const [muscleInput, setMuscleInput] = useState('');
+  
   // Timers
   const [workoutSeconds, setWorkoutSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -214,6 +218,20 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
     }
   };
 
+  const handleAddMuscle = () => {
+    if (muscleInput.trim()) {
+        const val = muscleInput.trim();
+        if (!targetMuscles.includes(val)) {
+            setTargetMuscles([...targetMuscles, val]);
+        }
+        setMuscleInput('');
+    }
+  };
+
+  const handleRemoveMuscle = (muscle: string) => {
+      setTargetMuscles(targetMuscles.filter(m => m !== muscle));
+  };
+
   const handleFinishOnboarding = () => {
       onUpdateProfile({
           ...user,
@@ -229,7 +247,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-        const plan = await generateWorkout(user, lang);
+        const plan = await generateWorkout(user, lang, targetMuscles);
         setActivePlan(plan);
         setCompletedIds([]);
         setWorkoutSeconds(0);
@@ -476,6 +494,35 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                             className={'bg-black/20'}
                           />
                           <button onClick={handleAddCustomEq} className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-90 border transition-all bg-white/5 border-white/10 text-[var(--text-primary)]`}><Plus size={18}/></button>
+                      </div>
+                  </div>
+
+                  {/* Target Muscles Section */}
+                  <div className="space-y-4 pt-6 border-t border-[var(--border-glass)]">
+                      <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'Акцент на мышцы' : 'Target Muscles'}</h3>
+                      <div className="flex flex-wrap gap-2">
+                          {targetMuscles.map(m => (
+                              <button 
+                                  key={m} 
+                                  onClick={() => handleRemoveMuscle(m)}
+                                  className="px-4 py-2 rounded-full text-[11px] font-bold tracking-tight transition-all border bg-orange-600 border-orange-600 text-white shadow-lg flex items-center gap-2 hover:bg-orange-700 active:scale-95"
+                              >
+                                  {m} <X size={12} />
+                              </button>
+                          ))}
+                          {targetMuscles.length === 0 && (
+                              <span className="text-[10px] text-[var(--text-secondary)] py-2 italic opacity-50">{lang === 'ru' ? 'Все тело (по умолчанию)' : 'Full Body (Default)'}</span>
+                          )}
+                      </div>
+                      <div className="flex gap-2">
+                          <GlassInput 
+                            value={muscleInput} 
+                            onChange={e => setMuscleInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleAddMuscle()}
+                            placeholder={lang === 'ru' ? 'Добавить мышцу...' : 'Add muscle group...'}
+                            className={'bg-black/20'}
+                          />
+                          <button onClick={handleAddMuscle} disabled={!muscleInput.trim()} className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-90 border transition-all bg-white/5 border-white/10 text-[var(--text-primary)] disabled:opacity-30`}><Plus size={18}/></button>
                       </div>
                   </div>
               </GlassCard>
