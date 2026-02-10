@@ -148,7 +148,8 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
     setErrorStatus(null);
     try {
         const parsed = await parseTicketsFromText(rawTicketsText, lang);
-        const tickets: Ticket[] = (parsed || []).filter(p => !!p && p.question).map((p, i) => ({ 
+        // Explicitly typed parameters 'p' and 'i' to fix TS7006 error
+        const tickets: Ticket[] = (parsed || []).filter((p: any) => !!p && p.question).map((p: any, i: number) => ({ 
             id: `t_${Date.now()}_${i}`, 
             number: p.number || (i + 1), 
             question: p.question || '', 
