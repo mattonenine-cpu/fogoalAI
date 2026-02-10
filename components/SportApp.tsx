@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput } from '../services/geminiService';
-import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward, ArrowLeft } from 'lucide-react';
+import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward, ArrowLeft, Star, Trophy, Flame } from 'lucide-react';
 
 interface SportAppProps {
   user: UserProfile;
@@ -124,7 +124,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
   const [restSeconds, setRestSeconds] = useState(0);
   const [isResting, setIsResting] = useState(false);
   
-  const [showSummary, setShowSummary] = useState(false);
+  const [summaryData, setSummaryData] = useState<{ xp: number, exercises: number, time: string } | null>(null);
   
   const [showCoachChat, setShowCoachChat] = useState(false);
   const [coachMessages, setCoachMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
@@ -182,6 +182,15 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       }
   }, [coachMessages.length, coachLoading, showCoachChat]);
 
+  // Merge predefined equipment with custom ones from profile
+  const displayEquipment = useMemo(() => {
+      const standardKeys = new Set(EQUIPMENT_LIST.flatMap(e => [e.en, e.ru]));
+      const customItems = selectedEq
+          .filter(eq => !standardKeys.has(eq))
+          .map(eq => ({ id: eq, en: eq, ru: eq }));
+      return [...EQUIPMENT_LIST, ...customItems];
+  }, [selectedEq]);
+
   const toggleEq = (item: { en: string, ru: string }) => {
     const isSelected = selectedEq.includes(item.en) || selectedEq.includes(item.ru);
     let updated = [...selectedEq];
@@ -197,7 +206,8 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
 
   const handleAddCustomEq = () => {
     if (customEq.trim() && !selectedEq.includes(customEq.trim())) {
-        const updated = [...selectedEq, customEq.trim()];
+        const val = customEq.trim();
+        const updated = [...selectedEq, val];
         setSelectedEq(updated);
         setCustomEq('');
         onUpdateProfile({ ...user, fitnessEquipment: updated });
@@ -253,8 +263,12 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           activityHistory: [...(user.activityHistory || []), `SPORT: ${completionMsg} (${exercisesDone} exercises)`]
       });
       
+      setSummaryData({
+          xp,
+          exercises: exercisesDone,
+          time: formatTime(workoutSeconds)
+      });
       setActivePlan(null);
-      setShowSummary(true);
   };
 
   const openTechnique = async (ex: Exercise) => {
@@ -373,6 +387,47 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       );
   }
 
+  // Summary Screen
+  if (summaryData) {
+      return (
+          <div className="fixed inset-0 z-[950] bg-[var(--bg-main)] flex flex-col items-center justify-center p-6 animate-fadeIn">
+              <div className="w-full max-w-sm space-y-8 text-center animate-fade-in-up">
+                  <div className="w-32 h-32 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto border border-orange-500/30 shadow-[0_0_50px_rgba(249,115,22,0.3)]">
+                      <Trophy size={64} className="text-orange-500" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                      <h2 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tighter">{lang === 'ru' ? 'Тренировка завершена!' : 'Workout Complete!'}</h2>
+                      <p className="text-xs text-[var(--text-secondary)] font-bold uppercase tracking-widest">{lang === 'ru' ? 'Отличная работа' : 'Great job today'}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 bg-white/5 rounded-[24px] border border-[var(--border-glass)]">
+                          <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-1">{lang === 'ru' ? 'Время' : 'Time'}</p>
+                          <p className="text-2xl font-black text-[var(--text-primary)]">{summaryData.time}</p>
+                      </div>
+                      <div className="p-4 bg-white/5 rounded-[24px] border border-[var(--border-glass)]">
+                          <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-1">{lang === 'ru' ? 'Упражнения' : 'Exercises'}</p>
+                          <p className="text-2xl font-black text-[var(--text-primary)]">{summaryData.exercises}</p>
+                      </div>
+                  </div>
+
+                  <div className="py-4 px-6 bg-orange-600/20 rounded-full border border-orange-600/30 inline-flex items-center gap-2">
+                      <Star size={18} className="text-orange-400" fill="currentColor" />
+                      <span className="text-xl font-black text-orange-400">+{summaryData.xp} XP</span>
+                  </div>
+
+                  <button 
+                    onClick={() => setSummaryData(null)}
+                    className="w-full h-16 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[11px] shadow-2xl active:scale-95 transition-all"
+                  >
+                      {lang === 'ru' ? 'Закрыть' : 'Close'}
+                  </button>
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {!activePlan ? (
@@ -398,7 +453,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                   <div className="space-y-4">
                       <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{t.sportEquipmentTitle}</h3>
                       <div className="flex flex-wrap gap-2">
-                          {EQUIPMENT_LIST.map(eq => {
+                          {displayEquipment.map(eq => {
                               const active = selectedEq.includes(eq.en) || selectedEq.includes(eq.ru);
                               const label = lang === 'ru' ? eq.ru : eq.en;
                               return (
@@ -479,19 +534,16 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
               
               <div className="px-2">
                   <h3 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter mb-4">{activePlan.title}</h3>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                       {activePlan.exercises.map((ex, i) => {
                           const isDone = completedIds.includes(ex.id);
                           return (
                               <GlassCard key={ex.id} className={`p-5 rounded-[28px] border-[var(--border-glass)] transition-all ${isDone ? 'opacity-50 bg-white/5 grayscale' : 'bg-[var(--bg-card)]'}`}>
                                   <div className="flex justify-between items-start gap-4">
                                       <div className="flex items-center gap-4">
-                                          <button 
-                                            onClick={() => toggleComplete(ex)}
-                                            className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all shadow-lg ${isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-white/10 text-[var(--text-secondary)] hover:border-orange-500 hover:text-orange-500'}`}
-                                          >
+                                          <div className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all shadow-lg ${isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-white/10 text-[var(--text-secondary)]'}`}>
                                               {isDone ? <Check size={24} strokeWidth={4} /> : <span className="text-lg font-black">{i + 1}</span>}
-                                          </button>
+                                          </div>
                                           <div>
                                               <h4 className="text-sm font-black text-[var(--text-primary)] uppercase leading-tight mb-2">{ex.name}</h4>
                                               <div className="flex items-center gap-3 text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
@@ -502,11 +554,19 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                                       </div>
                                       <button onClick={() => openTechnique(ex)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-white transition-all"><Info size={18}/></button>
                                   </div>
+                                  
                                   {ex.notes && (
                                       <div className="mt-4 pt-4 border-t border-[var(--border-glass)]">
                                           <p className="text-[11px] font-medium text-[var(--text-secondary)] leading-relaxed">{ex.notes}</p>
                                       </div>
                                   )}
+
+                                  <button 
+                                    onClick={() => toggleComplete(ex)}
+                                    className={`w-full py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all mt-4 active:scale-95 shadow-md ${isDone ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/20' : 'bg-[var(--bg-active)] text-[var(--bg-active-text)]'}`}
+                                  >
+                                      {isDone ? (lang === 'ru' ? 'ВЫПОЛНЕНО' : 'COMPLETED') : (lang === 'ru' ? 'ЗАВЕРШИТЬ УПРАЖНЕНИЕ' : 'COMPLETE EXERCISE')}
+                                  </button>
                               </GlassCard>
                           );
                       })}
