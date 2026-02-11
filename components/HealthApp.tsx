@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, Language, TRANSLATIONS, AppTheme } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
@@ -446,7 +447,7 @@ export const HealthApp: React.FC<HealthAppProps> = ({ user, lang, onUpdateProfil
                     </div>
                     <div>
                       <p className="text-sm font-black text-[var(--text-primary)] tracking-wide">{getMetricLabel(m)}</p>
-                      <p className="text-[10px] text-[var(--text-secondary)] font-medium">{m.description}</p>
+                      <p className="text-mini text-[var(--text-secondary)] font-medium">{m.description}</p>
                     </div>
                   </div>
                   <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${isSelected ? 'bg-[var(--theme-accent)] border-[var(--theme-accent)] text-white' : 'border-white/20'}`}>
@@ -483,7 +484,7 @@ export const HealthApp: React.FC<HealthAppProps> = ({ user, lang, onUpdateProfil
         <header className="flex justify-between items-center px-2">
           <div>
               <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tighter uppercase leading-none mb-1">{t.healthHubTitle}</h1>
-              <p className="text-[10px] font-bold text-[var(--theme-accent)] uppercase tracking-[0.3em] pl-0.5">{t.healthHubSub}</p>
+              <p className="text-tiny font-bold text-[var(--theme-accent)] uppercase tracking-[0.3em] pl-0.5">{t.healthHubSub}</p>
           </div>
           <button onClick={() => setIsConfiguring(true)} className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 active:scale-90 transition-all shadow-lg backdrop-blur-md">
             <Settings size={20} />
@@ -499,13 +500,13 @@ export const HealthApp: React.FC<HealthAppProps> = ({ user, lang, onUpdateProfil
                     <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center gap-2">
                         <Activity size={16} className="text-[var(--theme-accent)]" /> {t.todayTitle}
                     </h3>
-                    <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] ml-6 mt-1">{currentBlockTitle}</p>
+                    <p className="text-xxs font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] ml-6 mt-1">{currentBlockTitle}</p>
                 </div>
                 
                 {/* Date Navigator */}
                 <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-full border border-white/5">
                     <button onClick={handlePrevDay} className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-white/10 active:scale-90 transition-all"><ChevronLeft size={14}/></button>
-                    <span className="text-[10px] font-bold text-[var(--text-primary)] w-16 text-center">{displayDate}</span>
+                    <span className="text-tiny font-bold text-[var(--text-primary)] w-16 text-center">{displayDate}</span>
                     <button onClick={handleNextDay} disabled={selectedDate >= todayISO} className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-white/10 active:scale-90 transition-all disabled:opacity-30"><ChevronRight size={14}/></button>
                 </div>
             </div>
@@ -522,7 +523,7 @@ export const HealthApp: React.FC<HealthAppProps> = ({ user, lang, onUpdateProfil
                             return (
                                 <div key={m.id} className="space-y-3">
                                     <div className="flex justify-between items-end px-1 mb-2">
-                                        <label className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
+                                        <label className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
                                             <Icon size={14} style={{ color: m.color }} /> 
                                             <span style={{ color: m.color }} className="opacity-90">{getMetricLabel(m)}</span>
                                         </label>
@@ -607,14 +608,14 @@ export const HealthApp: React.FC<HealthAppProps> = ({ user, lang, onUpdateProfil
                     <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center gap-2">
                         <BarChart3 size={16} className="text-indigo-400" /> {t.trends}
                     </h3>
-                    <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] ml-6 mt-1">{currentBlockTitle}</p>
+                    <p className="text-xxs font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] ml-6 mt-1">{currentBlockTitle}</p>
                 </div>
                 <div className="flex bg-white/5 p-1 rounded-full border border-white/10">
                     {(['week', 'month', 'year'] as const).map(range => (
                         <button 
                             key={range}
                             onClick={() => setAnalyticsRange(range)}
-                            className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${analyticsRange === range ? 'bg-[var(--text-primary)] text-[var(--bg-main)] shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                            className={`px-4 py-1.5 rounded-full text-xxs font-black uppercase tracking-widest transition-all ${analyticsRange === range ? 'bg-[var(--text-primary)] text-[var(--bg-main)] shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                         >
                             {t[range]}
                         </button>
@@ -680,14 +681,14 @@ export const HealthApp: React.FC<HealthAppProps> = ({ user, lang, onUpdateProfil
                                     {React.createElement(c.icon, { size: 18 })}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-black uppercase text-[var(--text-primary)] tracking-wide">{getMetricLabel(c)}</p>
-                                    <p className="text-[9px] font-bold text-[var(--text-secondary)] opacity-60 uppercase tracking-widest">{t.avg}: {avg / 10}/10</p>
+                                    <p className="text-tiny font-black uppercase text-[var(--text-primary)] tracking-wide">{getMetricLabel(c)}</p>
+                                    <p className="text-xxs font-bold text-[var(--text-secondary)] opacity-60 uppercase tracking-widest">{t.avg}: {avg / 10}/10</p>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <div className="text-xl font-black tracking-tight" style={{ color: getColorForScore(avg / 10) }}>{avg}%</div>
                                 {trend !== 0 && (
-                                    <div className={`text-[9px] font-black flex items-center justify-end gap-1 ${trend > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    <div className={`text-xxs font-black flex items-center justify-end gap-1 ${trend > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                         {trend > 0 ? <TrendingUp size={10}/> : <TrendingDown size={10}/>} {Math.abs(trend)}%
                                     </div>
                                 )}
