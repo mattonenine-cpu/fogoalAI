@@ -181,14 +181,14 @@ export default function App() {
       document.body.style.background = c.bgMain;
 
       const fontScales: Record<string, string> = {
-          small: '0.95',
-          normal: '1.05',
+          small: '0.85',
+          normal: '1.0',
           medium: '1.15',
-          large: '1.25',
-          xlarge: '1.4'
+          large: '1.3',
+          xlarge: '1.5'
       };
-      const currentFontSize = profile?.settings?.fontSize || 'large';
-      const scale = fontScales[currentFontSize] || '1.15';
+      const currentFontSize = profile?.settings?.fontSize || 'normal';
+      const scale = fontScales[currentFontSize] || '1.0';
       root.style.setProperty('--font-scale', scale);
 
   }, [theme, profile?.settings?.fontSize]);
