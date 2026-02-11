@@ -21,7 +21,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
     aiPersona: 'balanced',
     aiDetailLevel: 'medium',
     visibleViews: ['dashboard', 'scheduler', 'chat', 'notes'],
-    fontSize: 'large'
+    fontSize: 'normal'
   };
 
   const updateLocalSettings = (newSettings: Partial<UserSettings>) => {
@@ -66,7 +66,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                         className={`p-4 rounded-2xl flex items-center gap-4 transition-all group ${activeTab === item.id ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-xl scale-105' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
                     >
                         <span className="text-xl shrink-0">{item.icon}</span>
-                        <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block truncate">{item.label}</span>
+                        <span className="text-tiny font-black uppercase tracking-widest hidden sm:block truncate">{item.label}</span>
                     </button>
                 ))}
             </aside>
@@ -76,7 +76,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                 {activeTab === 'interface' && (
                     <div className="space-y-12 animate-fade-in-up">
                         <section className="space-y-6">
-                            <h3 className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'ЯЗЫК' : 'LANGUAGE'}</h3>
+                            <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'ЯЗЫК' : 'LANGUAGE'}</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {[
                                     { id: 'en', code: 'US', label: 'English' },
@@ -88,7 +88,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                         className={`p-5 rounded-[24px] border flex items-center justify-between transition-all ${lang === l.id ? 'bg-indigo-600/10 border-indigo-500/40 text-[var(--text-primary)]' : 'bg-white/2 border-[var(--border-glass)] text-[var(--text-secondary)]'}`}
                                     >
                                         <div className="flex items-center gap-4">
-                                            <span className="text-[10px] font-black opacity-30">{l.code}</span>
+                                            <span className="text-mini font-black opacity-30">{l.code}</span>
                                             <span className="text-sm font-bold">{l.label}</span>
                                         </div>
                                         {lang === l.id && <Check size={18} className="text-indigo-400" />}
@@ -98,11 +98,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                         </section>
 
                         <section className="space-y-4">
-                            <h3 className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'РАЗМЕР ШРИФТА' : 'FONT SIZE'}</h3>
-                            <div className="flex bg-white/5 rounded-2xl p-1.5 border border-[var(--border-glass)] gap-1">
-                                {(['medium', 'large', 'xlarge'] as AppFontSize[]).map(size => (
-                                    <button key={size} onClick={() => updateLocalSettings({ fontSize: size })} className={`flex-1 h-14 rounded-xl flex items-center justify-center transition-all ${settings.fontSize === size ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
-                                        <span style={{ fontSize: size === 'medium' ? '14px' : size === 'large' ? '18px' : '22px' }} className="font-bold">Aa</span>
+                            <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'РАЗМЕР ШРИФТА' : 'FONT SIZE'}</h3>
+                            <div className="flex bg-white/5 rounded-2xl p-1.5 border border-[var(--border-glass)] gap-1 overflow-x-auto">
+                                {(['small', 'normal', 'medium', 'large', 'xlarge'] as AppFontSize[]).map(size => (
+                                    <button key={size} onClick={() => updateLocalSettings({ fontSize: size })} className={`flex-1 min-w-[50px] h-14 rounded-xl flex items-center justify-center transition-all ${settings.fontSize === size ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
+                                        <span style={{ fontSize: size === 'small' ? '12px' : size === 'normal' ? '14px' : size === 'medium' ? '16px' : size === 'large' ? '20px' : '24px' }} className="font-bold">Aa</span>
                                     </button>
                                 ))}
                             </div>
@@ -113,7 +113,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                 {activeTab === 'ecosystems' && (
                     <div className="space-y-8 animate-fade-in-up">
                         <section className="space-y-6">
-                            <h3 className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'НИЖНЯЯ ПАНЕЛЬ' : 'BOTTOM NAVIGATION'}</h3>
+                            <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'НИЖНЯЯ ПАНЕЛЬ' : 'BOTTOM NAVIGATION'}</h3>
                             <div className="grid grid-cols-2 gap-3">
                                 {[
                                     { id: 'dashboard', emoji: '🏠', label: 'ГЛАВНАЯ' },
@@ -138,7 +138,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                         >
                                             <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center shrink-0 border border-white/5"><span className="text-xl">{item.emoji}</span></div>
                                             <div className="text-left overflow-hidden">
-                                                <span className="text-[9px] font-black uppercase tracking-tight block truncate">{item.label}</span>
+                                                <span className="text-xxs font-black uppercase tracking-tight block truncate">{item.label}</span>
                                                 <div className="flex gap-1 mt-1">
                                                     <div className={`w-3 h-1 rounded-full ${isVisible ? 'bg-indigo-500' : 'bg-white/10'}`} />
                                                     <div className={`w-3 h-1 rounded-full ${isVisible ? 'bg-indigo-500' : 'bg-white/10'}`} />
@@ -154,13 +154,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
 
                 {activeTab === 'account' && (
                     <div className="space-y-6 animate-fade-in-up">
-                         <h3 className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'ПРОФИЛЬ' : 'PROFILE'}</h3>
+                         <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'ПРОФИЛЬ' : 'PROFILE'}</h3>
                          <GlassCard className="p-8 border-[var(--border-glass)] bg-white/2 space-y-8 rounded-[40px]">
                             <div className="flex items-center gap-6">
                                 <div className="w-20 h-20 rounded-[32px] bg-indigo-500/20 flex items-center justify-center text-4xl border border-indigo-500/30">👤</div>
                                 <div>
                                     <h4 className="text-2xl font-black text-[var(--text-primary)]">{user.name || 'Explorer'}</h4>
-                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-30">{user.occupation || 'FoGoal User'}</p>
+                                    <p className="text-mini font-black uppercase tracking-widest opacity-30">{user.occupation || 'FoGoal User'}</p>
                                 </div>
                             </div>
                             <button onClick={handleLogout} className="w-full p-6 rounded-[32px] bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center group active:scale-95 transition-all">
