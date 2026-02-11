@@ -306,7 +306,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
                                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: g.color || '#fbbf24' }} />
                                        <div className="flex flex-col overflow-hidden">
                                            <span className="text-sm font-bold text-[var(--text-primary)] truncate">{g.title}</span>
-                                           <span className="text-[10px] text-slate-500 font-bold uppercase">{g.progress} / {g.target} {g.unit}</span>
+                                           <span className="text-mini text-slate-500 font-bold uppercase">{g.progress} / {g.target} {g.unit}</span>
                                        </div>
                                    </div>
                                    <div className="flex items-center gap-2 shrink-0">
@@ -338,7 +338,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
                        />
                        <div className="grid grid-cols-2 gap-4">
                            <div>
-                               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Цель' : 'Target'}</label>
+                               <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Цель' : 'Target'}</label>
                                <input 
                                     type="number"
                                     value={newGoal.target}
@@ -347,7 +347,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
                                 />
                            </div>
                            <div>
-                               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Ед. изм.' : 'Unit'}</label>
+                               <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Ед. изм.' : 'Unit'}</label>
                                <input 
                                     value={newGoal.unit}
                                     onChange={e => setNewGoal({...newGoal, unit: e.target.value})}
@@ -358,7 +358,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
                        </div>
                        
                        <div>
-                           <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 block">{lang === 'ru' ? 'Цвет' : 'Color'}</label>
+                           <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-3 block">{lang === 'ru' ? 'Цвет' : 'Color'}</label>
                            <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
                                {GOAL_COLORS.map(c => (
                                    <button 
@@ -426,7 +426,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
                    
                    <div className="mb-8">
                        <div className="text-6xl font-black text-indigo-400 mb-2">{editSleepValue}<span className="text-2xl text-indigo-500/50 ml-1">h</span></div>
-                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{lang === 'ru' ? 'Сегодня' : 'Today'}</p>
+                       <p className="text-mini font-black text-slate-500 uppercase tracking-widest">{lang === 'ru' ? 'Сегодня' : 'Today'}</p>
                    </div>
 
                    <div className="flex items-center gap-4 mb-8">
