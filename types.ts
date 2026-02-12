@@ -1,7 +1,7 @@
 
 export type Language = 'en' | 'ru';
 
-export type AppTheme = 'lilac' | 'ice' | 'dark' | 'white';
+export type AppTheme = 'ice' | 'dark' | 'white';
 
 export type AppFontSize = 'small' | 'normal' | 'medium' | 'large' | 'xlarge';
 
