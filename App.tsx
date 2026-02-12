@@ -1,21 +1,20 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext, EcosystemConfig } from '../types';
-import { Onboarding } from './Onboarding';
-import { Dashboard } from './Dashboard';
-import { Scheduler } from './Scheduler';
-import { SmartPlanner } from './SmartPlanner';
-import { ChatInterface } from './ChatInterface';
-import { EcosystemView } from './EcosystemView';
-import { NotesView } from './NotesView';
-import { LanguageSelector } from './LanguageSelector';
-import { Logo } from './Logo';
-import { ThemeSelector } from './ThemeSelector';
-import { SettingsModal } from './SettingsModal';
-import { ContextHelpOverlay } from './ContextHelpOverlay';
+import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from './types';
+import { Onboarding } from './components/Onboarding';
+import { Dashboard } from './components/Dashboard';
+import { Scheduler } from './components/Scheduler';
+import { SmartPlanner } from './components/SmartPlanner';
+import { ChatInterface } from './components/ChatInterface';
+import { EcosystemView } from './components/EcosystemView';
+import { NotesView } from './components/NotesView';
+import { LanguageSelector } from './components/LanguageSelector';
+import { Logo } from './components/Logo';
+import { ThemeSelector } from './components/ThemeSelector';
+import { SettingsModal } from './components/SettingsModal';
+import { ContextHelpOverlay } from './components/ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound } from 'lucide-react';
-import { getLocalISODate } from '../services/geminiService';
-import { authService } from '../services/authService';
+import { getLocalISODate } from './services/geminiService';
+import { authService } from './services/authService';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
 const safeSave = (key: string, data: any) => {
@@ -68,26 +67,13 @@ export default function App() {
 
   const [language, setLanguage] = useState<Language | null>(() => {
     const saved = localStorage.getItem('focu_language');
-    if (!saved) return null;
-    try {
-        const parsed = JSON.parse(saved);
-        if (parsed === 'en' || parsed === 'ru') return parsed;
-        return null; 
-    } catch {
-        if (saved === 'en' || saved === 'ru') return saved as Language;
-        return null;
-    }
+    return (saved as Language) || null;
   });
 
-  const [theme, setTheme] = useState<AppTheme>(() => {
-      const saved = localStorage.getItem('focu_theme');
-      if (!saved) return 'dark';
-      try {
-          const parsed = JSON.parse(saved);
-          return (['dark', 'white', 'ice'].includes(parsed)) ? parsed : 'dark';
-      } catch {
-          return (['dark', 'white', 'ice'].includes(saved)) ? saved as AppTheme : 'dark';
-      }
+const [theme, setTheme] = useState<AppTheme>(() => {
+    const saved = localStorage.getItem('focu_theme');
+    const valid: AppTheme[] = ['dark', 'white', 'ice'];
+    return (saved && valid.includes(saved as AppTheme)) ? (saved as AppTheme) : 'dark';
   });
 
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
@@ -179,15 +165,15 @@ export default function App() {
       root.style.setProperty('--border-glass', c.border);
       document.body.style.background = c.bgMain;
 
-      const fontScales: Record<string, string> = {
-          small: '0.85',
-          normal: '1.0',
+      const fontScales = {
+          small: '0.95',
+          normal: '1.05',
           medium: '1.15',
-          large: '1.3',
-          xlarge: '1.5'
+          large: '1.25',
+          xlarge: '1.4'
       };
-      const currentFontSize = profile?.settings?.fontSize || 'normal';
-      const scale = fontScales[currentFontSize] || '1.0';
+      const currentFontSize = profile?.settings?.fontSize || 'large';
+      const scale = fontScales[currentFontSize] || '1.15';
       root.style.setProperty('--font-scale', scale);
 
   }, [theme, profile?.settings?.fontSize]);
@@ -208,13 +194,13 @@ export default function App() {
   };
 
   const handleTrackRequest = (taskId: string) => {
-      const task = tasks.find(t => t.id === taskId);
-      if (task) {
-          setHelpContext({
-              blockName: 'Scheduler Task',
-              taskText: task.title
-          });
-      }
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      setHelpContext({
+        blockName: 'Scheduler Task',
+        taskText: task.title
+      });
+    }
   };
 
   const visibleNavItems = useMemo(() => {
@@ -229,7 +215,7 @@ export default function App() {
         return <Dashboard 
           user={profile} stats={dailyStats} lang={language!} tasks={tasks} 
           onUpdateProfile={handleUpdateProfile} onUpdateStats={setDailyStats} onNavigate={setCurrentView}
-          onAddTasks={(newTasks: Task[]) => setTasks(prev => [...prev, ...newTasks])}
+          onAddTasks={(newTasks) => setTasks(prev => [...prev, ...newTasks])}
         />;
       case AppView.SCHEDULER:
         return <Scheduler 
@@ -272,7 +258,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen text-[var(--text-primary)] overflow-hidden transition-colors duration-500 flex flex-col">
+    <div className="min-h-screen text-[var(--text-primary)] overflow-hidden font-sans transition-colors duration-500 flex flex-col">
       <div className="w-full sm:max-w-md mx-auto h-[100dvh] flex flex-col relative z-10 overflow-hidden">
         <header className="p-3 sm:p-5 pb-2 flex justify-between items-center z-40 relative">
            <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
@@ -299,7 +285,7 @@ export default function App() {
             <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
             <NavBtn active={currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('scheduler')} />
             <NavBtn active={currentView === AppView.SMART_PLANNER} onClick={() => { setCurrentView(AppView.SMART_PLANNER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
-            {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map((eco: EcosystemConfig) => (
+            {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map(eco => (
                 <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
             ))}
             {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
@@ -325,7 +311,7 @@ export default function App() {
   );
 }
 
-const NavBtn: React.FC<{ active: boolean, onClick: (e: React.MouseEvent) => void, emoji: string }> = ({ active, onClick, emoji }) => (
+const NavBtn: React.FC<{ active: boolean, onClick: () => void, emoji: string }> = ({ active, onClick, emoji }) => (
   <button onClick={onClick} className={`w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-[14px] sm:rounded-[22px] flex items-center justify-center transition-all duration-300 relative ${active ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg scale-110' : 'grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:bg-white/5'}`}>
     <span className="text-sm sm:text-xl">{emoji}</span>
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
