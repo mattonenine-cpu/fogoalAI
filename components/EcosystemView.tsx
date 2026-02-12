@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { EcosystemType, UserProfile, Task, Language, TRANSLATIONS, Practice, Goal, AppView, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
-import { createChatSession, cleanTextOutput, evaluateProgress, generateFocuVisual, generateDrawingTutorial } from '../services/geminiService';
+import { createChatSession, cleanTextOutput, evaluateProgress, generateFocuVisual } from '../services/geminiService';
 import { ExamPrepApp } from './ExamPrepApp';
 import { SportApp } from './SportApp';
 import { HealthApp } from './HealthApp'; 
@@ -18,15 +18,6 @@ interface EcosystemViewProps {
   onNavigate: (view: AppView) => void;
   theme: AppTheme;
 }
-
-const GET_DRAW_MATERIALS = (lang: Language) => [
-    { id: 'Pencil', label: lang === 'ru' ? 'Карандаш' : 'Pencil', icon: <Pencil size={12}/> },
-    { id: 'Colored Pencils', label: lang === 'ru' ? 'Цв. карандаши' : 'Colored Pencils', icon: <Palette size={12}/> },
-    { id: 'Marker', label: lang === 'ru' ? 'Маркер' : 'Marker', icon: <Highlighter size={12}/> },
-    { id: 'Watercolor', label: lang === 'ru' ? 'Акварель' : 'Watercolor', icon: <Droplet size={12}/> },
-    { id: 'Charcoal', label: lang === 'ru' ? 'Уголь' : 'Charcoal', icon: <span className="w-3 h-3 bg-black rounded-sm block"/> },
-    { id: 'Oil Paint', label: lang === 'ru' ? 'Масло' : 'Oil Paint', icon: <Brush size={12}/> }
-];
 
 const GET_ART_STYLES = (lang: Language) => [
     { label: lang === 'ru' ? 'Реализм' : 'Realism', value: 'photorealistic, 8k, highly detailed, realistic texture, photography' },
@@ -74,26 +65,12 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
   const [domainLoading, setDomainLoading] = useState(false);
 
   // -- CREATIVITY SPECIFIC STATES --
-  const [activeTab, setActiveTab] = useState<'canvas' | 'tutorial'>('canvas');
   const [genPrompt, setGenPrompt] = useState('');
   const [genImage, setGenImage] = useState<string | null>(null);
   const [refImage, setRefImage] = useState<string | null>(null);
   const [isGenLoading, setIsGenLoading] = useState(false);
-  
-  const [tutorialPrompt, setTutorialPrompt] = useState('');
-  const [tutorialData, setTutorialData] = useState<any | null>(null);
-  const [isTutorialLoading, setIsTutorialLoading] = useState(false);
-  
-  // States for Drawing Tutor
-  const [drawStyle, setDrawStyle] = useState<'bw' | 'color'>('bw');
-  const [drawDifficulty, setDrawDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Easy');
-  const [drawMaterial, setDrawMaterial] = useState<string>('Pencil');
-  
-  const [stepImages, setStepImages] = useState<Record<number, string>>({});
-  const [loadingStepImages, setLoadingStepImages] = useState<Record<number, boolean>>({});
 
   const artStyles = useMemo(() => GET_ART_STYLES(lang), [lang]);
-  const drawMaterials = useMemo(() => GET_DRAW_MATERIALS(lang), [lang]);
 
   // Load history from localStorage
   const [genHistory, setGenHistory] = useState<string[]>(() => {
@@ -298,58 +275,6 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
       }
   };
 
-  const generateAllStepImages = async (steps: any[]) => {
-      let previousImage: string | null = null;
-      
-      for (let i = 0; i < steps.length; i++) {
-          setLoadingStepImages(prev => ({ ...prev, [i]: true }));
-          
-          const step = steps[i];
-          const stylePrompt = drawStyle === 'color' 
-            ? `${drawMaterial} drawing on white background. Vivid colors.` 
-            : `Monochrome ${drawMaterial} drawing on pure white background. Sharp lines.`;
-            
-          const prompt = `A drawing on a PURE WHITE BACKGROUND. NO table, NO pencils, NO hands, NO background elements. Only the drawing itself. Material: ${drawMaterial}. Instruction: ${step.visualPrompt}. Strictly cumulative additive progression.`;
-          
-          try {
-              const image = await generateFocuVisual(prompt, previousImage || undefined);
-              if (image) {
-                  setStepImages(prev => ({ ...prev, [i]: image }));
-                  previousImage = image; // Chaining for consistency
-              }
-          } catch (e) {
-              console.error(`Failed to generate step ${i}`, e);
-          } finally {
-              setLoadingStepImages(prev => ({ ...prev, [i]: false }));
-          }
-      }
-  };
-
-  const handleGenerateTutorial = async () => {
-      if (!tutorialPrompt.trim() || isTutorialLoading) return;
-      setIsTutorialLoading(true);
-      setStepImages({});
-      try {
-          const data = await generateDrawingTutorial(tutorialPrompt, lang, drawStyle, drawDifficulty, drawMaterial);
-          setTutorialData(data);
-          
-          let newXp = (user.totalExperience || 0) + 20;
-          onUpdateProfile({ 
-              ...user, 
-              totalExperience: newXp,
-              activityHistory: [...(user.activityHistory || []), `CREATIVITY: Drawing Tutorial: ${tutorialPrompt}`]
-          });
-
-          if (data && data.steps && data.steps.length > 0) {
-              generateAllStepImages(data.steps);
-          }
-      } catch (e) {
-          console.error(e);
-      } finally {
-          setIsTutorialLoading(false);
-      }
-  };
-
   const downloadImage = (base64Data: string) => {
       const link = document.createElement('a');
       link.href = base64Data;
@@ -530,23 +455,6 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
                   </button>
               </header>
 
-              <div className="flex bg-white/5 p-1 rounded-full border border-[var(--border-glass)]">
-                  <button 
-                    onClick={() => setActiveTab('canvas')}
-                    className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'canvas' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-                  >
-                      {lang === 'ru' ? 'ИИ Холст' : 'AI Canvas'}
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('tutorial')}
-                    className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'tutorial' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-                  >
-                      {lang === 'ru' ? 'Туториал' : 'Tutor'}
-                  </button>
-              </div>
-
-              {activeTab === 'canvas' ? (
-                  <>
                     <GlassCard className="p-6 border-[var(--border-glass)] rounded-[32px] bg-[var(--bg-card)] shadow-2xl relative overflow-hidden">
                         <div className="absolute -top-20 -right-20 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
                         
@@ -646,125 +554,6 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
                             </div>
                         </div>
                     )}
-                  </>
-              ) : (
-                  <div className="space-y-6 animate-fadeIn">
-                      <GlassCard className="p-6 border-[var(--border-glass)] rounded-[32px] bg-[var(--bg-card)] shadow-2xl space-y-6">
-                          <div className="space-y-4">
-                              <div>
-                                  <label className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'ЗАПРОС' : 'QUERY'}</label>
-                                  <div className="flex gap-2">
-                                      <GlassInput 
-                                        value={tutorialPrompt} 
-                                        onChange={e => setTutorialPrompt(e.target.value)} 
-                                        placeholder={lang === 'ru' ? 'Напр: Кот' : 'e.g. Cat'} 
-                                        onKeyDown={e => e.key === 'Enter' && handleGenerateTutorial()} 
-                                        className="rounded-[18px]"
-                                      />
-                                      <button onClick={handleGenerateTutorial} disabled={isTutorialLoading || !tutorialPrompt.trim()} className="w-14 h-12 rounded-[18px] bg-[var(--bg-active)] text-[var(--bg-active-text)] flex items-center justify-center shadow-lg active:scale-95 transition-all disabled:opacity-50">
-                                          {isTutorialLoading ? <Loader2 className="animate-spin" size={20}/> : <Send size={20}/>}
-                                      </button>
-                                  </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                      <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'СЛОЖНОСТЬ' : 'DIFFICULTY'}</label>
-                                      <div className="relative">
-                                        <select value={drawDifficulty} onChange={e => setDrawDifficulty(e.target.value as any)} className="w-full h-12 bg-white/5 border border-[var(--border-glass)] rounded-[18px] px-4 text-[11px] font-bold text-[var(--text-primary)] outline-none appearance-none">
-                                            <option value="Easy" className="bg-[#18181b]">Easy</option>
-                                            <option value="Medium" className="bg-[#18181b]">Medium</option>
-                                            <option value="Hard" className="bg-[#18181b]">Hard</option>
-                                        </select>
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-secondary)]">▼</div>
-                                      </div>
-                                  </div>
-                                  <div>
-                                      <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'РЕЖИМ' : 'MODE'}</label>
-                                      <div className="flex bg-white/5 p-1 rounded-[18px] border border-[var(--border-glass)] h-12">
-                                          <button onClick={() => setDrawStyle('bw')} className={`flex-1 rounded-[14px] text-[9px] font-black uppercase transition-all ${drawStyle === 'bw' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)]' : 'text-[var(--text-secondary)]'}`}>B&W</button>
-                                          <button onClick={() => setDrawStyle('color')} className={`flex-1 rounded-[14px] text-[9px] font-black uppercase transition-all ${drawStyle === 'color' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)]' : 'text-[var(--text-secondary)]'}`}>COL</button>
-                                      </div>
-                                  </div>
-                              </div>
-
-                              <div>
-                                  <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'МАТЕРИАЛ' : 'MATERIAL'}</label>
-                                  <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
-                                      {drawMaterials.map(m => (
-                                          <button 
-                                            key={m.id} 
-                                            onClick={() => setDrawMaterial(m.id)} 
-                                            className={`shrink-0 px-4 py-2.5 rounded-xl border text-[10px] font-black uppercase transition-all ${drawMaterial === m.id ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] border-transparent' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-secondary)]'}`}
-                                          >
-                                              {m.label}
-                                          </button>
-                                      ))}
-                                  </div>
-                              </div>
-                          </div>
-                      </GlassCard>
-
-                      {tutorialData && (
-                          <div className="space-y-4 animate-fade-in-up">
-                              <div className="flex items-center justify-between px-2">
-                                  <h3 className="text-lg font-black text-[var(--text-primary)] uppercase">{tutorialData.title}</h3>
-                                  <div className="flex items-center gap-2">
-                                      <span className="px-3 py-1 rounded-full bg-white/5 text-[9px] font-black uppercase tracking-widest text-slate-400 border border-white/5">{tutorialData.difficulty}</span>
-                                      <span className="px-3 py-1 rounded-full bg-white/5 text-[9px] font-black uppercase tracking-widest text-indigo-400 border border-white/5">{tutorialData.estimatedTime}</span>
-                                  </div>
-                              </div>
-
-                              <div className="space-y-3">
-                                  {tutorialData.steps.map((step: any, i: number) => (
-                                      <GlassCard key={i} className="p-5 rounded-[24px] bg-[var(--bg-card)] border-[var(--border-glass)] flex flex-col gap-4">
-                                          <div className="flex gap-4 items-start">
-                                              <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 font-black text-sm border border-purple-500/20 shrink-0">
-                                                  {i + 1}
-                                              </div>
-                                              <p className="text-[13px] font-bold text-[var(--text-primary)] leading-relaxed mt-1">{step.text}</p>
-                                          </div>
-                                          
-                                          {stepImages[i] ? (
-                                              <div className="rounded-[20px] overflow-hidden border border-white/10 mt-2 shadow-lg animate-fade-in-up bg-white">
-                                                  <img src={stepImages[i]} alt={`Step ${i+1}`} className="w-full h-auto object-cover" />
-                                              </div>
-                                          ) : (
-                                              <div className="w-full h-48 bg-black/20 rounded-[20px] border border-white/5 flex flex-col items-center justify-center gap-3 animate-pulse">
-                                                  {loadingStepImages[i] ? (
-                                                      <>
-                                                          <Loader2 size={24} className="animate-spin text-purple-400"/>
-                                                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">{lang === 'ru' ? 'Генерация...' : 'Generating...'}</p>
-                                                      </>
-                                                  ) : (
-                                                      <button onClick={() => generateAllStepImages(tutorialData.steps)} className="text-slate-500 hover:text-white transition-colors flex flex-col items-center gap-2">
-                                                          <RefreshCcw size={20} />
-                                                          <span className="text-[9px] font-bold uppercase tracking-widest">{lang === 'ru' ? 'Пересчитать' : 'Recalculate'}</span>
-                                                      </button>
-                                                  )}
-                                              </div>
-                                          )}
-                                      </GlassCard>
-                                  ))}
-                              </div>
-
-                              {tutorialData.tips && tutorialData.tips.length > 0 && (
-                                  <div className="p-5 rounded-[24px] bg-indigo-500/10 border border-indigo-500/20">
-                                      <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Lightbulb size={12}/> {lang === 'ru' ? 'Советы' : 'Pro Tips'}</h4>
-                                      <ul className="space-y-2">
-                                          {tutorialData.tips.map((tip: string, i: number) => (
-                                              <li key={i} className="text-[11px] font-medium text-indigo-100 flex items-start gap-2">
-                                                  <span className="w-1 h-1 rounded-full bg-indigo-400 mt-1.5 shrink-0"/>
-                                                  {tip}
-                                              </li>
-                                          ))}
-                                      </ul>
-                                  </div>
-                              )}
-                          </div>
-                      )}
-                  </div>
-              )}
           </div>
       );
   }
