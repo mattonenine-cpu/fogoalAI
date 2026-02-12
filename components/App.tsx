@@ -84,9 +84,9 @@ export default function App() {
       if (!saved) return 'dark';
       try {
           const parsed = JSON.parse(saved);
-          return (['dark', 'white', 'ice', 'lilac'].includes(parsed)) ? parsed : 'dark';
+          return (['dark', 'white', 'ice'].includes(parsed)) ? parsed : 'dark';
       } catch {
-          return (['dark', 'white', 'ice', 'lilac'].includes(saved)) ? saved as AppTheme : 'dark';
+          return (['dark', 'white', 'ice'].includes(saved)) ? saved as AppTheme : 'dark';
       }
   });
 
@@ -166,8 +166,7 @@ export default function App() {
       const themeConfigs: Record<string, any> = {
           dark: { bgMain: '#09090b', bgCard: 'rgba(255, 255, 255, 0.05)', bgActive: '#FFFFFF', bgActiveText: '#000000', accent: '#6366f1', border: 'rgba(255, 255, 255, 0.08)', textPrimary: '#FAFAFA', textSecondary: 'rgba(255, 255, 255, 0.4)' },
           white: { bgMain: '#F8F9FA', bgCard: '#FFFFFF', bgActive: '#18181b', bgActiveText: '#FFFFFF', accent: '#18181b', border: 'rgba(0, 0, 0, 0.06)', textPrimary: '#18181b', textSecondary: 'rgba(24, 24, 27, 0.4)' },
-          ice: { bgMain: '#D6E6F3', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#0F52BA', bgActiveText: '#FFFFFF', accent: '#0F52BA', border: 'rgba(0, 9, 38, 0.06)', textPrimary: '#000926', textSecondary: 'rgba(0, 9, 38, 0.4)' },
-          lilac: { bgMain: '#E6C7E6', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#663399', bgActiveText: '#FFFFFF', accent: '#663399', border: 'rgba(46, 26, 71, 0.06)', textPrimary: '#2E1A47', textSecondary: 'rgba(46, 26, 71, 0.4)' }
+          ice: { bgMain: '#D6E6F3', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#0F52BA', bgActiveText: '#FFFFFF', accent: '#0F52BA', border: 'rgba(0, 9, 38, 0.06)', textPrimary: '#000926', textSecondary: 'rgba(0, 9, 38, 0.4)' }
       };
       const c = themeConfigs[theme] || themeConfigs.dark;
       root.style.setProperty('--bg-main', c.bgMain);
