@@ -38,8 +38,8 @@ const ECO_DETAILS: Record<string, { en: { inside: string, whom: string }, ru: { 
         ru: { inside: "Мониторинг витальности, защита от выгорания, анализ сна и стресса.", whom: "Люди с высоким уровнем стресса и те, кто следит за здоровьем." }
     },
     creativity: {
-        en: { inside: "AI Art canvas, step-by-step tutorials, idea generator.", whom: "Artists, designers, and hobbyists looking for inspiration." },
-        ru: { inside: "ИИ-холст, уроки рисования, генератор идей и муза.", whom: "Художники, дизайнеры и все, кто ищет вдохновение." }
+        en: { inside: "AI Art canvas, idea generator.", whom: "Artists, designers, and hobbyists looking for inspiration." },
+        ru: { inside: "ИИ-холст, генератор идей и муза.", whom: "Художники, дизайнеры и все, кто ищет вдохновение." }
     }
 };
 
