@@ -72,7 +72,7 @@ interface ExamPrepAppProps {
 export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdateProfile, theme }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
-  const isLightTheme = theme === 'white' || theme === 'ice' || theme === 'lilac';
+  const isLightTheme = theme === 'white' || theme === 'ice';
 
   const [showWizard, setShowWizard] = useState(user.exams ? user.exams.length === 0 : true);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
