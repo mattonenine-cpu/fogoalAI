@@ -236,9 +236,10 @@ export default function App() {
           tasks={tasks} setTasks={setTasks} userProfile={profile} setUserProfile={handleUpdateProfile} 
           lang={language!} onTrackRequest={handleTrackRequest} notes={notes} onUpdateNotes={setNotes}
           currentStats={dailyStats}
+          onOpenSmartPlanner={() => setCurrentView(AppView.SMART_PLANNER)}
         />;
       case AppView.SMART_PLANNER:
-        return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} />;
+        return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} onOpenScheduler={() => setCurrentView(AppView.SCHEDULER)} />;
       case AppView.CHAT:
         return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} />;
       case AppView.ECOSYSTEM:
