@@ -131,10 +131,102 @@ const BASIC_PATTERNS: { lang: Language; patterns: RegExp[]; reply: string }[] = 
   }
 ];
 
+// Ecosystem-specific canned replies (work / sport / study / health / creativity)
+// These are also instant and scoped by ecosystem "type" in createChatSession.
+const ECOSYSTEM_PATTERNS: {
+  lang: Language;
+  ecosystem: string; // matches `type` argument from createChatSession (e.g. 'work', 'sport')
+  patterns: RegExp[];
+  reply: string;
+}[] = [
+  // ---------- WORK ----------
+  {
+    lang: 'ru',
+    ecosystem: 'work',
+    patterns: [/^план на работу$/, /^план по работе$/, /^что делать по работе$/, /^с чего начать работу$/],
+    reply: 'Для работы начни с 1–2 самых важных задач на сегодня. Напиши коротко, что главное — и я помогу разбить это на шаги.'
+  },
+  {
+    lang: 'en',
+    ecosystem: 'work',
+    patterns: [/^work plan$/, /^plan for work$/, /^what should i do at work$/, /^where to start work$/],
+    reply: 'For work, start with 1–2 most important tasks today. Type them briefly and I will break them into steps.'
+  },
+
+  // ---------- SPORT ----------
+  {
+    lang: 'ru',
+    ecosystem: 'sport',
+    patterns: [/^дай тренировку$/, /^тренировка на сегодня$/, /^план тренировки$/, /^что потренировать сегодня$/],
+    reply: 'Давай составим простую тренировку. Напиши, где тренируешься (дом/зал) и сколько минут есть — я предложу план.'
+  },
+  {
+    lang: 'en',
+    ecosystem: 'sport',
+    patterns: [/^workout for today$/, /^give me a workout$/, /^training plan$/, /^what should i train today$/],
+    reply: 'Let’s build a workout. Tell me where you train (home/gym) and how many minutes you have — I will propose a plan.'
+  },
+
+  // ---------- STUDY ----------
+  {
+    lang: 'ru',
+    ecosystem: 'study',
+    patterns: [/^план по учебе$/, /^план по учёбе$/, /^как готовиться к экзамену$/, /^помоги с учебой$/, /^помоги с учёбой$/],
+    reply: 'Для учёбы давай выберем один предмет и экзамен/тему. Напиши предмет и ближайший дедлайн — я помогу спланировать подготовку.'
+  },
+  {
+    lang: 'en',
+    ecosystem: 'study',
+    patterns: [/^study plan$/, /^plan for study$/, /^how to prepare for exam$/, /^help with study$/],
+    reply: 'For study, choose one subject and exam/topic. Tell me the subject and nearest deadline — I will help you plan.'
+  },
+
+  // ---------- HEALTH ----------
+  {
+    lang: 'ru',
+    ecosystem: 'health',
+    patterns: [/^как восстановиться$/, /^я выгорел$/, /^я выгорела$/, /^я устал$/, /^я устала$/, /^совет по сну$/, /^проблемы со сном$/],
+    reply: 'Сначала оценим состояние. Напиши: сон (0–10), стресс (0–10) и энергию (0–10) — я дам аккуратные рекомендации по режиму и восстановлению.'
+  },
+  {
+    lang: 'en',
+    ecosystem: 'health',
+    patterns: [/^how to recover$/, /^i am burned out$/, /^im burned out$/, /^i am tired$/, /^im tired$/, /^sleep advice$/, /^problems with sleep$/],
+    reply: 'Let’s evaluate your state. Send me: sleep (0–10), stress (0–10) and energy (0–10) — I will give focused recovery suggestions.'
+  },
+
+  // ---------- CREATIVITY ----------
+  {
+    lang: 'ru',
+    ecosystem: 'creativity',
+    patterns: [/^нет идей$/, /^нет идей что рисовать$/, /^что нарисовать$/, /^дай идею рисунка$/, /^идея для арты?$/, /^идея для рисунка$/],
+    reply: 'Давай найдем идею для рисунка. Напиши 2–3 слова про настроение или тему (например: космос, дождь, кошка) — я предложу несколько вариантов.'
+  },
+  {
+    lang: 'en',
+    ecosystem: 'creativity',
+    patterns: [/^no ideas$/, /^no ideas what to draw$/, /^what to draw$/, /^give me drawing idea$/, /^idea for art$/, /^idea for drawing$/],
+    reply: 'Let’s find an idea to draw. Send 2–3 words about mood or theme (e.g. space, rain, cat) — I will suggest options.'
+  }
+];
+
 function getBasicAutoReply(message: string, lang: Language): string | null {
   const norm = normalizeMessage(message);
   for (const entry of BASIC_PATTERNS) {
     if (entry.lang !== lang) continue;
+    if (entry.patterns.some((re) => re.test(norm))) {
+      return entry.reply;
+    }
+  }
+  return null;
+}
+
+function getEcosystemAutoReply(message: string, lang: Language, type: string): string | null {
+  const norm = normalizeMessage(message);
+  const eco = type.toLowerCase();
+  for (const entry of ECOSYSTEM_PATTERNS) {
+    if (entry.lang !== lang) continue;
+    if (entry.ecosystem.toLowerCase() !== eco) continue;
     if (entry.patterns.some((re) => re.test(norm))) {
       return entry.reply;
     }
@@ -225,13 +317,31 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
 /**
  * Creates a chat session for ecosystem-specific coaching or general chat
  */
-export function createChatSession(user: UserProfile, history: any[], lang: Language, tasks: Task[], type: string = 'General') {
+export function createChatSession(user: UserProfile, history: any[], lang: Language, tasks: Task[], type: string = 'General', currentDate?: string) {
     const localHistory = [...history];
-    const systemInstruction = `You are FoGoal AI, an expert AI coach for the ${type} ecosystem. User: ${user.name || 'User'}. Lang: ${lang}. Recent tasks context: ${JSON.stringify(tasks.slice(0, 5))}. Be concise and motivating.`;
+    const todayDate = currentDate || getLocalISODate();
+    const todayFormatted = new Date(todayDate + 'T12:00:00').toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { 
+        day: 'numeric', 
+        month: 'long', 
+        weekday: 'long',
+        year: 'numeric'
+    });
+    const systemInstruction = `You are FoGoal AI, an expert AI coach for the ${type} ecosystem. User: ${user.name || 'User'}. Lang: ${lang}. TODAY'S DATE: ${todayDate} (${todayFormatted}). IMPORTANT: Always use this exact date when answering questions about dates, schedules, or time. Recent tasks context: ${JSON.stringify(tasks.slice(0, 5))}. Be concise and motivating.`;
 
     return {
         sendMessage: async ({ message }: { message: string }) => {
-            // 1) Basic canned reply (no AI call)
+            // 1) Ecosystem‑specific canned replies (for sport / study / health / creativity / work)
+            if (type && type !== 'General') {
+                const ecoReply = getEcosystemAutoReply(message, lang, type);
+                if (ecoReply) {
+                    const text = ecoReply;
+                    localHistory.push({ role: 'user', parts: [{ text: message }] });
+                    localHistory.push({ role: 'model', parts: [{ text }] });
+                    return { text };
+                }
+            }
+
+            // 2) Generic basic replies (greetings / thanks / simple FAQ)
             const basic = getBasicAutoReply(message, lang);
             if (basic) {
                 const text = basic;
@@ -240,7 +350,7 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
                 return { text };
             }
 
-            // 2) Cache lookup scoped by chat type (general vs specific ecosystem)
+            // 3) Cache lookup scoped by chat type (general vs specific ecosystem)
             const scope: ChatScope = type === 'General' ? 'general' : 'ecosystem';
             const cacheKey = makeCacheKey(scope, type, lang, message);
             if (responseCache.has(cacheKey)) {
