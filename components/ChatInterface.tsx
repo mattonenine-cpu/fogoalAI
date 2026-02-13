@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, ChatMessage, Language, TRANSLATIONS, Task, Category } from '../types';
 import { getLocalISODate, generateFocuVisual, createChatSession, cleanTextOutput } from '../services/geminiService';
 import { Bot, User, Loader2, X, AlertTriangle, Key, ArrowUp, Trash2 } from 'lucide-react';
+import { renderTextWithMath } from '../utils/latexRenderer';
 
 interface ChatInterfaceProps {
   userProfile: UserProfile;
@@ -28,19 +29,35 @@ const renderMessageContent = (text: string, isUser: boolean) => {
         
         if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
             const content = trimmed.replace(/^#+\s+/, '');
-            return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-[var(--theme-accent)]'}`}>{parseBold(content, isUser)}</h3>;
+            return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-[var(--theme-accent)]'}`}>{renderTextWithMath(content).map((node, idx) => {
+                if (typeof node === 'string') return parseBold(node, isUser);
+                return <React.Fragment key={idx}>{node}</React.Fragment>;
+            })}</h3>;
         }
         
         if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+             const content = trimmed.replace(/^[\-\*]\s+/, '');
              return (
                 <div key={i} className="flex gap-2 pl-2 mb-1">
                     <span className={`font-black ${isUser ? 'text-white/60' : 'text-[var(--theme-accent)]'}`}>•</span>
-                    <span className="text-[13px] leading-relaxed">{parseBold(trimmed.replace(/^[\-\*]\s+/, ''), isUser)}</span>
+                    <span className="text-[13px] leading-relaxed">
+                        {renderTextWithMath(content).map((node, idx) => {
+                            if (typeof node === 'string') return <React.Fragment key={idx}>{parseBold(node, isUser)}</React.Fragment>;
+                            return <React.Fragment key={idx}>{node}</React.Fragment>;
+                        })}
+                    </span>
                 </div>
             );
         }
 
-        return <p key={i} className="text-[13px] leading-relaxed mb-1">{parseBold(line, isUser)}</p>;
+        return (
+            <p key={i} className="text-[13px] leading-relaxed mb-1">
+                {renderTextWithMath(line).map((node, idx) => {
+                    if (typeof node === 'string') return <React.Fragment key={idx}>{parseBold(node, isUser)}</React.Fragment>;
+                    return <React.Fragment key={idx}>{node}</React.Fragment>;
+                })}
+            </p>
+        );
     });
 };
 
