@@ -5,6 +5,7 @@ import { Exam, Ticket, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme 
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
 import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2 } from 'lucide-react';
+import { renderTextWithMath } from '../utils/latexRenderer';
 
 // ... helper functions (getDaysLeft, NoteRenderer, renderBoldText) unchanged ...
 const getDaysLeft = (dateStr: string) => {
@@ -23,23 +24,28 @@ const NoteRenderer: React.FC<{ text: string; lang: Language }> = ({ text }) => {
                 const trimmed = line.trim();
                 if (!trimmed) return <div key={idx} className="h-2" />;
                 if (trimmed.startsWith('# ')) {
+                    const content = trimmed.substring(2);
                     return (
                         <h1 key={idx} className="text-3xl font-black text-[var(--text-primary)] tracking-tight pt-2 border-b border-[var(--border-glass)] pb-6 mb-8 uppercase text-center">
-                            {trimmed.substring(2)}
+                            {renderTextWithMath(content)}
                         </h1>
                     );
                 }
                 if (trimmed.startsWith('## ')) {
+                    const content = trimmed.substring(3);
                     return (
                         <div key={idx} className="pt-8 mt-4 mb-4">
                             <h2 className="text-xl font-black text-indigo-400 tracking-wide uppercase flex items-center gap-3">
                                 <span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
-                                {trimmed.substring(3)}
+                                {renderTextWithMath(content)}
                             </h2>
                         </div>
                     );
                 }
-                if (trimmed.startsWith('### ')) return <h3 key={idx} className="text-lg font-bold text-[var(--text-primary)] tracking-tight mt-4 opacity-90">{trimmed.substring(4)}</h3>;
+                if (trimmed.startsWith('### ')) {
+                    const content = trimmed.substring(4);
+                    return <h3 key={idx} className="text-lg font-bold text-[var(--text-primary)] tracking-tight mt-4 opacity-90">{renderTextWithMath(content)}</h3>;
+                }
                 if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                     return (
                         <div key={idx} className="flex items-start gap-3 pl-2 group">
@@ -55,10 +61,19 @@ const NoteRenderer: React.FC<{ text: string; lang: Language }> = ({ text }) => {
 };
 
 const renderBoldText = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="text-indigo-400 font-bold px-0.5">{part.slice(2, -2)}</strong>;
-        return part;
+    // First render math, then process bold within text parts
+    const mathParts = renderTextWithMath(text);
+    return mathParts.map((part, i) => {
+        if (typeof part === 'string') {
+            const boldParts = part.split(/(\*\*.*?\*\*)/g);
+            return boldParts.map((boldPart, j) => {
+                if (boldPart.startsWith('**') && boldPart.endsWith('**')) {
+                    return <strong key={`${i}-${j}`} className="text-indigo-400 font-bold px-0.5">{boldPart.slice(2, -2)}</strong>;
+                }
+                return <React.Fragment key={`${i}-${j}`}>{boldPart}</React.Fragment>;
+            });
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
     });
 };
 
