@@ -15,12 +15,13 @@ interface SchedulerProps {
   notes: Note[];
   onUpdateNotes: (notes: Note[]) => void;
   currentStats: DailyStats;
+  onOpenSmartPlanner?: () => void;
 }
 
 const TASK_COLORS = ['transparent', '#6366f1', '#ef4444', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'];
 
 export const Scheduler: React.FC<SchedulerProps> = ({ 
-    tasks, setTasks, userProfile, lang, notes, currentStats, setUserProfile
+    tasks, setTasks, userProfile, lang, notes, currentStats, setUserProfile, onOpenSmartPlanner
 }) => {
     const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
     const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
@@ -145,16 +146,27 @@ export const Scheduler: React.FC<SchedulerProps> = ({
 
     return (
         <div className="animate-fade-in-up space-y-5">
-            <div className="flex bg-white/5 rounded-full p-1 border border-[var(--border-glass)] w-fit mx-auto shadow-sm backdrop-blur-xl">
-                {(['day', 'week', 'month'] as const).map(m => (
-                    <button 
-                        key={m}
-                        onClick={() => setViewMode(m)}
-                        className={`px-6 py-2 rounded-full text-xs font-medium transition-all duration-300 ${viewMode === m ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            <div className="flex items-center justify-center gap-2">
+                <div className="flex bg-white/5 rounded-full p-1 border border-[var(--border-glass)] w-fit mx-auto shadow-sm backdrop-blur-xl">
+                    {(['day', 'week', 'month'] as const).map(m => (
+                        <button 
+                            key={m}
+                            onClick={() => setViewMode(m)}
+                            className={`px-6 py-2 rounded-full text-xs font-medium transition-all duration-300 ${viewMode === m ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                        >
+                            {m === 'day' ? (lang === 'ru' ? 'День' : 'Day') : m === 'week' ? (lang === 'ru' ? 'Неделя' : 'Week') : (lang === 'ru' ? 'Месяц' : 'Month')}
+                        </button>
+                    ))}
+                </div>
+
+                {onOpenSmartPlanner && (
+                    <button
+                        onClick={onOpenSmartPlanner}
+                        className="ml-1 px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/5 border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 active:scale-95 transition-all"
                     >
-                        {m === 'day' ? (lang === 'ru' ? 'День' : 'Day') : m === 'week' ? (lang === 'ru' ? 'Неделя' : 'Week') : (lang === 'ru' ? 'Месяц' : 'Month')}
+                        {lang === 'ru' ? 'Сетка' : 'Grid'}
                     </button>
-                ))}
+                )}
             </div>
 
             <div className="flex flex-col gap-5 px-1">
