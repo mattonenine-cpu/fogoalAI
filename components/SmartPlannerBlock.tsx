@@ -84,9 +84,9 @@ export const SmartBlock: React.FC<SmartBlockProps> = ({
         )}
       </div>
 
-      {/* Resize Handle */}
+      {/* Resize Handle – slightly taller for easier touch dragging */}
       <div 
-        className="absolute bottom-0 left-0 w-full h-3 cursor-ns-resize hover:bg-black/5 dark:hover:bg-white/10 transition-colors z-20 flex items-end justify-center pb-0.5"
+        className="absolute bottom-0 left-0 w-full h-5 cursor-ns-resize hover:bg-black/5 dark:hover:bg-white/10 transition-colors z-20 flex items-end justify-center pb-0.5"
         onPointerDown={(e) => onPointerDown(e, task, 'RESIZE')}
       >
         <div className="w-8 h-1 rounded-full bg-black/20 dark:bg-white/20" />
