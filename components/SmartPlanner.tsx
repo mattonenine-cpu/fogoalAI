@@ -10,9 +10,10 @@ interface SmartPlannerProps {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   lang: Language;
+  onOpenScheduler?: () => void;
 }
 
-export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lang }) => {
+export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lang, onOpenScheduler }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [currentDate, setCurrentDate] = useState(new Date());
   const [taskHistory, setTaskHistory] = useState<Task[][]>([]); // For Undo
@@ -149,6 +150,14 @@ export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lan
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {onOpenScheduler && (
+                        <button
+                            onClick={onOpenScheduler}
+                            className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/5 border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 active:scale-95 transition-all"
+                        >
+                            {lang === 'ru' ? 'Список' : 'List'}
+                        </button>
+                    )}
                     {taskHistory.length > 0 && (
                         <button 
                             onClick={handleUndo}
