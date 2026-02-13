@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
-import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput } from '../services/geminiService';
+import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput, getLocalISODate } from '../services/geminiService';
 import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward, ArrowLeft, Star, Trophy, Flame } from 'lucide-react';
 
 interface SportAppProps {
@@ -337,7 +337,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       setCoachLoading(true);
       try {
           if (!coachSessionRef.current) {
-              coachSessionRef.current = createChatSession(user, [], lang, [], 'sport');
+              coachSessionRef.current = createChatSession(user, [], lang, [], 'sport', getLocalISODate());
           }
           let response = await coachSessionRef.current.sendMessage({ message: textToSend });
           if (response.text) {
