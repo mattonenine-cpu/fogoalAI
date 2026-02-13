@@ -120,7 +120,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
                     role: msg.role === 'user' ? 'user' : 'model', 
                     parts: [{ text: msg.text }] 
                 }));
-            chatSessionRef.current = createChatSession(userProfile, historyForSdk, lang, tasks);
+            chatSessionRef.current = createChatSession(userProfile, historyForSdk, lang, tasks, 'General', getLocalISODate());
         }
 
         const result = await chatSessionRef.current.sendMessage({ message: textToSend });
