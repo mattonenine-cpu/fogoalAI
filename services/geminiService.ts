@@ -17,6 +17,131 @@ export const getLocalISODate = (date: Date = new Date()) => {
   return localDate.toISOString().split('T')[0];
 };
 
+// ---------------------------------------------------------------------------
+// Lightweight caching & basic auto‑responses to reduce unnecessary AI calls
+// ---------------------------------------------------------------------------
+
+type ChatScope = 'general' | 'ecosystem' | 'help';
+
+// Simple in‑memory cache for text responses.
+// Key format: `${scope}|${context}|${lang}|${normalizedMessage}`
+const responseCache = new Map<string, string>();
+
+const normalizeMessage = (text: string): string =>
+  text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?,;:()«»"'`]+/g, '')
+    .replace(/\s+/g, ' ');
+
+const makeCacheKey = (scope: ChatScope, context: string, lang: Language, message: string): string =>
+  `${scope}|${context}|${lang}|${normalizeMessage(message)}`;
+
+// Basic canned replies for greetings / thanks / small talk / simple FAQ.
+// These are returned instantly without any AI call.
+const BASIC_PATTERNS: { lang: Language; patterns: RegExp[]; reply: string }[] = [
+  // RU greetings / small talk
+  {
+    lang: 'ru',
+    patterns: [
+      /^привет$/,
+      /^приветик$/,
+      /^здравствуй$/,
+      /^добрый день$/,
+      /^добрый вечер$/,
+      /^доброе утро$/,
+      /^хай$/,
+      /^йо$/
+    ],
+    reply: 'Привет! Я FoGoal ИИ‑ассистент. Чем могу помочь прямо сейчас?'
+  },
+  {
+    lang: 'ru',
+    patterns: [/^как дела$/, /^как ты$/, /^ты тут$/, /^ты здесь$/],
+    reply: 'Я всегда на связи и готов помочь. Расскажи, над чем сейчас работаешь.'
+  },
+  {
+    lang: 'ru',
+    patterns: [/^спасибо$/, /^спс$/, /^благодарю$/, /^огромное спасибо$/],
+    reply: 'Всегда пожалуйста! Если нужно, можем продолжить или перейти к новой задаче.'
+  },
+  {
+    lang: 'ru',
+    patterns: [/^(кто ты|кто ты такой|что ты умеешь)$/],
+    reply: 'Я FoGoal AI: помогаю планировать день, учёбу, спорт, здоровье и творчество с помощью ИИ.'
+  },
+  {
+    lang: 'ru',
+    patterns: [/^(что ты можешь|чем ты можешь помочь|как ты мне поможешь)$/],
+    reply: 'Я могу разбить задачи на шаги, спланировать день, помочь с учёбой, тренировками, здоровьем и творческими идеями.'
+  },
+  {
+    lang: 'ru',
+    patterns: [/^(помоги|мне нужна помощь|помоги мне)$/],
+    reply: 'Конечно. Коротко опиши ситуацию или задачу, и я предложу конкретные шаги.'
+  },
+  {
+    lang: 'ru',
+    patterns: [/^(что ты за приложение|что такое fogoal|что такое fo?goal|что за фогоал)$/],
+    reply: 'FoGoal — это ИИ‑ассистент, который объединяет планирование задач, учёбу, спорт, здоровье и творчество в одном месте.'
+  },
+
+  // EN greetings / small talk
+  {
+    lang: 'en',
+    patterns: [
+      /^hi$/,
+      /^hello$/,
+      /^hey$/,
+      /^hey there$/,
+      /^good (morning|afternoon|evening)$/,
+      /^yo$/
+    ],
+    reply: 'Hi! I am FoGoal AI assistant. How can I help you right now?'
+  },
+  {
+    lang: 'en',
+    patterns: [/^how are you$/, /^how are u$/, /^are you there$/, /^you there$/],
+    reply: "I'm here and ready to help. Tell me what you're working on."
+  },
+  {
+    lang: 'en',
+    patterns: [/^thanks?$/, /^thank you$/, /^thx$/, /^many thanks$/],
+    reply: "You're welcome! We can continue with this topic or start something new."
+  },
+  {
+    lang: 'en',
+    patterns: [/^(who are you|what can you do|what do you do)$/],
+    reply: 'I am FoGoal AI: I help you plan your day, study, workouts, health and creativity with smart guidance.'
+  },
+  {
+    lang: 'en',
+    patterns: [/^(how can you help me|what can you help with)$/],
+    reply: 'I can break tasks into steps, design your day, assist with study, workouts, health and creative ideas.'
+  },
+  {
+    lang: 'en',
+    patterns: [/^(help me|i need help|can you help me)$/],
+    reply: 'Sure. Briefly describe your situation or task and I will suggest concrete next steps.'
+  },
+  {
+    lang: 'en',
+    patterns: [/^(what is fogoal|what is fo goal|what is this app)$/],
+    reply: 'FoGoal is an AI assistant that combines planning, study, workouts, health and creativity in one workspace.'
+  }
+];
+
+function getBasicAutoReply(message: string, lang: Language): string | null {
+  const norm = normalizeMessage(message);
+  for (const entry of BASIC_PATTERNS) {
+    if (entry.lang !== lang) continue;
+    if (entry.patterns.some((re) => re.test(norm))) {
+      return entry.reply;
+    }
+  }
+  return null;
+}
+
 export const cleanTextOutput = (text: string = "") => {
     return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
@@ -62,6 +187,24 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
 
     return {
         sendMessage: async ({ message }: { message: string }) => {
+            // 1) Basic canned reply (no AI call)
+            const basic = getBasicAutoReply(message, lang);
+            if (basic) {
+                const text = basic;
+                localHistory.push({ role: 'user', parts: [{ text: message }] });
+                localHistory.push({ role: 'model', parts: [{ text }] });
+                return { text };
+            }
+
+            // 2) Check cache for repeated questions within contextual help
+            const cacheKey = makeCacheKey('help', context.blockName, lang, message);
+            if (responseCache.has(cacheKey)) {
+                const cached = responseCache.get(cacheKey) as string;
+                localHistory.push({ role: 'user', parts: [{ text: message }] });
+                localHistory.push({ role: 'model', parts: [{ text: cached }] });
+                return { text: cached };
+            }
+
             localHistory.push({ role: 'user', parts: [{ text: message }] });
             
             const result = await callApi('/api/generate', {
@@ -72,6 +215,7 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
 
             const text = result.text || "";
             localHistory.push({ role: 'model', parts: [{ text }] });
+            responseCache.set(cacheKey, text);
             
             return { text };
         }
@@ -87,6 +231,25 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
 
     return {
         sendMessage: async ({ message }: { message: string }) => {
+            // 1) Basic canned reply (no AI call)
+            const basic = getBasicAutoReply(message, lang);
+            if (basic) {
+                const text = basic;
+                localHistory.push({ role: 'user', parts: [{ text: message }] });
+                localHistory.push({ role: 'model', parts: [{ text }] });
+                return { text };
+            }
+
+            // 2) Cache lookup scoped by chat type (general vs specific ecosystem)
+            const scope: ChatScope = type === 'General' ? 'general' : 'ecosystem';
+            const cacheKey = makeCacheKey(scope, type, lang, message);
+            if (responseCache.has(cacheKey)) {
+                const cached = responseCache.get(cacheKey) as string;
+                localHistory.push({ role: 'user', parts: [{ text: message }] });
+                localHistory.push({ role: 'model', parts: [{ text: cached }] });
+                return { text: cached };
+            }
+
             localHistory.push({ role: 'user', parts: [{ text: message }] });
             
             const result = await callApi('/api/generate', {
@@ -97,6 +260,7 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
 
             const text = result.text || "";
             localHistory.push({ role: 'model', parts: [{ text }] });
+            responseCache.set(cacheKey, text);
             
             return { text };
         }
