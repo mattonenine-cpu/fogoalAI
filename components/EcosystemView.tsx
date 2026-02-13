@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { EcosystemType, UserProfile, Task, Language, TRANSLATIONS, Practice, Goal, AppView, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
-import { createChatSession, cleanTextOutput, evaluateProgress, generateFocuVisual } from '../services/geminiService';
+import { createChatSession, cleanTextOutput, evaluateProgress, generateFocuVisual, getLocalISODate } from '../services/geminiService';
 import { ExamPrepApp } from './ExamPrepApp';
 import { SportApp } from './SportApp';
 import { HealthApp } from './HealthApp'; 
@@ -293,7 +293,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
 
     try {
         if (!practiceSessionRef.current) {
-            practiceSessionRef.current = createChatSession(user, [], lang, domainTasks, type);
+            practiceSessionRef.current = createChatSession(user, [], lang, domainTasks, type, getLocalISODate());
         }
         const res = await practiceSessionRef.current.sendMessage({ message: text });
         setMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(res.text || "")}]);
@@ -313,7 +313,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
 
     try {
         if (!domainSessionRef.current) {
-            domainSessionRef.current = createChatSession(user, [], lang, domainTasks, type);
+            domainSessionRef.current = createChatSession(user, [], lang, domainTasks, type, getLocalISODate());
         }
         const res = await domainSessionRef.current.sendMessage({ message: text });
         setDomainMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(res.text || "")}]);
