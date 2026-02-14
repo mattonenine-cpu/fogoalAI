@@ -16,6 +16,7 @@ import { ContextHelpOverlay } from './ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
+import { Analytics } from '@vercel/analytics/react';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
 const safeSave = (key: string, data: any) => {
@@ -322,6 +323,7 @@ export default function App() {
             onClose={() => setHelpContext(null)}
         />
       )}
+      <Analytics />
     </div>
   );
 }
