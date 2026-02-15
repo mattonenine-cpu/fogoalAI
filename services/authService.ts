@@ -1,5 +1,6 @@
 
 import { UserProfile, Task, Note, NoteFolder, DailyStats } from '../types';
+import supabase from './supabaseClient';
 
 interface UserDataPayload {
     profile: UserProfile;
@@ -20,6 +21,17 @@ const safeSave = (key: string, data: string) => {
     }
 };
 
+const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://localhost:3000';
+
+const authFetch = async (url: string, options: RequestInit = {}) => {
+    const token = localStorage.getItem('session_token');
+    const headers = options.headers ? new Headers(options.headers as any) : new Headers();
+    headers.set('Content-Type', 'application/json');
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+    return res;
+};
+
 export const authService = {
     /**
      * Checks if a user is currently logged in.
@@ -33,30 +45,44 @@ export const authService = {
      * Checks if username exists. If not, creates entry in `cloud_users` and saves initial data.
      */
     register: async (username: string, password: string, initialData: UserDataPayload): Promise<{ success: boolean, message?: string }> => {
-        await delay(800); // Simulate network request
-
-        const usersRaw = localStorage.getItem('cloud_users');
-        const users = usersRaw ? JSON.parse(usersRaw) : {};
-
-        if (users[username]) {
-            return { success: false, message: 'exists' };
+        // If Supabase is configured, use it directly
+        if (supabase) {
+            try {
+                // Supabase expects an email; use username as email.
+                const { data, error } = await supabase.auth.signUp({ email: username, password });
+                if (error) return { success: false, message: error.message };
+                const user = (data as any)?.user;
+                if (user) {
+                    // store initial data in table `user_data` (create this table in Supabase: user_id uuid PK, json text)
+                    await supabase.from('user_data').insert([{ user_id: user.id, json: JSON.stringify(initialData) }]);
+                    localStorage.setItem('session_user', username);
+                    return { success: true };
+                }
+                return { success: true };
+            } catch (e: any) {
+                return { success: false, message: e.message || 'error' };
+            }
         }
 
-        // Save User Creds
-        users[username] = { password }; // In real app: Hash this password!
-        safeSave('cloud_users', JSON.stringify(users));
-
-        // Save Initial Data
-        const userDataKey = `cloud_data_${username}`;
-        safeSave(userDataKey, JSON.stringify(initialData));
-
-        // Set Session
-        safeSave('session_user', username);
-        
-        // Populate "Active" LocalStorage keys for the App to use seamlessly
-        authService.syncToActiveState(initialData);
-
-        return { success: true };
+        // Fallback to existing API
+        try {
+            const res = await fetch(`${API_BASE}/api/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, initialData })
+            });
+            const json = await res.json();
+            if (!res.ok) return { success: false, message: json.message || 'error' };
+            if (json.token) {
+                localStorage.setItem('session_token', json.token);
+                localStorage.setItem('session_user', username);
+            }
+            if (json.data) authService.syncToActiveState(json.data);
+            else authService.syncToActiveState(initialData);
+            return { success: true };
+        } catch (e) {
+            return { success: false, message: 'network' };
+        }
     },
 
     /**
@@ -64,28 +90,44 @@ export const authService = {
      * Verifies credentials and loads their data into the active application state.
      */
     login: async (username: string, password: string): Promise<{ success: boolean, message?: string }> => {
-        await delay(800); // Simulate network request
-
-        const usersRaw = localStorage.getItem('cloud_users');
-        const users = usersRaw ? JSON.parse(usersRaw) : {};
-
-        if (!users[username] || users[username].password !== password) {
-            return { success: false, message: 'invalid' };
+        if (supabase) {
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({ email: username, password });
+                if (error) return { success: false, message: error.message };
+                const user = (data as any)?.user;
+                if (user) {
+                    // fetch user data
+                    const { data: rows } = await supabase.from('user_data').select('json').eq('user_id', user.id).single();
+                    if (rows && (rows as any).json) {
+                        const parsed = JSON.parse((rows as any).json);
+                        authService.syncToActiveState(parsed);
+                    }
+                    localStorage.setItem('session_user', username);
+                    return { success: true };
+                }
+                return { success: false, message: 'no_user' };
+            } catch (e: any) {
+                return { success: false, message: e.message || 'error' };
+            }
         }
 
-        // Set Session
-        safeSave('session_user', username);
-
-        // Load Data from "Cloud"
-        const userDataKey = `cloud_data_${username}`;
-        const savedDataRaw = localStorage.getItem(userDataKey);
-        
-        if (savedDataRaw) {
-            const data: UserDataPayload = JSON.parse(savedDataRaw);
-            authService.syncToActiveState(data);
+        try {
+            const res = await fetch(`${API_BASE}/api/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const json = await res.json();
+            if (!res.ok) return { success: false, message: json.message || 'invalid' };
+            if (json.token) {
+                localStorage.setItem('session_token', json.token);
+                localStorage.setItem('session_user', username);
+            }
+            if (json.data) authService.syncToActiveState(json.data);
+            return { success: true };
+        } catch (e) {
+            return { success: false, message: 'network' };
         }
-
-        return { success: true };
     },
 
     /**
@@ -95,6 +137,7 @@ export const authService = {
     logout: async () => {
         await delay(300);
         localStorage.removeItem('session_user');
+        localStorage.removeItem('session_token');
         // Clear active state to prevent data leaking to next user
         localStorage.removeItem('focu_profile');
         localStorage.removeItem('focu_tasks');
@@ -120,11 +163,26 @@ export const authService = {
      * Helper: Takes current active state and saves it to the "Cloud" (namespaced key).
      * Call this whenever data changes in the app.
      */
-    syncToCloud: (data: UserDataPayload) => {
-        const currentUser = authService.getCurrentUser();
-        if (!currentUser) return; // Don't save if no user logged in (guest mode?)
+    syncToCloud: async (data: UserDataPayload) => {
+        if (supabase) {
+            try {
+                const user = (await supabase.auth.getUser()).data.user;
+                if (!user) return;
+                // upsert user_data table
+                await supabase.from('user_data').upsert({ user_id: user.id, json: JSON.stringify(data) }, { onConflict: 'user_id' });
+            } catch (e) {
+                console.warn('Supabase sync failed', e);
+            }
+            return;
+        }
 
-        const userDataKey = `cloud_data_${currentUser}`;
-        safeSave(userDataKey, JSON.stringify(data));
+        const token = localStorage.getItem('session_token');
+        if (!token) return;
+        try {
+            await authFetch('/api/sync', { method: 'POST', body: JSON.stringify(data) });
+        } catch (e) {
+            console.warn('Failed to sync to server', e);
+        }
     }
 };
+
