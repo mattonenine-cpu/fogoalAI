@@ -317,3 +317,4 @@ const NavBtn: React.FC<{ active: boolean, onClick: () => void, emoji: string }> 
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
   </button>
 );
+
