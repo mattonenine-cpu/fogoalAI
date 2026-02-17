@@ -86,6 +86,10 @@ export interface UserProfile {
   fitnessOnboarded?: boolean;
   healthHistory?: HealthDailyLog[];
   settings?: UserSettings;
+  /** Привязка Telegram: данные приходят из Telegram Login Widget или WebApp initData */
+  telegramId?: number;
+  telegramUsername?: string;
+  telegramPhotoUrl?: string;
 }
 
 export interface Goal {
