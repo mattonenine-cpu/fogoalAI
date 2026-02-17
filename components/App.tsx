@@ -16,7 +16,7 @@ import { ContextHelpOverlay } from './ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound, User } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
-import { parseTelegramCallbackFromUrl } from '../services/telegramAuth';
+import { parseTelegramCallbackFromUrl, getTelegramUserFromWebApp } from '../services/telegramAuth';
 import { TelegramAuthWidget } from './TelegramAuthWidget';
 import type { UserDataPayload } from '../services/authService';
 
@@ -335,6 +335,64 @@ export default function App() {
     }
   };
 
+  // Handler: Try to read Telegram profile from Web App and perform login/register automatically.
+  const handleTelegramAuto = async () => {
+    try {
+      const payload = getTelegramUserFromWebApp();
+      if (!payload) {
+        // Fallback: open the widget flow
+        window.location.href = `${window.location.origin + (window.location.pathname || '')}?show_telegram_widget=login`;
+        return;
+      }
+
+      // Try login first
+      setHandlingTelegram(true);
+      const res = await authService.loginWithTelegram(payload);
+      if (res.success) {
+        window.location.reload();
+        return;
+      }
+
+      if (res.needRegister) {
+        // Create initial data similar to existing flow
+        const today = new Date().toISOString().split('T')[0];
+        const initialData: UserDataPayload = {
+          profile: {
+            name: payload.first_name || payload.username || String(payload.id),
+            occupation: '',
+            level: 1,
+            totalExperience: 0,
+            goals: [],
+            bedtime: '23:00',
+            wakeTime: '07:00',
+            activityHistory: [today],
+            energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
+            isOnboarded: false,
+            enabledEcosystems: [],
+            statsHistory: [],
+            telegramId: payload.id,
+            telegramUsername: payload.username,
+            telegramPhotoUrl: payload.photo_url,
+            settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'], fontSize: 'normal' }
+          },
+          tasks: [],
+          notes: [],
+          folders: [],
+          stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral' as const, sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: today }
+        };
+
+        setCompletingTelegramRegister(true);
+        const r = await authService.registerWithTelegram(payload, initialData);
+        setCompletingTelegramRegister(false);
+        if (r.success) {
+          setRegistrationSuccess({ id: payload.id, name: payload.first_name || payload.username || String(payload.id), photo: payload.photo_url });
+        }
+      }
+    } finally {
+      setHandlingTelegram(false);
+    }
+  };
+
   const showTelegramWidget = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('show_telegram_widget');
   if (showTelegramWidget === 'link' || showTelegramWidget === 'login') {
     return (
@@ -389,7 +447,7 @@ export default function App() {
   }
 
   if (!language) return <LanguageSelector onSelect={setLanguage} />;
-  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} initialProfile={profile || undefined} />;
+  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} initialProfile={profile || undefined} onTelegramAuto={handleTelegramAuto} />;
 
   const getNavEmoji = (type: string) => {
     switch(type) {
