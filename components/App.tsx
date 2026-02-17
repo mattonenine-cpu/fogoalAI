@@ -16,7 +16,7 @@ import { ContextHelpOverlay } from './ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound, User } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
-import { parseTelegramCallbackFromUrl } from '../services/telegramAuth';
+import { parseTelegramCallbackFromUrl, getTelegramUserFromWebApp } from '../services/telegramAuth';
 import { TelegramAuthWidget } from './TelegramAuthWidget';
 import type { UserDataPayload } from '../services/authService';
 
@@ -134,6 +134,61 @@ export default function App() {
   useEffect(() => {
       const user = authService.getCurrentUser();
       if (!user && profile) setProfile(null);
+  }, []);
+
+  // Auto-login / auto-register when app runs inside Telegram Web App (mini app)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const tgUser = getTelegramUserFromWebApp();
+      if (!tgUser) return;
+
+      const run = async () => {
+        // Try login first
+        const res = await authService.loginWithTelegram(tgUser);
+        if (res.success) {
+          const saved = localStorage.getItem('focu_profile');
+          if (saved) setProfile(JSON.parse(saved));
+          return;
+        }
+        // If need register - create minimal initial data and register
+        if (res.needRegister) {
+          const today = new Date().toISOString().split('T')[0];
+          const initialData: UserDataPayload = {
+            profile: {
+              name: tgUser.first_name || tgUser.username || String(tgUser.id),
+              occupation: '',
+              level: 1,
+              totalExperience: 0,
+              goals: [],
+              bedtime: '23:00',
+              wakeTime: '07:00',
+              activityHistory: [today],
+              energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
+              isOnboarded: true,
+              enabledEcosystems: [],
+              statsHistory: [],
+              telegramId: tgUser.id,
+              telegramUsername: tgUser.username,
+              telegramPhotoUrl: tgUser.photo_url,
+              settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard','scheduler','smart_planner','chat','notes','sport','study','health','creativity'], fontSize: 'normal' }
+            },
+            tasks: [],
+            notes: [],
+            folders: [],
+            stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral' as const, sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: today }
+          };
+          const r2 = await authService.registerWithTelegram(tgUser, initialData);
+          if (r2.success) {
+            const saved = localStorage.getItem('focu_profile');
+            if (saved) setProfile(JSON.parse(saved));
+          }
+        }
+      };
+      run();
+    } catch (e) {
+      console.warn('Telegram WebApp auto-login failed', e);
+    }
   }, []);
 
   // Обработка callback от Telegram Login Widget (привязка или вход)
@@ -442,3 +497,4 @@ const NavBtn: React.FC<{ active: boolean, onClick: (e: React.MouseEvent) => void
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
   </button>
 );
+
