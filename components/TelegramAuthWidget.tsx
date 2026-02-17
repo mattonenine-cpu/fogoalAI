@@ -7,10 +7,9 @@ interface TelegramAuthWidgetProps {
   mode: Mode;
   onCancel?: () => void;
   lang?: 'en' | 'ru';
-  onRegisterInBrowser?: () => void | Promise<void>;
 }
 
-export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, onCancel, lang = 'ru', onRegisterInBrowser }) => {
+export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, onCancel, lang = 'ru' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const botName = getTelegramBotName();
   const authUrl = getTelegramCallbackUrl(mode);
@@ -43,19 +42,11 @@ export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, on
           : (lang === 'ru' ? 'Войдите через Telegram, чтобы сохранять прогресс на всех устройствах.' : 'Log in with Telegram to sync progress across devices.')}
       </p>
       <div ref={containerRef} className="min-h-[44px]" />
-      <div className="w-full flex gap-3 justify-center">
-        <button
-          type="button"
-          onClick={() => onRegisterInBrowser && onRegisterInBrowser()}
-          className="px-4 py-2 bg-[var(--theme-accent)] text-white rounded"
-        >
-          {lang === 'ru' ? 'Продолжить в браузере' : 'Continue in browser'}
-        </button>
-      </div>
+      
       <div className="text-center">
         <p className="text-[10px] text-[var(--text-secondary)] mb-2">If the widget doesn't work, open the bot in Telegram:</p>
         <a
-          href={`https://t.me/${getTelegramBotName()}?start=${mode === 'link' ? 'link' : 'login'}`}
+          href={`https://t.me/${botName}?start=${mode === 'link' ? 'link' : 'login'}`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-block px-4 py-2 bg-[var(--bg-card)] rounded text-sm text-[var(--text-primary)] border border-[var(--border-glass)]"
