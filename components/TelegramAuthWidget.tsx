@@ -11,20 +11,19 @@ interface TelegramAuthWidgetProps {
 
 export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, onCancel, lang = 'ru' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const botName = getTelegramBotName();
+  const authUrl = getTelegramCallbackUrl(mode);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const authUrl = getTelegramCallbackUrl(mode);
-    const botName = getTelegramBotName();
-
     const script = document.createElement('script');
     script.async = true;
     script.src = 'https://telegram.org/js/telegram-widget.js?22';
-    script.setAttribute('data-telegram-login', botName);
+    script.setAttribute('data-telegram-login', botName || '');
     script.setAttribute('data-size', 'large');
-    script.setAttribute('data-auth-url', authUrl);
+    script.setAttribute('data-auth-url', authUrl || '');
     script.setAttribute('data-request-access', 'write');
 
     container.innerHTML = '';
@@ -33,7 +32,7 @@ export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, on
     return () => {
       script.remove();
     };
-  }, [mode]);
+  }, [mode, botName, authUrl]);
 
   return (
     <div className="flex flex-col items-center justify-center gap-6 p-8">
@@ -66,4 +65,3 @@ export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, on
     </div>
   );
 };
-
