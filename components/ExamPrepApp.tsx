@@ -63,10 +63,10 @@ const NoteRenderer: React.FC<{ text: string; lang: Language }> = ({ text }) => {
 const renderBoldText = (text: string) => {
     // First render math, then process bold within text parts
     const mathParts = renderTextWithMath(text);
-    return mathParts.map((part, i) => {
+    return mathParts.map((part: React.ReactNode, i: number) => {
         if (typeof part === 'string') {
             const boldParts = part.split(/(\*\*.*?\*\*)/g);
-            return boldParts.map((boldPart, j) => {
+            return boldParts.map((boldPart: string, j: number) => {
                 if (boldPart.startsWith('**') && boldPart.endsWith('**')) {
                     return <strong key={`${i}-${j}`} className="text-indigo-400 font-bold px-0.5">{boldPart.slice(2, -2)}</strong>;
                 }
