@@ -43,6 +43,17 @@ export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, on
           : (lang === 'ru' ? 'Войдите через Telegram, чтобы сохранять прогресс на всех устройствах.' : 'Log in with Telegram to sync progress across devices.')}
       </p>
       <div ref={containerRef} className="min-h-[44px]" />
+      <div className="text-center">
+        <p className="text-[10px] text-[var(--text-secondary)] mb-2">If the widget doesn't work, open the bot in Telegram:</p>
+        <a
+          href={`https://t.me/${botName}?start=${mode === 'link' ? 'link' : 'login'}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block px-4 py-2 bg-[var(--bg-card)] rounded text-sm text-[var(--text-primary)] border border-[var(--border-glass)]"
+        >
+          Open in Telegram
+        </a>
+      </div>
       {onCancel && (
         <button
           type="button"
@@ -55,3 +66,4 @@ export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, on
     </div>
   );
 };
+
