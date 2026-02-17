@@ -14,6 +14,7 @@ interface OnboardingProps {
   lang: Language;
   currentTheme: AppTheme;
   onSetTheme: (theme: AppTheme) => void;
+  initialProfile?: Partial<UserProfile>;
 }
 
 const ECO_CONFIG: Record<string, { color: string, icon: any }> = {
@@ -45,37 +46,68 @@ const ECO_DETAILS: Record<string, { en: { inside: string, whom: string }, ru: { 
 
 const ONBOARDING_GOAL_COLORS = ['#6366f1', '#ef4444', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'];
 
-export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, currentTheme, onSetTheme }) => {
+export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, currentTheme, onSetTheme, initialProfile }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   
+  // Check if this is a Telegram-registered user
+  const isTelegramUser = !!initialProfile?.telegramId;
+  
   // Auth State
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'setup'>('login');
-  const [username, setUsername] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'setup'>(() => {
+    // If this is a Telegram-registered user, skip auth and go straight to setup
+    return isTelegramUser ? 'setup' : 'login';
+  });
+  const [username, setUsername] = useState(initialProfile?.username || '');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Setup State
   // Steps: 1=Goals, 2=Energy, 3=Drains, 4=Review
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(isTelegramUser ? 1 : 1);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [signals, setSignals] = useState<EcosystemConfig[]>([]);
   const [goalText, setGoalText] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   
-  const [profile, setProfile] = useState<Partial<UserProfile>>({
-    name: '',
-    occupation: '',
-    goals: [],
-    bedtime: '23:00',
-    wakeTime: '07:00',
-    activityHistory: [new Date().toISOString().split('T')[0]], 
-    energyProfile: {
-        energyPeaks: [],
-        energyDips: [],
-        recoverySpeed: 'average',
-        resistanceTriggers: []
+  const [profile, setProfile] = useState<Partial<UserProfile>>(() => {
+    if (initialProfile) {
+      return {
+        name: initialProfile.name || '',
+        occupation: initialProfile.occupation || '',
+        goals: initialProfile.goals || [],
+        bedtime: initialProfile.bedtime || '23:00',
+        wakeTime: initialProfile.wakeTime || '07:00',
+        activityHistory: initialProfile.activityHistory || [new Date().toISOString().split('T')[0]], 
+        energyProfile: initialProfile.energyProfile || {
+            energyPeaks: [],
+            energyDips: [],
+            recoverySpeed: 'average',
+            resistanceTriggers: []
+        },
+        telegramId: initialProfile.telegramId,
+        telegramUsername: initialProfile.telegramUsername,
+        telegramPhotoUrl: initialProfile.telegramPhotoUrl,
+        level: initialProfile.level || 1,
+        totalExperience: initialProfile.totalExperience || 0,
+        statsHistory: initialProfile.statsHistory || [],
+        enabledEcosystems: initialProfile.enabledEcosystems || []
+      };
     }
+    return {
+      name: '',
+      occupation: '',
+      goals: [],
+      bedtime: '23:00',
+      wakeTime: '07:00',
+      activityHistory: [new Date().toISOString().split('T')[0]], 
+      energyProfile: {
+          energyPeaks: [],
+          energyDips: [],
+          recoverySpeed: 'average',
+          resistanceTriggers: []
+      }
+    };
   });
 
   const handleLogin = async () => {
@@ -171,35 +203,72 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
         
         const finalProfile: UserProfile = {
             ...profile,
-            username: username,
+            username: username || profile.name,
             goals: profile.goals || [],
             isOnboarded: true,
             enabledEcosystems,
-            level: 1,
-            totalExperience: 0,
-            statsHistory: [],
+            level: profile.level || 1,
+            totalExperience: profile.totalExperience || 0,
+            statsHistory: profile.statsHistory || [],
             settings: {
                 aiPersona: 'balanced',
                 aiDetailLevel: 'medium',
                 visibleViews: ['dashboard', 'scheduler', 'chat', 'notes', ...ecosystemViews],
-                fontSize: 'large' // Default to large
+                fontSize: 'large'
             }
         } as UserProfile;
 
-        const res = await authService.register(username, password, {
-            profile: finalProfile,
-            tasks: [],
-            notes: [],
-            folders: [],
-            stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral', sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: new Date().toISOString().split('T')[0] }
-        });
-
-        if (res.success) {
-            onComplete(finalProfile);
+        // For Telegram users, update existing profile instead of creating new account
+        if (isTelegramUser) {
+            const currentUser = authService.getCurrentUser();
+            if (currentUser) {
+                // Just update the existing user's profile
+                const userDataKey = `cloud_data_${currentUser}`;
+                const existingDataRaw = localStorage.getItem(userDataKey);
+                if (existingDataRaw) {
+                    const existingData: UserDataPayload = JSON.parse(existingDataRaw);
+                    existingData.profile = finalProfile;
+                    try {
+                        localStorage.setItem(userDataKey, JSON.stringify(existingData));
+                        localStorage.setItem('focu_profile', JSON.stringify(finalProfile));
+                        authService.syncToCloud(existingData);
+                        onComplete(finalProfile);
+                    } catch (e) {
+                        setAuthError('Failed to save profile');
+                    }
+                } else {
+                    // Shouldn't happen, but fallback to register
+                    const res = await authService.register(username || profile.name || 'User', password || '', {
+                        profile: finalProfile,
+                        tasks: [],
+                        notes: [],
+                        folders: [],
+                        stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral', sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: new Date().toISOString().split('T')[0] }
+                    });
+                    if (res.success) {
+                        onComplete(finalProfile);
+                    } else {
+                        setAuthError(res.message === 'exists' ? t.authExists : 'Setup failed');
+                    }
+                }
+            }
         } else {
-            setAuthError(res.message === 'exists' ? t.authExists : 'Registration failed');
-            setAuthMode('signup');
-            setStep(1);
+            // For regular users, create new account
+            const res = await authService.register(username, password, {
+                profile: finalProfile,
+                tasks: [],
+                notes: [],
+                folders: [],
+                stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral', sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: new Date().toISOString().split('T')[0] }
+            });
+
+            if (res.success) {
+                onComplete(finalProfile);
+            } else {
+                setAuthError(res.message === 'exists' ? t.authExists : 'Registration failed');
+                setAuthMode('signup');
+                setStep(1);
+            }
         }
         setIsAuthenticating(false);
     } else {
@@ -210,9 +279,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
   const handleBack = () => {
     if (step > 1) {
       setStep(step - 1);
-    } else {
+    } else if (!isTelegramUser) {
         setAuthMode('signup');
     }
+    // For Telegram users, don't go back from step 1 (they came directly into setup)
   };
 
   const toggleSignal = (type: string) => {
@@ -507,4 +577,3 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
     </div>
   );
 };
-
