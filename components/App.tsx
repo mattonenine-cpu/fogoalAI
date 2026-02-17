@@ -441,9 +441,14 @@ export default function App() {
           <div className="text-sm text-[var(--text-secondary)]">Добро пожаловать, {registrationSuccess.name}</div>
           <div className="w-full flex gap-3 mt-4">
             <button onClick={() => {
-              // Load profile from storage and proceed to onboarding
+              // Load profile from storage and ensure isOnboarded is false for onboarding flow
               const saved = localStorage.getItem('focu_profile');
-              if (saved) setProfile(JSON.parse(saved));
+              if (saved) {
+                const loadedProfile = JSON.parse(saved);
+                // Force isOnboarded to false to show onboarding screens
+                loadedProfile.isOnboarded = false;
+                setProfile(loadedProfile);
+              }
               setRegistrationSuccess(null);
             }} className="flex-1 py-2 rounded-md bg-[var(--theme-accent)] text-white">Далее</button>
           </div>
@@ -476,7 +481,7 @@ export default function App() {
   }
 
   if (!language) return <LanguageSelector onSelect={setLanguage} />;
-  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} />;
+  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} initialProfile={profile} />;
 
   const getNavEmoji = (type: string) => {
     switch(type) {
