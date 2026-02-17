@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { UserProfile, Language, TRANSLATIONS, EnergyProfile, Goal, EcosystemConfig, AppTheme, EcosystemType } from '../types';
 import { GlassCard, GlassInput, GlassButton } from './GlassCard';
 import { analyzeEcosystemSignals } from '../services/geminiService';
-import { authService } from '../services/authService';
+import { authService, type UserDataPayload } from '../services/authService';
 import { ThemeSelector } from './ThemeSelector';
 import { Mascot } from './Mascot';
 import { Logo } from './Logo';
@@ -577,3 +577,4 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
     </div>
   );
 };
+
