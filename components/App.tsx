@@ -18,6 +18,7 @@ import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
 import { parseTelegramCallbackFromUrl } from '../services/telegramAuth';
 import { TelegramAuthWidget } from './TelegramAuthWidget';
+import type { UserDataPayload } from '../services/authService';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
 const safeSave = (key: string, data: any) => {
@@ -180,7 +181,7 @@ export default function App() {
       setCompletingTelegramRegister(true);
       sessionStorage.removeItem('telegram_register_payload');
       const today = new Date().toISOString().split('T')[0];
-      const initialData = {
+      const initialData: UserDataPayload = {
         profile: {
           name: payload.first_name || payload.username || String(payload.id),
           occupation: '',
@@ -289,7 +290,7 @@ export default function App() {
   };
 
   const handleTrackRequest = (taskId: string) => {
-      const task = tasks.find(t => t.id === taskId);
+      const task = tasks.find((t: Task) => t.id === taskId);
       if (task) {
           setHelpContext({
               blockName: 'Scheduler Task',
@@ -310,7 +311,7 @@ export default function App() {
         return <Dashboard 
           user={profile} stats={dailyStats} lang={language!} tasks={tasks} 
           onUpdateProfile={handleUpdateProfile} onUpdateStats={setDailyStats} onNavigate={setCurrentView}
-          onAddTasks={(newTasks: Task[]) => setTasks(prev => [...prev, ...newTasks])}
+          onAddTasks={(newTasks: Task[]) => setTasks((prev: Task[]) => [...prev, ...newTasks])}
         />;
       case AppView.SCHEDULER:
         return <Scheduler 
@@ -441,4 +442,3 @@ const NavBtn: React.FC<{ active: boolean, onClick: (e: React.MouseEvent) => void
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
   </button>
 );
-
