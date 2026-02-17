@@ -55,7 +55,7 @@ export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, on
       <div className="text-center">
         <p className="text-[10px] text-[var(--text-secondary)] mb-2">If the widget doesn't work, open the bot in Telegram:</p>
         <a
-          href={`https://t.me/${botName}?start=${mode === 'link' ? 'link' : 'login'}`}
+          href={`https://t.me/${getTelegramBotName()}?start=${mode === 'link' ? 'link' : 'login'}`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-block px-4 py-2 bg-[var(--bg-card)] rounded text-sm text-[var(--text-primary)] border border-[var(--border-glass)]"
