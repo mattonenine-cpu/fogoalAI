@@ -5,7 +5,7 @@ import { Exam, Ticket, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme 
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
 import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2 } from 'lucide-react';
-import { renderTextWithMath } from '../utils/latexRenderer';
+import { renderTextWithMath } from '../LatexRenderer';
 
 // ... helper functions (getDaysLeft, NoteRenderer, renderBoldText) unchanged ...
 const getDaysLeft = (dateStr: string) => {
