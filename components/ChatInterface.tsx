@@ -29,7 +29,7 @@ const renderMessageContent = (text: string, isUser: boolean) => {
         
         if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
             const content = trimmed.replace(/^#+\s+/, '');
-            return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-[var(--theme-accent)]'}`}>{renderTextWithMath(content).map((node, idx) => {
+            return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-[var(--theme-accent)]'}`}>{renderTextWithMath(content).map((node: React.ReactNode, idx: number) => {
                 if (typeof node === 'string') return parseBold(node, isUser);
                 return <React.Fragment key={idx}>{node}</React.Fragment>;
             })}</h3>;
@@ -41,7 +41,7 @@ const renderMessageContent = (text: string, isUser: boolean) => {
                 <div key={i} className="flex gap-2 pl-2 mb-1">
                     <span className={`font-black ${isUser ? 'text-white/60' : 'text-[var(--theme-accent)]'}`}>•</span>
                     <span className="text-[13px] leading-relaxed">
-                        {renderTextWithMath(content).map((node, idx) => {
+                        {renderTextWithMath(content).map((node: React.ReactNode, idx: number) => {
                             if (typeof node === 'string') return <React.Fragment key={idx}>{parseBold(node, isUser)}</React.Fragment>;
                             return <React.Fragment key={idx}>{node}</React.Fragment>;
                         })}
@@ -52,7 +52,7 @@ const renderMessageContent = (text: string, isUser: boolean) => {
 
         return (
             <p key={i} className="text-[13px] leading-relaxed mb-1">
-                {renderTextWithMath(line).map((node, idx) => {
+                {renderTextWithMath(line).map((node: React.ReactNode, idx: number) => {
                     if (typeof node === 'string') return <React.Fragment key={idx}>{parseBold(node, isUser)}</React.Fragment>;
                     return <React.Fragment key={idx}>{node}</React.Fragment>;
                 })}
