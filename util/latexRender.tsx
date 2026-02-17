@@ -89,3 +89,4 @@ export const renderTextWithMath = (text: string): React.ReactNode[] => {
 
 	return parts.length > 0 ? parts : [<React.Fragment key="empty">{text}</React.Fragment>];
 };
+
