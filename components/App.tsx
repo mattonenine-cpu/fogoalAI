@@ -13,9 +13,11 @@ import { Logo } from './Logo';
 import { ThemeSelector } from './ThemeSelector';
 import { SettingsModal } from './SettingsModal';
 import { ContextHelpOverlay } from './ContextHelpOverlay';
-import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound } from 'lucide-react';
+import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound, User } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
+import { parseTelegramCallbackFromUrl } from '../services/telegramAuth';
+import { TelegramAuthWidget } from './TelegramAuthWidget';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
 const safeSave = (key: string, data: any) => {
@@ -132,6 +134,85 @@ export default function App() {
       const user = authService.getCurrentUser();
       if (!user && profile) setProfile(null);
   }, []);
+
+  // Обработка callback от Telegram Login Widget (привязка или вход)
+  const [handlingTelegram, setHandlingTelegram] = useState(false);
+  useEffect(() => {
+    const payload = parseTelegramCallbackFromUrl();
+    if (!payload || handlingTelegram) return;
+
+    const run = async () => {
+      setHandlingTelegram(true);
+      try {
+        if (payload.link) {
+          const res = authService.linkTelegram(payload);
+          if (res.success && res.updatedProfile) setProfile(res.updatedProfile);
+          window.history.replaceState({}, '', window.location.pathname || '/');
+          return;
+        }
+        const res = await authService.loginWithTelegram(payload);
+        if (res.success) {
+          window.history.replaceState({}, '', window.location.pathname || '/');
+          window.location.reload();
+          return;
+        }
+        if (res.needRegister) {
+          sessionStorage.setItem('telegram_register_payload', JSON.stringify(payload));
+          window.history.replaceState({}, '', window.location.pathname || '/');
+          window.location.reload();
+        }
+      } finally {
+        setHandlingTelegram(false);
+      }
+    };
+    run();
+  }, [handlingTelegram]);
+
+  // Регистрация по Telegram (после редиректа с needRegister)
+  const [completingTelegramRegister, setCompletingTelegramRegister] = useState(false);
+  useEffect(() => {
+    const raw = sessionStorage.getItem('telegram_register_payload');
+    if (!raw || completingTelegramRegister) return;
+    const payload = (() => { try { return JSON.parse(raw); } catch { return null; } })();
+    if (!payload?.id) return;
+
+    const run = async () => {
+      setCompletingTelegramRegister(true);
+      sessionStorage.removeItem('telegram_register_payload');
+      const today = new Date().toISOString().split('T')[0];
+      const initialData = {
+        profile: {
+          name: payload.first_name || payload.username || String(payload.id),
+          occupation: '',
+          level: 1,
+          totalExperience: 0,
+          goals: [],
+          bedtime: '23:00',
+          wakeTime: '07:00',
+          activityHistory: [today],
+          energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
+          isOnboarded: true,
+          enabledEcosystems: [],
+          statsHistory: [],
+          telegramId: payload.id,
+          telegramUsername: payload.username,
+          telegramPhotoUrl: payload.photo_url,
+          settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'], fontSize: 'normal' }
+        },
+        tasks: [],
+        notes: [],
+        folders: [],
+        stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral' as const, sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: today }
+      };
+      const res = await authService.registerWithTelegram(payload, initialData);
+      setCompletingTelegramRegister(false);
+      if (res.success) {
+        const saved = localStorage.getItem('focu_profile');
+        if (saved) setProfile(JSON.parse(saved));
+      }
+    };
+    run();
+  }, [completingTelegramRegister]);
 
   useEffect(() => {
     if (profile) {
@@ -253,6 +334,27 @@ export default function App() {
     }
   };
 
+  const showTelegramWidget = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('show_telegram_widget');
+  if (showTelegramWidget === 'link' || showTelegramWidget === 'login') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--bg-main)] text-[var(--text-primary)] p-4">
+        <TelegramAuthWidget
+          mode={showTelegramWidget as 'link' | 'login'}
+          onCancel={() => window.history.back()}
+          lang={language || 'ru'}
+        />
+      </div>
+    );
+  }
+
+  if (completingTelegramRegister || handlingTelegram) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-main)] text-[var(--text-secondary)]">
+        <span className="text-sm">Загрузка...</span>
+      </div>
+    );
+  }
+
   if (!language) return <LanguageSelector onSelect={setLanguage} />;
   if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} />;
 
@@ -279,6 +381,13 @@ export default function App() {
            <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
            <div className="flex items-center gap-2">
              <ThemeSelector currentTheme={theme} onSelect={setTheme} />
+             {profile.telegramPhotoUrl ? (
+               <img src={profile.telegramPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-[var(--theme-accent)]/30 shrink-0" />
+             ) : (
+               <div className="w-10 h-10 rounded-full glass-liquid flex items-center justify-center text-[var(--text-secondary)] shrink-0" title={language === 'ru' ? 'Привязать Telegram' : 'Link Telegram'}>
+                 <User size={18} />
+               </div>
+             )}
              <button 
                 onClick={() => setShowSettings(true)}
                 className="w-10 h-10 rounded-full glass-liquid flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-90"
@@ -332,3 +441,4 @@ const NavBtn: React.FC<{ active: boolean, onClick: (e: React.MouseEvent) => void
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
   </button>
 );
+
