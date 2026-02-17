@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { UserProfile, Language, TRANSLATIONS, AiPersona, UserSettings, EcosystemType, AppFontSize } from '../types';
 import { authService } from '../services/authService';
 import { GlassCard } from './GlassCard';
-import { X, Check, Globe, Bot, Layout, LogOut, User, SlidersHorizontal, Layers } from 'lucide-react';
+import { X, Check, Globe, Bot, Layout, LogOut, User, SlidersHorizontal, Layers, Link2, Unlink } from 'lucide-react';
 
 interface SettingsModalProps {
   user: UserProfile;
@@ -185,3 +185,4 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
     </div>
   );
 };
+
