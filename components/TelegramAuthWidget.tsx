@@ -7,10 +7,10 @@ interface TelegramAuthWidgetProps {
   mode: Mode;
   onCancel?: () => void;
   lang?: 'en' | 'ru';
-  onRegisterInBrowser?: () => void;
+  onRegisterInBrowser?: () => void | Promise<void>;
 }
 
-export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, onCancel, lang = 'ru' }) => {
+export const TelegramAuthWidget: React.FC<TelegramAuthWidgetProps> = ({ mode, onCancel, lang = 'ru', onRegisterInBrowser }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const botName = getTelegramBotName();
   const authUrl = getTelegramCallbackUrl(mode);
