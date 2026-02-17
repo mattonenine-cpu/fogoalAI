@@ -373,6 +373,44 @@ export default function App() {
     }
   };
 
+  // Handler: user chooses to register/login in browser without opening Telegram app
+  const handleRegisterInBrowser = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const username = `tg_web_${Date.now()}`;
+      const initialData: UserDataPayload = {
+        profile: {
+          name: 'Telegram User',
+          occupation: '',
+          level: 1,
+          totalExperience: 0,
+          goals: [],
+          bedtime: '23:00',
+          wakeTime: '07:00',
+          activityHistory: [today],
+          energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
+          isOnboarded: false,
+          enabledEcosystems: [],
+          statsHistory: [],
+          telegramId: undefined,
+          telegramUsername: undefined,
+          telegramPhotoUrl: undefined,
+          settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'], fontSize: 'normal' }
+        },
+        tasks: [],
+        notes: [],
+        folders: [],
+        stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral' as const, sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: today }
+      };
+      const res = await authService.register(username, '', initialData);
+      if (res.success) {
+        setRegistrationSuccess({ id: null, name: initialData.profile.name, photo: null });
+      }
+    } catch (e) {
+      console.warn('Register in browser failed', e);
+    }
+  };
+
   const renderView = () => {
     if (!profile) return null;
     switch (currentView) {
@@ -411,6 +449,7 @@ export default function App() {
         <TelegramAuthWidget
           mode={showTelegramWidget as 'link' | 'login'}
           onCancel={() => window.history.back()}
+          onRegisterInBrowser={handleRegisterInBrowser}
           lang={language || 'ru'}
         />
       </div>
