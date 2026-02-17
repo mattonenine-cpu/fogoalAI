@@ -1,7 +1,7 @@
 
 import { UserProfile, Task, Note, NoteFolder, DailyStats } from '../types';
 
-interface UserDataPayload {
+export interface UserDataPayload {
     profile: UserProfile;
     tasks: Task[];
     notes: Note[];
