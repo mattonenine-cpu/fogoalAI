@@ -82,6 +82,7 @@ interface ExamPrepAppProps {
   lang: Language;
   onUpdateProfile: (profile: UserProfile) => void;
   theme: AppTheme;
+  onDeductCredits?: (cost: number) => void;
 }
 
 export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdateProfile, theme, onDeductCredits }) => {
