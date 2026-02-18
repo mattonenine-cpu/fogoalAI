@@ -301,6 +301,14 @@ export default function App() {
       }
   };
 
+  const handleDeductCredits = (cost: number) => {
+    if (profile && profile.credits && !profile.credits.hasUnlimitedAccess) {
+      const updatedCredits = CreditsService.deductCredits(profile.credits, cost);
+      const updatedProfile = CreditsService.updateProfileCredits(profile, updatedCredits);
+      setProfile(updatedProfile);
+    }
+  };
+
   const handleEcosystemUpdate = (updatedEcosystems: EcosystemConfig[]) => {
     if (profile) {
       const currentSettings = profile.settings || {
@@ -364,7 +372,7 @@ export default function App() {
       case AppView.SMART_PLANNER:
         return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} onOpenScheduler={() => setCurrentView(AppView.SCHEDULER)} />;
       case AppView.CHAT:
-        return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} />;
+        return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} onDeductCredits={handleDeductCredits} />;
       case AppView.ECOSYSTEM:
         return activeEcosystem ? <EcosystemView 
             type={activeEcosystem} user={profile} tasks={tasks} lang={language!} 
