@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, ChatMessage, Language, TRANSLATIONS, Task, Category } from '../types';
 import { getLocalISODate, generateFocuVisual, createChatSession, cleanTextOutput } from '../services/geminiService';
+import { CreditsService } from '../services/creditsService';
 import { Bot, User, Loader2, X, AlertTriangle, Key, ArrowUp, Trash2 } from 'lucide-react';
 import { renderTextWithMath } from '../LatexRenderer';
 
@@ -9,6 +10,7 @@ interface ChatInterfaceProps {
   lang: Language;
   tasks: Task[];
   onSetTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  onDeductCredits?: (cost: number) => void;
 }
 
 // --- Text Rendering Helpers ---
@@ -61,7 +63,7 @@ const renderMessageContent = (text: string, isUser: boolean) => {
     });
 };
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang, tasks, onSetTasks }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang, tasks, onSetTasks, onDeductCredits }) => {
   const t = TRANSLATIONS[lang];
   const MAX_HISTORY = 50;
   
@@ -119,14 +121,28 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
   };
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isLoading) return;
     const textToSend = inputValue.trim();
-    
-    const newUserMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: textToSend, timestamp: new Date() };
-    setMessages(prev => [...prev, newUserMsg]);
-    setInputValue('');
+    if (!textToSend || isLoading) return;
+
+    // Check and deduct credits
+    const messageCost = CreditsService.getActionCost('chatMessage', userProfile.settings?.aiDetailLevel);
+    if (userProfile.credits && !userProfile.credits.hasUnlimitedAccess) {
+      if (!CreditsService.canAfford(userProfile.credits, messageCost)) {
+        setMessages((prev: ChatMessage[]) => [...prev, { 
+          id: Date.now().toString(), 
+          role: 'model', 
+          text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.',
+          timestamp: new Date() 
+        }]);
+        return;
+      }
+      onDeductCredits?.(messageCost);
+    }
+
     setIsLoading(true);
     setQuotaError(false);
+    setMessages((prev: ChatMessage[]) => [...prev, { id: Date.now().toString(), role: 'user', text: textToSend, timestamp: new Date() }]);
+    setInputValue('');
 
     try {
         // Initialize or reuse session
@@ -143,18 +159,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
         const result = await chatSessionRef.current.sendMessage({ message: textToSend });
 
         if (result.text) {
-          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: result.text, timestamp: new Date() }]);
+          setMessages((prev: ChatMessage[]) => [...prev, { id: Date.now().toString(), role: 'model', text: result.text, timestamp: new Date() }]);
         }
     } catch (error: any) {
         console.error("Chat Error:", error);
-        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: t.chatError, timestamp: new Date() }]);
+        setMessages((prev: ChatMessage[]) => [...prev, { id: Date.now().toString(), role: 'model', text: t.chatError, timestamp: new Date() }]);
     } finally { 
         setIsLoading(false); 
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Enter' && !e.shiftKey) { 
+      e.preventDefault(); 
+      handleSend(); 
+    }
   };
 
   return (
