@@ -212,7 +212,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                     <input
                                         type="text"
                                         value={promoCode}
-                                        onChange={(e) => setPromoCode(e.target.value)}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPromoCode(e.target.value)}
                                         placeholder={lang === 'ru' ? 'Введите промокод...' : 'Enter promo code...'}
                                         className="flex-1 px-4 py-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent)]/20"
                                     />
