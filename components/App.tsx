@@ -194,7 +194,12 @@ export default function App() {
           activityHistory: [today],
           energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
           isOnboarded: false,
-          enabledEcosystems: [],
+          enabledEcosystems: [
+            { type: 'sport' as const, label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
+            { type: 'study' as const, label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
+            { type: 'health' as const, label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
+            { type: 'creativity' as const, label: 'Creativity', icon: '🎨', enabled: true, justification: 'Creative projects and hobbies' }
+          ],
           statsHistory: [],
           telegramId: payload.id,
           telegramUsername: payload.username,
@@ -368,7 +373,12 @@ export default function App() {
             activityHistory: [today],
             energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
             isOnboarded: false,
-            enabledEcosystems: [],
+            enabledEcosystems: [
+            { type: 'sport' as const, label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
+            { type: 'study' as const, label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
+            { type: 'health' as const, label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
+            { type: 'creativity' as const, label: 'Creativity', icon: '🎨', enabled: true, justification: 'Creative projects and hobbies' }
+          ],
             statsHistory: [],
             telegramId: payload.id,
             telegramUsername: payload.username,
