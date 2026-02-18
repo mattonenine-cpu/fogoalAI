@@ -20,7 +20,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
   const settings: UserSettings = user.settings || {
     aiPersona: 'balanced',
     aiDetailLevel: 'medium',
-    visibleViews: ['dashboard', 'scheduler', 'chat', 'notes'],
+    visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'],
     fontSize: 'normal'
   };
 
