@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { UserProfile, Language, TRANSLATIONS, AiPersona, UserSettings, EcosystemType, AppFontSize } from '../types';
 import { authService } from '../services/authService';
+import { CreditsService } from '../services/creditsService';
 import { GlassCard } from './GlassCard';
 import { X, Check, Globe, Bot, Layout, LogOut, User, SlidersHorizontal, Layers, Link2, Unlink } from 'lucide-react';
 
@@ -16,6 +16,8 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpdate, onLanguageChange, onClose }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [activeTab, setActiveTab] = useState<'interface' | 'ecosystems' | 'account'>('interface');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoMessage, setPromoMessage] = useState('');
 
   const settings: UserSettings = user.settings || {
     aiPersona: 'balanced',
@@ -33,6 +35,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
           await authService.logout();
           window.location.reload(); 
       }
+  };
+
+  const handleApplyPromoCode = () => {
+    if (!promoCode.trim()) {
+      setPromoMessage(lang === 'ru' ? 'Введите промокод' : 'Enter promo code');
+      return;
+    }
+
+    const currentCredits = user.credits || CreditsService.initializeCredits();
+    const updatedCredits = CreditsService.applyPromoCode(currentCredits, promoCode.trim());
+    
+    if (updatedCredits.hasUnlimitedAccess) {
+      setPromoMessage(lang === 'ru' ? '🎉 Безлимитный доступ активирован!' : '🎉 Unlimited access activated!');
+      onUpdate({ ...user, credits: updatedCredits });
+      setPromoCode('');
+    } else {
+      setPromoMessage(lang === 'ru' ? '❌ Неверный промокод' : '❌ Invalid promo code');
+    }
   };
 
   const menuItems = [
@@ -156,6 +176,64 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                     <div className="space-y-6 animate-fade-in-up">
                          <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'ПРОФИЛЬ' : 'PROFILE'}</h3>
                          <GlassCard className="p-8 border-[var(--border-glass)] bg-white/2 space-y-8 rounded-[40px]">
+                            {/* Credits Info */}
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-black text-[var(--text-primary)]">
+                                    {lang === 'ru' ? 'Кредиты AI' : 'AI Credits'}
+                                </h4>
+                                {user.credits && (
+                                    <div className="p-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)]">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-sm text-[var(--text-secondary)]">
+                                                {lang === 'ru' ? 'Доступно:' : 'Available:'}
+                                            </span>
+                                            <span className="text-lg font-bold text-[var(--text-primary)]">
+                                                {user.credits.hasUnlimitedAccess 
+                                                    ? (lang === 'ru' ? 'Безлимитно' : 'Unlimited')
+                                                    : `${user.credits.availableCredits} / ${user.credits.totalCredits}`
+                                                }
+                                            </span>
+                                        </div>
+                                        {!user.credits.hasUnlimitedAccess && (
+                                            <div className="text-xs text-[var(--text-secondary)]">
+                                                {lang === 'ru' ? 'Использовано:' : 'Used:'} {user.credits.usedCredits}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Promo Code */}
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-black text-[var(--text-primary)]">
+                                    {lang === 'ru' ? 'Промокод' : 'Promo Code'}
+                                </h4>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={promoCode}
+                                        onChange={(e) => setPromoCode(e.target.value)}
+                                        placeholder={lang === 'ru' ? 'Введите промокод...' : 'Enter promo code...'}
+                                        className="flex-1 px-4 py-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent)]/20"
+                                    />
+                                    <button
+                                        onClick={handleApplyPromoCode}
+                                        className="px-6 py-3 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors"
+                                    >
+                                        {lang === 'ru' ? 'Применить' : 'Apply'}
+                                    </button>
+                                </div>
+                                {promoMessage && (
+                                    <div className={`text-sm p-3 rounded-xl ${
+                                        promoMessage.includes('🎉') 
+                                            ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
+                                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                                    }`}>
+                                        {promoMessage}
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="flex items-center gap-6">
                                 <div className="w-20 h-20 rounded-[32px] bg-indigo-500/20 flex items-center justify-center text-4xl border border-indigo-500/30">👤</div>
                                 <div>
