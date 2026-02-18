@@ -17,6 +17,7 @@ interface EcosystemViewProps {
   onUpdateProfile: (profile: UserProfile) => void;
   onNavigate: (view: AppView) => void;
   theme: AppTheme;
+  onDeductCredits?: (cost: number) => void;
 }
 
 const GET_ART_STYLES = (lang: Language) => [
@@ -40,7 +41,7 @@ const GET_ART_STYLES = (lang: Language) => [
     { label: lang === 'ru' ? 'Вейпорвейв' : 'Vaporwave', value: 'vaporwave, aesthetics, glitch art, pastel pink and blue, greek statues, 90s internet' }
 ];
 
-export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks, lang, onUpdateTasks, onUpdateProfile, onNavigate, theme }) => {
+export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks, lang, onUpdateTasks, onUpdateProfile, onNavigate, theme, onDeductCredits }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   
   // -- STATES --
@@ -295,6 +296,17 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
         if (!practiceSessionRef.current) {
             practiceSessionRef.current = createChatSession(user, [], lang, domainTasks, type, getLocalISODate());
         }
+        
+        // Check and deduct credits for practice chat
+        const practiceCost = CreditsService.getActionCost('chatMessage', user.settings?.aiDetailLevel);
+        if (user.credits && !user.credits.hasUnlimitedAccess) {
+          if (!CreditsService.canAfford(user.credits, practiceCost)) {
+            setMessages(prev => [...prev, {role: 'model', text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.'}]);
+            return;
+          }
+          onDeductCredits?.(practiceCost);
+        }
+        
         const res = await practiceSessionRef.current.sendMessage({ message: text });
         setMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(res.text || "")}]);
     } catch (e) {
@@ -310,7 +322,17 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
     setDomainMessages(prev => [...prev, {role: 'user', text}]);
     setDomainInputValue('');
     setDomainLoading(true);
-
+    
+    // Check and deduct credits for domain chat
+    const domainCost = CreditsService.getActionCost('chatMessage', user.settings?.aiDetailLevel);
+    if (user.credits && !user.credits.hasUnlimitedAccess) {
+      if (!CreditsService.canAfford(user.credits, domainCost)) {
+        setDomainMessages(prev => [...prev, {role: 'model', text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.'}]);
+        return;
+      }
+      onDeductCredits?.(domainCost);
+    }
+    
     try {
         if (!domainSessionRef.current) {
             domainSessionRef.current = createChatSession(user, [], lang, domainTasks, type, getLocalISODate());
@@ -409,7 +431,8 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
                 lang={lang} 
                 onUpdateProfile={onUpdateProfile} 
                 theme={theme}
-              />
+                onDeductCredits={onDeductCredits}
+            />  
           </div>
       );
   }
@@ -426,7 +449,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
                     <Dumbbell size={24} />
                 </div>
             </header>
-            <SportApp user={user} lang={lang} onUpdateProfile={onUpdateProfile} onAddTasks={(newTasks) => onUpdateTasks(prev => [...prev, ...newTasks])} theme={theme} />
+            <SportApp user={user} lang={lang} onUpdateProfile={onUpdateProfile} onAddTasks={(newTasks) => onUpdateTasks(prev => [...prev, ...newTasks])} theme={theme} onDeductCredits={onDeductCredits} />
         </div>
       );
   }
