@@ -18,6 +18,7 @@ import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
 import { parseTelegramCallbackFromUrl, getTelegramUserFromWebApp } from '../services/telegramAuth';
 import { TelegramAuthWidget } from './TelegramAuthWidget';
+import { EcosystemSelectionModal } from './EcosystemSelectionModal';
 import type { UserDataPayload } from '../services/authService';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
@@ -172,6 +173,7 @@ export default function App() {
   // Регистрация по Telegram (после редиректа с needRegister)
   const [completingTelegramRegister, setCompletingTelegramRegister] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState<any | null>(null);
+  const [showEcosystemSelection, setShowEcosystemSelection] = useState(false);
   useEffect(() => {
     const raw = sessionStorage.getItem('telegram_register_payload');
     if (!raw || completingTelegramRegister) return;
@@ -287,6 +289,21 @@ export default function App() {
       }
   };
 
+  const handleEcosystemUpdate = (updatedEcosystems: EcosystemConfig[]) => {
+    if (profile) {
+      const updatedProfile = {
+        ...profile,
+        enabledEcosystems: updatedEcosystems,
+        settings: {
+          ...profile.settings,
+          visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', ...updatedEcosystems.filter(e => e.enabled).map(e => e.type)]
+        }
+      };
+      setProfile(updatedProfile);
+      setShowEcosystemSelection(false);
+    }
+  };
+
   const handleLanguageCycle = () => {
       const languages: Language[] = ['en', 'ru'];
       const currentIndex = languages.indexOf(language || 'en');
@@ -354,7 +371,15 @@ export default function App() {
       setHandlingTelegram(true);
       const res = await authService.loginWithTelegram(payload);
       if (res.success) {
-        window.location.reload();
+        // Load profile from storage and show ecosystem selection
+        const saved = localStorage.getItem('focu_profile');
+        if (saved) {
+          const loadedProfile = JSON.parse(saved);
+          // Set isOnboarded to true to skip onboarding for existing users
+          loadedProfile.isOnboarded = true;
+          setProfile(loadedProfile);
+          setShowEcosystemSelection(true);
+        }
         return;
       }
 
@@ -523,6 +548,15 @@ export default function App() {
         user={profile} lang={language} onUpdate={handleUpdateProfile} 
         onLanguageChange={setLanguage} onClose={() => setShowSettings(false)} 
       />}
+
+      {showEcosystemSelection && profile && (
+        <EcosystemSelectionModal
+          currentEcosystems={profile.enabledEcosystems || []}
+          onConfirm={handleEcosystemUpdate}
+          onClose={() => setShowEcosystemSelection(false)}
+          lang={language || 'ru'}
+        />
+      )}
 
       {helpContext && profile && (
         <ContextHelpOverlay
