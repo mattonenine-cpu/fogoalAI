@@ -291,11 +291,18 @@ export default function App() {
 
   const handleEcosystemUpdate = (updatedEcosystems: EcosystemConfig[]) => {
     if (profile) {
-      const updatedProfile = {
+      const currentSettings = profile.settings || {
+        aiPersona: 'balanced' as const,
+        aiDetailLevel: 'medium' as const,
+        visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes'],
+        fontSize: 'normal' as const
+      };
+      
+      const updatedProfile: UserProfile = {
         ...profile,
         enabledEcosystems: updatedEcosystems,
         settings: {
-          ...profile.settings,
+          ...currentSettings,
           visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', ...updatedEcosystems.filter(e => e.enabled).map(e => e.type)]
         }
       };
