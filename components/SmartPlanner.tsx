@@ -5,15 +5,17 @@ import { SmartPlannerGrid } from './SmartPlannerGrid';
 import { SmartPlannerModal } from './SmartPlannerModal';
 import { ChevronLeft, ChevronRight, LayoutGrid, Undo2, List } from 'lucide-react';
 import { addDays, subDays, format } from '../services/smartPlanner';
+import { CreditsService } from '../services/creditsService';
 
 interface SmartPlannerProps {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   lang: Language;
   onOpenScheduler?: () => void;
+  onDeductCredits?: (cost: number) => void;
 }
 
-export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lang, onOpenScheduler }) => {
+export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lang, onOpenScheduler, onDeductCredits }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [currentDate, setCurrentDate] = useState(new Date());
   const [taskHistory, setTaskHistory] = useState<Task[][]>([]); // For Undo
