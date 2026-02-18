@@ -370,13 +370,14 @@ export default function App() {
           onOpenSmartPlanner={() => setCurrentView(AppView.SMART_PLANNER)}
         />;
       case AppView.SMART_PLANNER:
-        return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} onOpenScheduler={() => setCurrentView(AppView.SCHEDULER)} />;
+        return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} onOpenScheduler={() => setCurrentView(AppView.SCHEDULER)} onDeductCredits={handleDeductCredits} />;
       case AppView.CHAT:
         return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} onDeductCredits={handleDeductCredits} />;
       case AppView.ECOSYSTEM:
         return activeEcosystem ? <EcosystemView 
             type={activeEcosystem} user={profile} tasks={tasks} lang={language!} 
             onUpdateTasks={setTasks} onUpdateProfile={handleUpdateProfile} onNavigate={setCurrentView} theme={theme}
+            onDeductCredits={handleDeductCredits}
         /> : null;
       case AppView.NOTES:
         return <NotesView notes={notes} folders={folders} onUpdateNotes={setNotes} onUpdateFolders={setFolders} lang={language!} />;
