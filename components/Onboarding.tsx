@@ -47,7 +47,7 @@ const ECO_DETAILS: Record<string, { en: { inside: string, whom: string }, ru: { 
 
 const ONBOARDING_GOAL_COLORS = ['#6366f1', '#ef4444', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'];
 
-export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, currentTheme, onSetTheme, initialProfile }) => {
+export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, currentTheme, onSetTheme, initialProfile, onTelegramAuto }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   
   // Check if this is a Telegram-registered user
