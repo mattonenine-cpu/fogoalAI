@@ -1,9 +1,9 @@
-
 // ... imports unchanged ...
 import React, { useState, useMemo, useEffect } from 'react';
 import { Exam, Ticket, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
+import { CreditsService } from '../services/creditsService';
 import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2 } from 'lucide-react';
 import { renderTextWithMath } from '../LatexRenderer';
 
@@ -84,7 +84,7 @@ interface ExamPrepAppProps {
   theme: AppTheme;
 }
 
-export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdateProfile, theme }) => {
+export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdateProfile, theme, onDeductCredits }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
   const isLightTheme = theme === 'white' || theme === 'ice';
@@ -160,6 +160,16 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   };
 
   const handleQuickParse = async () => {
+    // Check and deduct credits
+    const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
+    if (user.credits && !user.credits.hasUnlimitedAccess) {
+      if (!CreditsService.canAfford(user.credits, examCost)) {
+        alert(lang === 'ru' ? '❌ Недостаточно кредитов для генерации экзамена. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to generate exam. Enter promo code in settings for unlimited access.');
+        return;
+      }
+      onDeductCredits?.(examCost);
+    }
+
     setWizardStep(3);
     setIsWizardProcessing(true);
     setErrorStatus(null);
