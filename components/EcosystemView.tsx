@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { EcosystemType, UserProfile, Task, Language, TRANSLATIONS, Practice, Goal, AppView, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { createChatSession, cleanTextOutput, evaluateProgress, generateFocuVisual, getLocalISODate } from '../services/geminiService';
+import { CreditsService } from '../services/creditsService';
 import { ExamPrepApp } from './ExamPrepApp';
 import { SportApp } from './SportApp';
 import { HealthApp } from './HealthApp'; 
