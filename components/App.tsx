@@ -16,9 +16,11 @@ import { ContextHelpOverlay } from './ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound, User } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
+import { CreditsService } from '../services/creditsService';
 import { parseTelegramCallbackFromUrl, getTelegramUserFromWebApp } from '../services/telegramAuth';
 import { TelegramAuthWidget } from './TelegramAuthWidget';
 import { EcosystemSelectionModal } from './EcosystemSelectionModal';
+import { CreditsDisplay } from './CreditsDisplay';
 import type { UserDataPayload } from '../services/authService';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
@@ -61,6 +63,16 @@ export default function App() {
               // Ensure smart_planner is enabled for existing users
               if (parsed.settings.visibleViews && !parsed.settings.visibleViews.includes('smart_planner')) {
                   parsed.settings.visibleViews.push('smart_planner');
+              }
+          }
+
+          // Initialize credits system if not exists
+          if (!parsed.credits) {
+              parsed.credits = CreditsService.initializeCredits();
+          } else {
+              // Check if monthly reset is needed
+              if (CreditsService.needsMonthlyReset(parsed.credits)) {
+                  parsed.credits = CreditsService.resetCredits(parsed.credits);
               }
           }
           return parsed;
@@ -513,6 +525,7 @@ export default function App() {
         <header className="p-3 sm:p-5 pb-2 flex justify-between items-center z-40 relative">
            <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
            <div className="flex items-center gap-2">
+             <CreditsDisplay credits={profile.credits} lang={language || 'ru'} />
              <ThemeSelector currentTheme={theme} onSelect={setTheme} />
              {profile.telegramPhotoUrl ? (
                <img src={profile.telegramPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-[var(--theme-accent)]/30 shrink-0" />
