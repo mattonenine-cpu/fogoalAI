@@ -258,11 +258,22 @@ export const authService = {
                     activityHistory: [today],
                     energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average', resistanceTriggers: [] },
                     isOnboarded: false,
-                    enabledEcosystems: [],
+                    enabledEcosystems: [
+                        { type: 'sport', label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
+                        { type: 'study', label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
+                        { type: 'health', label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
+                        { type: 'creativity', label: 'Creativity', icon: '🎨', enabled: true, justification: 'Creative projects and hobbies' }
+                    ],
                     statsHistory: [],
                     telegramId: payload.id,
                     telegramUsername: payload.username,
-                    telegramPhotoUrl: payload.photo_url
+                    telegramPhotoUrl: payload.photo_url,
+                    settings: {
+                        aiPersona: 'balanced',
+                        aiDetailLevel: 'medium',
+                        visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'],
+                        fontSize: 'normal'
+                    }
                 },
                 tasks: [],
                 notes: [],
