@@ -355,25 +355,26 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
 
       try {
           const evalResult = await evaluateProgress(logValue, domainTasks, user.goals || [], type, lang);
-          // ... (Progress evaluation logic)
-          const isUseful = evalResult.productivityScore > 0 || 
-                           evalResult.generalProgressAdd > 0 || 
-                           evalResult.updatedTaskIds.length > 0 || 
-                           evalResult.goalUpdates.length > 0;
+          const updatedTaskIds = evalResult?.updatedTaskIds ?? [];
+          const goalUpdates = evalResult?.goalUpdates ?? [];
+          const isUseful = (evalResult?.productivityScore ?? 0) > 0 ||
+                           (evalResult?.generalProgressAdd ?? 0) > 0 ||
+                           updatedTaskIds.length > 0 ||
+                           goalUpdates.length > 0;
 
           if (!isUseful) {
-              setLogFeedback(evalResult.feedback || (lang === 'ru' ? "Действие не распознано как полезное для этой сферы." : "Action not recognized as productive for this sphere."));
+              setLogFeedback(evalResult?.feedback || (lang === 'ru' ? "Действие не распознано как полезное для этой сферы." : "Action not recognized as productive for this sphere."));
               setLogValue('');
               setTimeout(() => setLogFeedback(null), 4000);
               return;
           }
 
-          if (evalResult.updatedTaskIds.length > 0) {
-              onUpdateTasks(prev => prev.map(tk => evalResult.updatedTaskIds.includes(tk.id) ? { ...tk, completed: true } : tk));
+          if (updatedTaskIds.length > 0) {
+              onUpdateTasks(prev => prev.map(tk => updatedTaskIds.includes(tk.id) ? { ...tk, completed: true } : tk));
           }
-          
+
           const updatedGoals = (user.goals || []).map(g => {
-              const update = evalResult.goalUpdates.find((u: any) => u.id === g.id);
+              const update = goalUpdates.find((u: any) => u.id === g.id);
               if (update) {
                   const newProgress = Math.min(g.target, g.progress + update.progressAdd);
                   return { ...g, progress: newProgress, completed: newProgress >= g.target };
@@ -381,11 +382,11 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
               return g;
           });
           
-          if (evalResult.generalProgressAdd > 0) {
-              setMomentum(prev => Math.min(1, prev + evalResult.generalProgressAdd));
+          if ((evalResult?.generalProgressAdd ?? 0) > 0) {
+              setMomentum(prev => Math.min(1, prev + (evalResult?.generalProgressAdd ?? 0)));
           }
 
-          let newXp = (user.totalExperience || 0) + (evalResult.productivityScore || 0);
+          let newXp = (user.totalExperience || 0) + (evalResult?.productivityScore ?? 0);
           let newLevel = user.level || 1;
           
           while (newXp >= newLevel * 100) {
@@ -401,8 +402,8 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
               level: newLevel
           });
           
-          setLogFeedback(evalResult.feedback);
-          setProductivityScore(evalResult.productivityScore);
+          setLogFeedback(evalResult?.feedback ?? '');
+          setProductivityScore(evalResult?.productivityScore ?? 0);
           setLogValue('');
           
           setTimeout(() => {
