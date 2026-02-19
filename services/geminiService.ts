@@ -706,12 +706,45 @@ export async function generateQuiz(question: string, subject: string, lang: Lang
 }
 
 export async function generateWorkout(user: UserProfile, lang: Language, muscleGroups: string[] = []): Promise<WorkoutPlan> {
-    const muscleContext = muscleGroups.length > 0 ? `Focus ONLY on these muscle groups: ${muscleGroups.join(', ')}.` : 'Create a balanced full-body workout with several different exercises.';
-    const equipmentStr = (user.fitnessEquipment && user.fitnessEquipment.length) ? user.fitnessEquipment.join(', ') : 'bodyweight, optional dumbbells';
-    const prompt = `Generate a workout plan as a single JSON object. Keys: "title" (string), "durationMinutes" (number), "exercises" (array).
-Each exercise in "exercises" must have: "name" (string), "sets" (number), "reps" (string, e.g. "10" or "8-12"), and optionally "restSeconds" (number), "notes" (string), "equipment" (string).
-User: goal=${user.fitnessGoal}, level=${user.fitnessLevel}, equipment=${equipmentStr}. ${muscleContext} Return 5-10 exercises. Lang: ${lang}
-Return ONLY valid JSON, no markdown. Example: {"title":"Full Body","durationMinutes":45,"exercises":[{"name":"Squats","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"bodyweight"},...]}`;
+    const level = user.fitnessLevel || 'beginner';
+    const goal = user.fitnessGoal || 'general fitness';
+    const equipmentList = (user.fitnessEquipment && user.fitnessEquipment.length) ? user.fitnessEquipment : ['bodyweight'];
+    const equipmentStr = equipmentList.join(', ');
+
+    const levelRules: Record<string, string> = {
+        beginner: 'Beginner: 4-5 exercises only, basic movements, 2-3 sets, simple progressions. No complex combinations.',
+        intermediate: 'Intermediate: 5-7 exercises, 3 sets typical. Can include moderate complexity.',
+        advanced: 'Advanced: 6-8 exercises, 3-4 sets. Can use advanced variations and intensity techniques.',
+    };
+    const goalRules: Record<string, string> = {
+        'weight loss': 'Goal WEIGHT LOSS: higher reps (12-15), shorter rest (45-60s), include cardio-style or circuit if possible. Burn focus.',
+        'muscle gain': 'Goal MUSCLE GAIN: hypertrophy style, 8-12 reps, 3-4 sets, rest 60-90s. Compound then isolation. Strength focus.',
+        'general fitness': 'Goal GENERAL FITNESS: balanced, 10-12 reps, 3 sets, 60s rest. Mix compound and isolation.',
+        'endurance': 'Goal ENDURANCE: higher reps (15-20), shorter rest (30-45s), lighter load emphasis. Stamina focus.',
+    };
+
+    const focusRule = muscleGroups.length > 0
+        ? `User selected ONLY these muscle groups: ${muscleGroups.join(', ')}. The workout MUST target ONLY these. Choose 4-6 exercises that cover these groups logically (e.g. compound first, then isolation). Do NOT add exercises for other body parts.`
+        : 'Full body: cover main muscle groups (legs, push, pull, core) in 5-7 exercises. Order: compound movements first (squats, push, pull), then isolation/core.';
+
+    const equipmentRule = `CRITICAL: Use ONLY this equipment (nothing else): ${equipmentStr}. Every exercise must be doable with this equipment. No barbell if not listed, no cables if not listed, etc.`;
+
+    const prompt = `You are a professional fitness coach. Create ONE workout plan as a JSON object.
+
+RULES (follow strictly):
+1) ${levelRules[level] ?? levelRules.beginner}
+2) ${goalRules[goal] ?? goalRules['general fitness']}
+3) ${focusRule}
+4) ${equipmentRule}
+
+Output format: single JSON object with keys "title", "durationMinutes", "exercises".
+- title: short workout name (e.g. "Chest & Triceps" or "Full Body Strength"). Language: ${lang}.
+- durationMinutes: realistic total time (warmup + work + rest). Typically 35-50 for 4-6 exercises, 45-60 for 6-8.
+- exercises: array of objects. Each: "name" (string), "sets" (number), "reps" (string, e.g. "10" or "8-12"), "restSeconds" (number), "notes" (string, optional), "equipment" (string, one of: ${equipmentStr}).
+
+Order exercises logically: compound/big muscles first, then isolation. Number of exercises: 4-6 for one muscle group focus, 5-7 for full body. Do not exceed 8 exercises.
+
+Return ONLY valid JSON, no markdown, no text before or after. Example: {"title":"...","durationMinutes":45,"exercises":[{"name":"...","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"..."}]}`;
 
     const result = await callApi('/api/generate', {
         model: AI_MODEL,
