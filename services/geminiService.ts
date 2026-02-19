@@ -716,6 +716,58 @@ Return ONLY a JSON array. Each object: "question" (string), "options" (array of 
     return Array.isArray(arr) ? arr : [];
 }
 
+/** Приводит названия упражнений к нормальным русским (без смешения с английским и опечаток). */
+function normalizeExerciseNameRu(name: string): string {
+    if (!name || !name.trim()) return name;
+    const raw = name.trim();
+    // Сначала точные соответствия для типичных кривых названий от API
+    const lower = raw.toLowerCase();
+    if (/\b(cable|кабел|блок).*(biceps|бісер|бицепс).*(curl|сгибание)/i.test(raw) || /бісер[sѕ].*curl|кабельный.*curl/i.test(raw))
+        return 'Сгибание рук на блоке (бицепс)';
+    if (/\b(cable|кабел).*(crossover|кроссовер).*(fly|сведение)/i.test(raw) || /crossover\s*fly|сведение.*кроссовер/i.test(raw))
+        return 'Сведение рук в кроссовере';
+    if (/\b(cable|кабел).*(chest|груд).*(press|жим)/i.test(raw) || /chest\s*press/i.test(raw))
+        return 'Жим в кроссовере';
+    if (/triceps.*pushdown|разгибание.*трицепс|разгибание.*канат/i.test(raw))
+        return 'Разгибание рук на блоке (трицепс)';
+    if (/lat\s*pulldown|тяга.*верхнего блока/i.test(raw))
+        return 'Тяга верхнего блока';
+    if (/leg\s*press|жим ногами/i.test(raw))
+        return 'Жим ногами';
+    if (/bent[- ]?over\s*row|тяга в наклоне/i.test(raw))
+        return 'Тяга в наклоне';
+    if (/pull[- ]?up|подтягиван/i.test(raw))
+        return 'Подтягивания';
+    if (/\bdip\b|отжимания на брусьях/i.test(raw))
+        return 'Отжимания на брусьях';
+    if (/bench\s*press|жим лёжа|жим лежа/i.test(raw))
+        return 'Жим лёжа';
+    if (/deadlift|становая тяга/i.test(raw))
+        return 'Становая тяга';
+    if (/squat|приседан/i.test(raw) && /штанг|barbell/i.test(raw))
+        return 'Приседания со штангой';
+    if (/goblet\s*squat|гоблет/i.test(raw))
+        return 'Гоблет-присед';
+    if (/dumbbell.*row|тяга гантел/i.test(raw))
+        return 'Тяга гантели в наклоне';
+    if (/lateral\s*raise|махи в стороны/i.test(raw))
+        return 'Махи гантелями в стороны';
+    if (/romanian|румынская/i.test(raw))
+        return 'Румынская тяга';
+    if (/plank|планка/i.test(raw))
+        return 'Планка';
+    if (/crunch|скручиван/i.test(raw))
+        return 'Скручивания';
+    // Опечатка БІСЕРЅ и прочие латинские вкрапления
+    let s = raw.replace(/бісерѕ|бісерs|БІСЕРЅ/gi, 'бицепс').replace(/Biceps|Curl|Crossover|Fly|Chest\s+Press|Press|Cable/gi, (m) => {
+        const map: Record<string, string> = { biceps: 'бицепс', curl: 'сгибание рук на блоке', crossover: 'в кроссовере', fly: 'сведение рук', chest: 'грудь', press: 'жим', cable: 'на блоке' };
+        return map[m.toLowerCase()] || m;
+    });
+    s = s.replace(/\s+/g, ' ').trim();
+    if (s.length > 0) s = s[0].toUpperCase() + s.slice(1).toLowerCase();
+    return s || raw;
+}
+
 export async function generateWorkout(user: UserProfile, lang: Language, muscleGroups: string[] = []): Promise<WorkoutPlan> {
     const level = user.fitnessLevel || 'beginner';
     const goal = user.fitnessGoal || 'general fitness';
@@ -739,8 +791,15 @@ export async function generateWorkout(user: UserProfile, lang: Language, muscleG
         : 'Full body: legs, push, pull, core. 5-7 exercises, compound first then isolation.';
 
     const langRule = lang === 'ru'
-        ? `LANGUAGE: Russian. Title and ALL exercise names MUST be in Russian. Use only professional Russian names that everyone uses in gyms (новички, любители, профессионалы). Examples: Жим лёжа, Становая тяга, Приседания со штангой, Подтягивания, Отжимания на брусьях, Тяга верхнего блока, Разгибание рук на блоке (трицепс), Жим ногами, Тяга гантели в наклоне, Сгибание рук с гантелями, Махи гантелями в стороны, Румынская тяга, Выпады с гантелями, Планка, Скручивания. No English names when lang is ru.`
-        : `LANGUAGE: English. Title and exercise names in English (e.g. Barbell Bench Press, Romanian Deadlift, Lat Pulldown).`;
+        ? `LANGUAGE: ONLY RUSSIAN. Title and every exercise "name" must be 100% in Russian. FORBIDDEN: English words (Curl, Fly, Press, Cable, Crossover, Biceps, etc.), mixed names like "Кабельный Curl" or "Cable Biceps". Use ONLY these style names:
+Штанга: Жим лёжа, Становая тяга, Приседания со штангой, Тяга штанги в наклоне, Жим стоя, Сгибание рук со штангой.
+Гантели: Тяга гантели в наклоне, Жим гантелей лёжа, Сгибание рук с гантелями, Махи гантелями в стороны, Разводка гантелей, Румынская тяга с гантелями, Выпады с гантелями, Гоблет-присед.
+Блок/кабель/кроссовер: Сгибание рук на блоке (бицепс), Разгибание рук на блоке (трицепс), Тяга верхнего блока, Тяга горизонтального блока, Сведение рук в кроссовере, Разгибание рук с канатом на блоке, Жим в кроссовере.
+Турник/брусья: Подтягивания, Отжимания на брусьях, Подъём ног в висе.
+Ноги: Жим ногами, Разгибание ног в тренажёре, Сгибание ног лёжа.
+Кор: Планка, Скручивания, Подъём корпуса.
+Write "бицепс" and "трицепс" in Russian only, no Biceps/Curl.`
+        : `LANGUAGE: English. Title and exercise names in English (e.g. Barbell Bench Press, Lat Pulldown).`;
 
     const prompt = `You are a fitness coach. Create ONE workout plan as JSON.
 
@@ -748,14 +807,12 @@ RULES:
 1) ${levelRules[level] ?? levelRules.beginner}
 2) ${goalRules[goal] ?? goalRules['general fitness']}
 3) ${focusRule}
-4) Use ONLY equipment the user has: ${equipmentStr}. Set "equipment" to the piece used (one of the list).
+4) Use ONLY equipment the user has: ${equipmentStr}. Set "equipment" to the piece used.
 5) ${langRule}
 
-EXERCISES: Standard gym names only. For Russian: Жим лёжа, Становая тяга, Подтягивания, Тяга верхнего блока, Разгибание рук на блоке, Жим ногами, Тяга в наклоне, Отжимания на брусьях, Приседания, и т.д. For English: Barbell Bench Press, Lat Pulldown, Leg Press, etc. No made-up names.
+Output: JSON with "title", "durationMinutes", "exercises". Each: "name" (only in the required language, no mixing), "sets", "reps", "restSeconds", "notes", "equipment". Max 8 exercises.
 
-Output: JSON with "title", "durationMinutes", "exercises". Each: "name" (professional name in the chosen language), "sets", "reps", "restSeconds", "notes", "equipment". Max 8 exercises.
-
-Return ONLY valid JSON. Example (ru): {"title":"Грудь и трицепс","durationMinutes":45,"exercises":[{"name":"Жим лёжа","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"barbell"},...]}`;
+Return ONLY valid JSON. Example for Russian: {"title":"Грудь и бицепс","durationMinutes":45,"exercises":[{"name":"Жим лёжа","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"barbell"},{"name":"Сгибание рук на блоке","sets":3,"reps":"12","restSeconds":60,"notes":"","equipment":"cable"}]}`;
 
     const result = await callApi('/api/generate', {
         model: AI_MODEL,
@@ -765,15 +822,19 @@ Return ONLY valid JSON. Example (ru): {"title":"Грудь и трицепс","d
     const def = { title: '', durationMinutes: 30, exercises: [] as WorkoutPlan['exercises'] };
     const data = parseJsonResponse<{ title?: string; durationMinutes?: number; exercises?: any[] }>(result.text ?? '', def);
     const rawExercises = Array.isArray(data.exercises) ? data.exercises : [];
-    const exercises = rawExercises.map((e: any, i: number) => ({
-        id: (e?.id ?? e?.name ?? `ex_${i}`).toString().replace(/\s+/g, '_'),
-        name: (e?.name ?? e?.title ?? e?.exercise ?? '').toString() || `Exercise ${i + 1}`,
-        sets: typeof e?.sets === 'number' ? e.sets : (typeof e?.sets === 'string' ? parseInt(e.sets, 10) : 3) || 3,
-        reps: (e?.reps ?? e?.rep_range ?? e?.repetitions ?? '10').toString(),
-        restSeconds: typeof e?.restSeconds === 'number' ? e.restSeconds : (typeof e?.rest === 'number' ? e.rest : 60),
-        notes: (e?.notes ?? e?.description ?? '').toString(),
-        equipment: (e?.equipment ?? e?.equipment_needed ?? '').toString(),
-    })).filter((e: { name: string }) => e.name.length > 0);
+    const exercises = rawExercises.map((e: any, i: number) => {
+        let name = (e?.name ?? e?.title ?? e?.exercise ?? '').toString().trim() || `Exercise ${i + 1}`;
+        if (lang === 'ru') name = normalizeExerciseNameRu(name);
+        return {
+            id: (e?.id ?? e?.name ?? name ?? `ex_${i}`).toString().replace(/\s+/g, '_'),
+            name,
+            sets: typeof e?.sets === 'number' ? e.sets : (typeof e?.sets === 'string' ? parseInt(e.sets, 10) : 3) || 3,
+            reps: (e?.reps ?? e?.rep_range ?? e?.repetitions ?? '10').toString(),
+            restSeconds: typeof e?.restSeconds === 'number' ? e.restSeconds : (typeof e?.rest === 'number' ? e.rest : 60),
+            notes: (e?.notes ?? e?.description ?? '').toString(),
+            equipment: (e?.equipment ?? e?.equipment_needed ?? '').toString(),
+        };
+    }).filter((e: { name: string }) => e.name.length > 0);
     return {
         title: typeof data.title === 'string' && data.title.length ? data.title : (lang === 'ru' ? 'Тренировка' : 'Workout'),
         durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : 30,
