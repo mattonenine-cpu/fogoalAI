@@ -1,5 +1,20 @@
 import React from 'react';
 
+// Renders **text** as bold and strips any orphan ** so they never show in UI
+export const renderBoldFragments = (str: string, accentClass = 'text-[var(--theme-accent)] font-semibold'): React.ReactNode => {
+  if (!str) return null;
+  const parts = str.split(/(\*\*[^*]*\*\*)/g);
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.startsWith('**') && p.endsWith('**')
+          ? <strong key={i} className={accentClass}>{p.slice(2, -2)}</strong>
+          : p.replace(/\*\*/g, '')
+      )}
+    </>
+  );
+};
+
 // Utility to render LaTeX formulas in text
 // Supports both inline ($...$) and display ($$...$$) math
 
@@ -86,35 +101,26 @@ export const renderTextWithMath = (text: string): React.ReactNode[] => {
     ...inlineMatches
   ].sort((a, b) => a.start - b.start);
   
-  // Build React nodes
+  // Build React nodes (text segments get ** rendered as bold, no raw asterisks)
   allMatches.forEach((mathMatch, idx) => {
-    // Add text before this match
     if (mathMatch.start > lastIndex) {
       const beforeText = text.substring(lastIndex, mathMatch.start);
       if (beforeText) {
-        parts.push(<React.Fragment key={`text-${idx}`}>{beforeText}</React.Fragment>);
+        parts.push(<React.Fragment key={`text-${idx}`}>{renderBoldFragments(beforeText)}</React.Fragment>);
       }
     }
-    
-    // Add math component
     parts.push(
-      <MathComponent 
-        key={`math-${idx}`} 
-        formula={mathMatch.formula} 
-        display={mathMatch.isDisplay}
-      />
+      <MathComponent key={`math-${idx}`} formula={mathMatch.formula} display={mathMatch.isDisplay} />
     );
-    
     lastIndex = mathMatch.end;
   });
-  
-  // Add remaining text
+
   if (lastIndex < text.length) {
     const remainingText = text.substring(lastIndex);
     if (remainingText) {
-      parts.push(<React.Fragment key="text-final">{remainingText}</React.Fragment>);
+      parts.push(<React.Fragment key="text-final">{renderBoldFragments(remainingText)}</React.Fragment>);
     }
   }
-  
-  return parts.length > 0 ? parts : [<React.Fragment key="empty">{text}</React.Fragment>];
+
+  return parts.length > 0 ? parts : [<React.Fragment key="empty">{renderBoldFragments(text)}</React.Fragment>];
 };
