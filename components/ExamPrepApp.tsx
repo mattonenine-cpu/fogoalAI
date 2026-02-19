@@ -26,7 +26,7 @@ const NoteRenderer: React.FC<{ text: string; lang: Language }> = ({ text }) => {
                 if (trimmed.startsWith('# ')) {
                     const content = trimmed.substring(2);
                     return (
-                        <h1 key={idx} className="text-3xl font-black text-[var(--text-primary)] tracking-tight pt-2 border-b border-[var(--border-glass)] pb-6 mb-8 uppercase text-center">
+                        <h1 key={idx} className="text-3xl font-black text-[var(--text-primary)] tracking-tight pt-2 border-b-2 border-indigo-500/30 pb-6 mb-8 text-center bg-gradient-to-r from-indigo-500/10 to-violet-500/10 rounded-2xl px-6 py-4">
                             {renderTextWithMath(content)}
                         </h1>
                     );
@@ -36,7 +36,7 @@ const NoteRenderer: React.FC<{ text: string; lang: Language }> = ({ text }) => {
                     return (
                         <div key={idx} className="pt-8 mt-4 mb-4">
                             <h2 className="text-xl font-black text-indigo-400 tracking-wide uppercase flex items-center gap-3">
-                                <span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
+                                <span className="w-1.5 h-6 bg-gradient-to-b from-indigo-500 to-violet-500 rounded-full shadow-[0_0_12px_rgba(99,102,241,0.4)]"></span>
                                 {renderTextWithMath(content)}
                             </h2>
                         </div>
@@ -44,37 +44,20 @@ const NoteRenderer: React.FC<{ text: string; lang: Language }> = ({ text }) => {
                 }
                 if (trimmed.startsWith('### ')) {
                     const content = trimmed.substring(4);
-                    return <h3 key={idx} className="text-lg font-bold text-[var(--text-primary)] tracking-tight mt-4 opacity-90">{renderTextWithMath(content)}</h3>;
+                    return <h3 key={idx} className="text-lg font-bold text-violet-300/95 tracking-tight mt-4">{renderTextWithMath(content)}</h3>;
                 }
                 if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                     return (
                         <div key={idx} className="flex items-start gap-3 pl-2 group">
-                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2.5 shrink-0 group-hover:scale-125 transition-transform" />
-                            <p className="text-[16px] leading-relaxed text-[var(--text-secondary)] flex-1">{renderBoldText(trimmed.substring(2))}</p>
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2.5 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                            <p className="text-[16px] leading-relaxed text-[var(--text-secondary)] flex-1">{renderTextWithMath(trimmed.substring(2))}</p>
                         </div>
                     );
                 }
-                return <p key={idx} className="text-[17px] leading-8 text-[var(--text-primary)] opacity-90 font-normal tracking-wide">{renderBoldText(trimmed)}</p>;
+                return <p key={idx} className="text-[17px] leading-8 text-[var(--text-primary)] font-normal tracking-wide">{renderTextWithMath(trimmed)}</p>;
             })}
         </div>
     );
-};
-
-const renderBoldText = (text: string) => {
-    // First render math, then process bold within text parts
-    const mathParts = renderTextWithMath(text);
-    return mathParts.map((part: React.ReactNode, i: number) => {
-        if (typeof part === 'string') {
-            const boldParts = part.split(/(\*\*.*?\*\*)/g);
-            return boldParts.map((boldPart: string, j: number) => {
-                if (boldPart.startsWith('**') && boldPart.endsWith('**')) {
-                    return <strong key={`${i}-${j}`} className="text-indigo-400 font-bold px-0.5">{boldPart.slice(2, -2)}</strong>;
-                }
-                return <React.Fragment key={`${i}-${j}`}>{boldPart}</React.Fragment>;
-            });
-        }
-        return <React.Fragment key={i}>{part}</React.Fragment>;
-    });
 };
 
 interface ExamPrepAppProps {
@@ -113,7 +96,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   const [startSessionCount, setStartSessionCount] = useState(0);
 
   // Quiz States
-  const [quizQuestions, setQuizQuestions] = useState<{question: string, options: string[], correctIndex: number}[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<{question: string, options: string[], correctIndex: number, difficulty?: 'easy' | 'medium' | 'hard'}[]>([]);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [currentQuizStep, setCurrentQuizStep] = useState<number | null>(null);
   const [quizScore, setQuizScore] = useState(0);
@@ -694,7 +677,17 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                               <div className="flex flex-col h-full bg-[var(--bg-main)]">
                                   <header className="p-6 flex justify-between items-center bg-[var(--bg-main)] z-10 border-b border-[var(--border-glass)] shrink-0">
                                        <button onClick={() => setTicketMode('note')} className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{t.cancel}</button>
-                                       <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">{lang === 'ru' ? 'Вопрос' : 'Question'} {currentQuizStep + 1} / {quizQuestions.length}</div>
+                                       <div className="flex flex-col items-center gap-0.5">
+                                         <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">{lang === 'ru' ? 'Вопрос' : 'Question'} {currentQuizStep + 1} / {quizQuestions.length}</span>
+                                         {quizQuestions[currentQuizStep]?.difficulty && (
+                                           <span className={`text-[9px] font-bold uppercase rounded-full px-2 py-0.5 ${
+                                             quizQuestions[currentQuizStep].difficulty === 'easy' ? 'bg-emerald-500/20 text-emerald-400' :
+                                             quizQuestions[currentQuizStep].difficulty === 'hard' ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'
+                                           }`}>
+                                             {lang === 'ru' ? (quizQuestions[currentQuizStep].difficulty === 'easy' ? 'Лёгкий' : quizQuestions[currentQuizStep].difficulty === 'hard' ? 'Сложный' : 'Средний') : quizQuestions[currentQuizStep].difficulty}
+                                           </span>
+                                         )}
+                                       </div>
                                        <div className="w-10 text-right text-[10px] font-black text-[var(--text-secondary)]">{quizScore} pts</div>
                                   </header>
                                   <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center pb-48 scrollbar-hide">
