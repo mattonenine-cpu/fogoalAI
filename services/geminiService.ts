@@ -735,39 +735,22 @@ export async function generateWorkout(user: UserProfile, lang: Language, muscleG
     };
 
     const focusRule = muscleGroups.length > 0
-        ? `User selected ONLY these muscle groups: ${muscleGroups.join(', ')}. The workout MUST target ONLY these. Choose 4-6 exercises that cover these groups. Do NOT add exercises for other body parts.`
-        : 'Full body: cover main muscle groups (legs, push, pull, core) in 5-7 exercises. Order: compound first, then isolation/core.';
+        ? `Target ONLY these muscle groups: ${muscleGroups.join(', ')}. 4-6 exercises.`
+        : 'Full body: legs, push, pull, core. 5-7 exercises, compound first then isolation.';
 
-    const equipmentExamples = `EXERCISES MUST USE THE SELECTED EQUIPMENT. For each exercise, "equipment" must be exactly one of: ${equipmentStr}.
-Examples of exercises BY EQUIPMENT (use these or similar—name the exact exercise on that machine):
-- crossover: rope triceps pushdown, cable fly/crossover fly, cable chest press, rope face pull, cable lateral raise, cable curl (triceps/biceps/chest/delts—pick for target muscles).
-- cable / Cable Machine: lat pulldown, cable row, triceps pushdown (bar or rope), cable biceps curl, cable crossover, cable lateral raise.
-- dumbbells / Dumbbells: dumbbell row, dumbbell press, dumbbell curl, dumbbell lateral raise, goblet squat, dumbbell fly.
-- barbell / Barbell: bench press, bent-over row, biceps curl, squat, deadlift.
-- pullup / Pull-up Bar: pull-ups, chin-ups, hanging leg raise.
-- dip / Dip Bars: dips (chest/triceps), leg raise.
-- smith / Smith Machine: smith bench press, smith squat, smith row.
-- leg_press / Leg Press: leg press (feet high/low), calf press.
-- mat: plank, crunch, hip thrust (bodyweight).
-- kettlebell: kettlebell swing, goblet squat, row, press.
-If user chose "crossover" and "triceps" → give "Rope triceps pushdown" or "Cable triceps extension with rope", equipment "crossover". If "cable" and "back" → "Lat pulldown" or "Cable row", equipment "cable". Always match exercise to the actual machine the user has.`;
+    const prompt = `You are a fitness coach. Create ONE workout plan as JSON.
 
-    const prompt = `You are a professional fitness coach. Create ONE workout plan as a JSON object.
-
-RULES (follow strictly):
+RULES:
 1) ${levelRules[level] ?? levelRules.beginner}
 2) ${goalRules[goal] ?? goalRules['general fitness']}
 3) ${focusRule}
-4) ${equipmentExamples}
+4) Use ONLY equipment the user has (nothing else): ${equipmentStr}. Each exercise must be doable with this equipment. Set "equipment" to the piece used (one of the list above).
 
-Output format: single JSON object with keys "title", "durationMinutes", "exercises".
-- title: short workout name. Language: ${lang}.
-- durationMinutes: realistic total (e.g. 35-50 for 4-6 exercises).
-- exercises: array. Each object: "name" (string — exact exercise name on that machine, e.g. "Rope triceps pushdown" for crossover+triceps, "Lat pulldown" for cable+back), "sets" (number), "reps" (string), "restSeconds" (number), "notes" (string, optional), "equipment" (string — MUST be exactly one of: ${equipmentStr}).
+EXERCISES: Use standard, well-known gym exercise names—the kind people use in real gyms and on fitness sites (e.g. Barbell Bench Press, Romanian Deadlift, Lat Pulldown, Cable Rope Triceps Pushdown, Dumbbell Bent-Over Row, Leg Press, Pull-Up, Dip, Goblet Squat, Incline Dumbbell Press). Professional/common names only. No made-up or vague names.
 
-CRITICAL: Every exercise must be performed ON one of the user's selected equipment. Use the equipment name as given (e.g. crossover, cable, dumbbells). Pick exercises that are done on that specific machine—e.g. crossover → rope/cable exercises at the crossover station; cable → cable machine exercises; dumbbells → dumbbell exercises. Number of exercises: 4-6 for one muscle group, 5-7 for full body. Max 8.
+Output: JSON with "title", "durationMinutes", "exercises". Each exercise: "name" (professional exercise name), "sets", "reps" (e.g. "10" or "8-12"), "restSeconds", "notes" (optional), "equipment" (one of: ${equipmentStr}). Language for title: ${lang}. Max 8 exercises.
 
-Return ONLY valid JSON, no markdown. Example: {"title":"Triceps (Crossover)","durationMinutes":40,"exercises":[{"name":"Rope triceps pushdown","sets":3,"reps":"12","restSeconds":60,"notes":"","equipment":"crossover"},...]}`;
+Return ONLY valid JSON. Example: {"title":"...","durationMinutes":45,"exercises":[{"name":"Barbell Bench Press","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"barbell"},...]}`;
 
     const result = await callApi('/api/generate', {
         model: AI_MODEL,
