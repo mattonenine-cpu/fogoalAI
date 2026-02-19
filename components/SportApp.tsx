@@ -4,6 +4,7 @@ import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal
 import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput, getLocalISODate } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
+import { renderBoldFragments } from '../LatexRenderer';
 import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward, ArrowLeft, Star, Trophy, Flame } from 'lucide-react';
 
 interface SportAppProps {
@@ -41,36 +42,25 @@ const FIT_GOAL_LABELS: Record<FitnessGoal, { en: string, ru: string }> = {
     [FitnessGoal.ENDURANCE]: { en: 'Endurance', ru: 'Выносливость' }
 };
 
-// --- Text Rendering Helpers for Chat ---
-const parseBold = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, idx) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={idx} className="font-black opacity-90">{part.slice(2, -2)}</strong>;
-        }
-        return part;
-    });
-};
+// --- Text Rendering: no raw **, accent bold via renderBoldFragments ---
+const parseBold = (text: string, accentClass = 'text-orange-400 font-semibold') => renderBoldFragments(text, accentClass);
 
 const renderMessageContent = (text: string, isUser: boolean) => {
     return text.split('\n').map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) return <div key={i} className="h-2" />;
-        
         if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
             const content = trimmed.replace(/^#+\s+/, '');
-            return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-orange-500'}`}>{parseBold(content)}</h3>;
+            return <h3 key={i} className={`text-xs font-black uppercase tracking-widest mt-3 mb-1 ${isUser ? 'text-white' : 'text-orange-400'}`}>{parseBold(content)}</h3>;
         }
-        
         if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-             return (
+            return (
                 <div key={i} className="flex gap-2 pl-2 mb-1">
-                    <span className={`font-black ${isUser ? 'text-white/60' : 'text-orange-400'}`}>•</span>
+                    <span className={isUser ? 'text-white/60' : 'text-orange-400'}>•</span>
                     <span className="text-[13px] leading-relaxed">{parseBold(trimmed.replace(/^[\-\*]\s+/, ''))}</span>
                 </div>
             );
         }
-
         return <p key={i} className="text-[13px] leading-relaxed mb-1">{parseBold(line)}</p>;
     });
 };
@@ -84,17 +74,17 @@ const SportNoteRenderer: React.FC<{ text: string }> = ({ text }) => {
                 if (!trimmed) return <div key={idx} className="h-2" />;
                 if (trimmed.startsWith('# ')) {
                     return (
-                        <h1 key={idx} className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-200 tracking-tighter pt-1 pb-4 mb-4 uppercase text-center border-b border-orange-500/20">
-                            {trimmed.substring(2)}
+                        <h1 key={idx} className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 tracking-tighter pt-1 pb-4 mb-4 text-center border-b-2 border-orange-500/30 rounded-2xl px-4 py-3 bg-orange-500/10">
+                            {parseBold(trimmed.substring(2), 'text-orange-300 font-bold')}
                         </h1>
                     );
                 }
                 if (trimmed.startsWith('## ')) {
                     return (
                         <div key={idx} className="pt-6 mt-2 mb-3">
-                            <h2 className="text-lg font-black text-orange-500 tracking-widest uppercase flex items-center gap-3">
-                                <span className="w-1 h-5 bg-orange-600 rounded-full"></span>
-                                {trimmed.substring(3)}
+                            <h2 className="text-lg font-black text-orange-400 tracking-widest uppercase flex items-center gap-3">
+                                <span className="w-1 h-5 bg-gradient-to-b from-orange-500 to-amber-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]"></span>
+                                {parseBold(trimmed.substring(3), 'text-orange-400 font-semibold')}
                             </h2>
                         </div>
                     );
