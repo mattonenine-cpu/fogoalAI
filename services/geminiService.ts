@@ -735,10 +735,22 @@ export async function generateWorkout(user: UserProfile, lang: Language, muscleG
     };
 
     const focusRule = muscleGroups.length > 0
-        ? `User selected ONLY these muscle groups: ${muscleGroups.join(', ')}. The workout MUST target ONLY these. Choose 4-6 exercises that cover these groups logically (e.g. compound first, then isolation). Do NOT add exercises for other body parts.`
-        : 'Full body: cover main muscle groups (legs, push, pull, core) in 5-7 exercises. Order: compound movements first (squats, push, pull), then isolation/core.';
+        ? `User selected ONLY these muscle groups: ${muscleGroups.join(', ')}. The workout MUST target ONLY these. Choose 4-6 exercises that cover these groups. Do NOT add exercises for other body parts.`
+        : 'Full body: cover main muscle groups (legs, push, pull, core) in 5-7 exercises. Order: compound first, then isolation/core.';
 
-    const equipmentRule = `CRITICAL: Use ONLY this equipment (nothing else): ${equipmentStr}. Every exercise must be doable with this equipment. No barbell if not listed, no cables if not listed, etc.`;
+    const equipmentExamples = `EXERCISES MUST USE THE SELECTED EQUIPMENT. For each exercise, "equipment" must be exactly one of: ${equipmentStr}.
+Examples of exercises BY EQUIPMENT (use these or similar—name the exact exercise on that machine):
+- crossover: rope triceps pushdown, cable fly/crossover fly, cable chest press, rope face pull, cable lateral raise, cable curl (triceps/biceps/chest/delts—pick for target muscles).
+- cable / Cable Machine: lat pulldown, cable row, triceps pushdown (bar or rope), cable biceps curl, cable crossover, cable lateral raise.
+- dumbbells / Dumbbells: dumbbell row, dumbbell press, dumbbell curl, dumbbell lateral raise, goblet squat, dumbbell fly.
+- barbell / Barbell: bench press, bent-over row, biceps curl, squat, deadlift.
+- pullup / Pull-up Bar: pull-ups, chin-ups, hanging leg raise.
+- dip / Dip Bars: dips (chest/triceps), leg raise.
+- smith / Smith Machine: smith bench press, smith squat, smith row.
+- leg_press / Leg Press: leg press (feet high/low), calf press.
+- mat: plank, crunch, hip thrust (bodyweight).
+- kettlebell: kettlebell swing, goblet squat, row, press.
+If user chose "crossover" and "triceps" → give "Rope triceps pushdown" or "Cable triceps extension with rope", equipment "crossover". If "cable" and "back" → "Lat pulldown" or "Cable row", equipment "cable". Always match exercise to the actual machine the user has.`;
 
     const prompt = `You are a professional fitness coach. Create ONE workout plan as a JSON object.
 
@@ -746,16 +758,16 @@ RULES (follow strictly):
 1) ${levelRules[level] ?? levelRules.beginner}
 2) ${goalRules[goal] ?? goalRules['general fitness']}
 3) ${focusRule}
-4) ${equipmentRule}
+4) ${equipmentExamples}
 
 Output format: single JSON object with keys "title", "durationMinutes", "exercises".
-- title: short workout name (e.g. "Chest & Triceps" or "Full Body Strength"). Language: ${lang}.
-- durationMinutes: realistic total time (warmup + work + rest). Typically 35-50 for 4-6 exercises, 45-60 for 6-8.
-- exercises: array of objects. Each: "name" (string), "sets" (number), "reps" (string, e.g. "10" or "8-12"), "restSeconds" (number), "notes" (string, optional), "equipment" (string, one of: ${equipmentStr}).
+- title: short workout name. Language: ${lang}.
+- durationMinutes: realistic total (e.g. 35-50 for 4-6 exercises).
+- exercises: array. Each object: "name" (string — exact exercise name on that machine, e.g. "Rope triceps pushdown" for crossover+triceps, "Lat pulldown" for cable+back), "sets" (number), "reps" (string), "restSeconds" (number), "notes" (string, optional), "equipment" (string — MUST be exactly one of: ${equipmentStr}).
 
-Order exercises logically: compound/big muscles first, then isolation. For intermediate/advanced: prefer well-known gym exercise names (e.g. Barbell Bench Press, Romanian Deadlift, Bent-Over Row, Leg Press, Lat Pulldown) when equipment allows—what people actually do in real gyms. Number of exercises: 4-6 for one muscle group focus, 5-7 for full body. Do not exceed 8 exercises.
+CRITICAL: Every exercise must be performed ON one of the user's selected equipment. Use the equipment name as given (e.g. crossover, cable, dumbbells). Pick exercises that are done on that specific machine—e.g. crossover → rope/cable exercises at the crossover station; cable → cable machine exercises; dumbbells → dumbbell exercises. Number of exercises: 4-6 for one muscle group, 5-7 for full body. Max 8.
 
-Return ONLY valid JSON, no markdown, no text before or after. Example: {"title":"...","durationMinutes":45,"exercises":[{"name":"...","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"..."}]}`;
+Return ONLY valid JSON, no markdown. Example: {"title":"Triceps (Crossover)","durationMinutes":40,"exercises":[{"name":"Rope triceps pushdown","sets":3,"reps":"12","restSeconds":60,"notes":"","equipment":"crossover"},...]}`;
 
     const result = await callApi('/api/generate', {
         model: AI_MODEL,
