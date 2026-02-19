@@ -703,26 +703,40 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                                               {(quizQuestions[currentQuizStep]?.options || []).map((opt, idx) => {
                                                   const isSelected = selectedAnswer === idx;
                                                   const isCorrect = idx === quizQuestions[currentQuizStep].correctIndex;
-                                                  let btnClass = "bg-white/5 border-white/10 text-[var(--text-primary)]";
-                                                  if (answerFeedback) {
+                                                  let btnClass = "bg-white/5 border-white/10 text-[var(--text-primary)] hover:bg-white/10";
+                                                  if (answerFeedback !== null) {
                                                       if (isCorrect) btnClass = "bg-emerald-500/20 border-emerald-500 text-emerald-400";
                                                       else if (isSelected) btnClass = "bg-rose-500/20 border-rose-500 text-rose-400";
-                                                      else btnClass = "bg-white/2 border-transparent text-[var(--text-secondary)] opacity-40";
+                                                      else btnClass = "bg-white/5 border-white/5 text-[var(--text-secondary)] opacity-50";
                                                   }
                                                   return (
-                                                      <button key={idx} onClick={() => handleSubmitAnswer(idx)} disabled={answerFeedback !== null} className={`w-full p-5 rounded-[24px] border font-bold transition-all text-sm text-left flex items-center justify-between group ${btnClass}`}>
+                                                      <button key={idx} onClick={() => handleSubmitAnswer(idx)} disabled={answerFeedback !== null} className={`w-full p-5 rounded-[24px] border-2 font-bold transition-all text-sm text-left flex items-center justify-between group ${btnClass}`}>
                                                           <span className="flex-1 pr-4">{opt}</span>
-                                                          {answerFeedback && isCorrect && <CheckCircle2 size={18} className="text-emerald-500 shrink-0 ml-4" />}
-                                                          {answerFeedback && isSelected && !isCorrect && <X size={18} className="text-rose-500 shrink-0 ml-4" />}
+                                                          {answerFeedback !== null && isCorrect && <CheckCircle2 size={20} className="text-emerald-500 shrink-0 ml-4" />}
+                                                          {answerFeedback !== null && isSelected && !isCorrect && <X size={20} className="text-rose-500 shrink-0 ml-4" />}
                                                       </button>
                                                   );
                                               })}
                                           </div>
+                                          {answerFeedback !== null && (
+                                              <div className="rounded-2xl border-2 p-4 text-center min-h-[52px] flex flex-col justify-center">
+                                                  {answerFeedback === 'correct' ? (
+                                                      <p className="text-emerald-400 font-bold text-sm flex items-center justify-center gap-2"><CheckCircle2 size={18} />{lang === 'ru' ? 'Верно!' : 'Correct!'}</p>
+                                                  ) : (
+                                                      <p className="text-rose-400 font-bold text-sm">
+                                                          {lang === 'ru' ? 'Неверно. ' : 'Wrong. '}
+                                                          <span className="text-[var(--text-primary)] font-normal">{lang === 'ru' ? 'Правильный ответ: ' : 'Correct answer: '}
+                                                              {quizQuestions[currentQuizStep]?.options?.[quizQuestions[currentQuizStep].correctIndex]}
+                                                          </span>
+                                                      </p>
+                                                  )}
+                                              </div>
+                                          )}
                                       </div>
                                   </div>
-                                  {answerFeedback && (
-                                      <div className="p-6 bg-[var(--bg-main)] border-t border-[var(--border-glass)] animate-fade-in-up pb-32">
-                                          <button onClick={handleNextQuestion} className="w-full h-16 rounded-[32px] bg-[var(--bg-active)] text-[var(--bg-active-text)] font-black uppercase text-[12px] shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                                  {answerFeedback !== null && (
+                                      <div className="sticky bottom-0 p-6 pt-4 bg-[var(--bg-main)] border-t border-[var(--border-glass)] shrink-0 safe-area-pb">
+                                          <button onClick={handleNextQuestion} className="w-full h-16 rounded-[32px] bg-indigo-600 text-white font-black uppercase text-[12px] shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-indigo-500">
                                               {currentQuizStep < quizQuestions.length - 1 ? <>{lang === 'ru' ? 'Далее' : 'Next'} <ArrowRight size={18} /></> : <>{lang === 'ru' ? 'Завершить' : 'Finish'} <Check size={18} /></>}
                                           </button>
                                       </div>
