@@ -1,6 +1,6 @@
 // ... imports unchanged ...
 import React, { useState, useMemo, useEffect } from 'react';
-import { Exam, Ticket, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme } from '../types';
+import { Exam, Ticket, Term, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
@@ -189,11 +189,16 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
         }
 
         const { glossary, flashcards } = await generateGlossaryAndCards(tickets, newExam.subject!, lang);
+        const glossaryTerms: Term[] = (glossary || []).map((g: any, i: number) => ({
+            id: g.id ?? `term_${Date.now()}_${i}`,
+            word: typeof g.word === 'string' ? g.word : '',
+            definition: typeof g.definition === 'string' ? g.definition : '',
+        }));
         const fullExam: Exam = { 
             ...(newExam as Exam), 
             tickets, 
             calendar: [], 
-            glossary: glossary || [], 
+            glossary: glossaryTerms, 
             flashcards: (flashcards || []).map((f: any) => ({ ...f, id: `fc_${Date.now()}_${Math.random()}`, status: 'new' })), 
             progress: 0 
         };
