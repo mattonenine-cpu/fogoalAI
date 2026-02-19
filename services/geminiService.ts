@@ -245,9 +245,9 @@ export const cleanTextOutput = (text: string = "") => {
 function parseJsonResponse<T>(rawText: string, defaultVal: T): T {
     const text = cleanTextOutput(rawText || '');
     if (!text) return defaultVal;
+    let parsed: unknown;
     try {
-        const parsed = JSON.parse(text);
-        return parsed as T;
+        parsed = JSON.parse(text);
     } catch {
         try {
             const startObj = text.indexOf('{');
@@ -275,12 +275,46 @@ function parseJsonResponse<T>(rawText: string, defaultVal: T): T {
                         }
                     }
                 }
-                const slice = text.slice(start, end);
-                return JSON.parse(slice) as T;
+                parsed = JSON.parse(text.slice(start, end));
+            } else {
+                return defaultVal;
             }
-        } catch (_e) { /* ignore */ }
+        } catch (_e) {
+            return defaultVal;
+        }
     }
-    return defaultVal;
+    return normalizeParsedForGroq(parsed, defaultVal) as T;
+}
+
+/** Groq sometimes returns object when we need array, or different key names. Unwrap to match expected shape. */
+function normalizeParsedForGroq(parsed: unknown, defaultVal: any): any {
+    if (parsed == null) return defaultVal;
+    if (Array.isArray(defaultVal)) {
+        if (Array.isArray(parsed)) return parsed;
+        if (typeof parsed === 'object' && parsed !== null) {
+            const obj = parsed as Record<string, unknown>;
+            for (const k of ['tickets', 'questions', 'items', 'data', 'results', 'array']) {
+                if (Array.isArray(obj[k])) return obj[k];
+            }
+            const firstArr = Object.values(obj).find(v => Array.isArray(v));
+            if (firstArr) return firstArr;
+        }
+        return defaultVal;
+    }
+    if (typeof defaultVal === 'object' && defaultVal !== null && !Array.isArray(defaultVal)) {
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return parsed as any;
+        const obj = parsed as Record<string, unknown>;
+        if (defaultVal.glossary !== undefined && defaultVal.flashcards !== undefined) {
+            const glossary = Array.isArray(obj.glossary) ? obj.glossary : (Array.isArray(obj.glossary_terms) ? obj.glossary_terms : []);
+            const flashcards = Array.isArray(obj.flashcards) ? obj.flashcards : (Array.isArray(obj.cards) ? obj.cards : []);
+            return { glossary, flashcards };
+        }
+        if (defaultVal.exercises !== undefined) {
+            const exercises = Array.isArray(obj.exercises) ? obj.exercises : (Array.isArray(obj.workout) ? obj.workout : (Array.isArray(obj.items) ? obj.items : []));
+            return { ...obj, exercises };
+        }
+    }
+    return parsed;
 }
 
 /**
@@ -599,27 +633,17 @@ export async function generateDrawingTutorial(prompt: string, lang: Language, st
 }
 
 export async function parseTicketsFromText(text: string, lang: Language) {
-    const prompt = `Extract exam tickets/questions from this text: "${text.substring(0, 5000)}". Lang: ${lang}`;
-    
-    const result = await callApi('/api/generate', { 
-        model: AI_MODEL, 
+    const prompt = `Extract exam tickets from the text below. Return ONLY a valid JSON array. Each element must be an object with exactly two keys: "number" (integer, 1-based) and "question" (string). Example: [{"number":1,"question":"What is..."},{"number":2,"question":"Explain..."}]. No other text, no markdown.
+Text: ${text.substring(0, 5000)}
+Lang: ${lang}`;
+
+    const result = await callApi('/api/generate', {
+        model: AI_MODEL,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { 
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        number: { type: Type.NUMBER },
-                        question: { type: Type.STRING }
-                    },
-                    required: ['number', 'question']
-                }
-            }
-        } 
+        config: { responseMimeType: "application/json" }
     });
-    return parseJsonResponse<{ number?: number; question?: string }[]>(result.text ?? '', []);
+    const arr = parseJsonResponse<{ number?: number; question?: string }[]>(result.text ?? '', []);
+    return Array.isArray(arr) ? arr.filter((t: any) => t && (t.question != null && String(t.question).trim() !== '')) : [];
 }
 
 export async function generateTicketNote(question: string, subject: string, lang: Language) {
@@ -634,45 +658,19 @@ export async function generateTicketNote(question: string, subject: string, lang
 }
 
 export async function generateGlossaryAndCards(tickets: Ticket[], subject: string, lang: Language) {
-    const prompt = `Create a glossary and flashcards for studying the subject: "${subject}". 
-    IMPORTANT: Flashcard answers MUST be extremly concise (max 15 words).
-    For EACH question in the provided list, generate between 2 to 5 flashcards depending on the complexity and volume of the topic. Ensure comprehensive coverage.
-    Questions: ${JSON.stringify(tickets.map(t => t.question))}. Lang: ${lang}`;
-    
-    const result = await callApi('/api/generate', { 
-        model: AI_MODEL, 
+    const questionsList = tickets.map(t => t.question).filter(Boolean);
+    const prompt = `Create a study glossary and flashcards for the subject: "${subject}".
+Based on these exam questions, generate:
+1) "glossary" - array of objects, each with "word" (term) and "definition" (short explanation).
+2) "flashcards" - array of objects, each with "question" and "answer". Answers MUST be max 15 words. Create 2-5 flashcards per topic for full coverage.
+Return ONLY one JSON object with exactly two keys: "glossary" and "flashcards". Example: {"glossary":[{"word":"X","definition":"..."}],"flashcards":[{"question":"?","answer":"..."}]}
+Questions: ${JSON.stringify(questionsList.slice(0, 50))}
+Lang: ${lang}`;
+
+    const result = await callApi('/api/generate', {
+        model: AI_MODEL,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { 
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    glossary: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                word: { type: Type.STRING },
-                                definition: { type: Type.STRING }
-                            },
-                            required: ['word', 'definition']
-                        }
-                    },
-                    flashcards: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                question: { type: Type.STRING },
-                                answer: { type: Type.STRING }
-                            },
-                            required: ['question', 'answer']
-                        }
-                    }
-                },
-                required: ['glossary', 'flashcards']
-            }
-        } 
+        config: { responseMimeType: "application/json" }
     });
     const def = { glossary: [] as { word: string; definition: string }[], flashcards: [] as { question: string; answer: string }[] };
     const data = parseJsonResponse<typeof def>(result.text ?? '', def);
@@ -708,55 +706,34 @@ export async function generateQuiz(question: string, subject: string, lang: Lang
 }
 
 export async function generateWorkout(user: UserProfile, lang: Language, muscleGroups: string[] = []): Promise<WorkoutPlan> {
-    const muscleContext = muscleGroups.length > 0 ? `Focus ONLY on these muscle groups: ${muscleGroups.join(', ')}.` : 'Create a balanced full-body workout.';
-    const prompt = `Generate a workout plan for a user with goal: ${user.fitnessGoal}, level: ${user.fitnessLevel}, and equipment: ${user.fitnessEquipment?.join(', ')}. ${muscleContext} Lang: ${lang}`;
-    
-    const result = await callApi('/api/generate', { 
-        model: AI_MODEL, 
+    const muscleContext = muscleGroups.length > 0 ? `Focus ONLY on these muscle groups: ${muscleGroups.join(', ')}.` : 'Create a balanced full-body workout with several different exercises.';
+    const equipmentStr = (user.fitnessEquipment && user.fitnessEquipment.length) ? user.fitnessEquipment.join(', ') : 'bodyweight, optional dumbbells';
+    const prompt = `Generate a workout plan as a single JSON object. Keys: "title" (string), "durationMinutes" (number), "exercises" (array).
+Each exercise in "exercises" must have: "name" (string), "sets" (number), "reps" (string, e.g. "10" or "8-12"), and optionally "restSeconds" (number), "notes" (string), "equipment" (string).
+User: goal=${user.fitnessGoal}, level=${user.fitnessLevel}, equipment=${equipmentStr}. ${muscleContext} Return 5-10 exercises. Lang: ${lang}
+Return ONLY valid JSON, no markdown. Example: {"title":"Full Body","durationMinutes":45,"exercises":[{"name":"Squats","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"bodyweight"},...]}`;
+
+    const result = await callApi('/api/generate', {
+        model: AI_MODEL,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { 
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    title: { type: Type.STRING },
-                    durationMinutes: { type: Type.NUMBER },
-                    exercises: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                id: { type: Type.STRING },
-                                name: { type: Type.STRING },
-                                sets: { type: Type.NUMBER },
-                                reps: { type: Type.STRING },
-                                restSeconds: { type: Type.NUMBER },
-                                notes: { type: Type.STRING },
-                                equipment: { type: Type.STRING }
-                            },
-                            required: ['id', 'name', 'sets', 'reps']
-                        }
-                    }
-                },
-                required: ['title', 'exercises']
-            }
-        } 
+        config: { responseMimeType: "application/json" }
     });
     const def = { title: '', durationMinutes: 30, exercises: [] as WorkoutPlan['exercises'] };
-    const data = parseJsonResponse<{ title?: string; durationMinutes?: number; exercises?: WorkoutPlan['exercises'] }>(result.text ?? '', def);
-    const exercises = Array.isArray(data.exercises) ? data.exercises : [];
+    const data = parseJsonResponse<{ title?: string; durationMinutes?: number; exercises?: any[] }>(result.text ?? '', def);
+    const rawExercises = Array.isArray(data.exercises) ? data.exercises : [];
+    const exercises = rawExercises.map((e: any, i: number) => ({
+        id: (e?.id ?? e?.name ?? `ex_${i}`).toString().replace(/\s+/g, '_'),
+        name: (e?.name ?? e?.title ?? e?.exercise ?? '').toString() || `Exercise ${i + 1}`,
+        sets: typeof e?.sets === 'number' ? e.sets : (typeof e?.sets === 'string' ? parseInt(e.sets, 10) : 3) || 3,
+        reps: (e?.reps ?? e?.rep_range ?? e?.repetitions ?? '10').toString(),
+        restSeconds: typeof e?.restSeconds === 'number' ? e.restSeconds : (typeof e?.rest === 'number' ? e.rest : 60),
+        notes: (e?.notes ?? e?.description ?? '').toString(),
+        equipment: (e?.equipment ?? e?.equipment_needed ?? '').toString(),
+    })).filter((e: { name: string }) => e.name.length > 0);
     return {
-        title: typeof data.title === 'string' ? data.title : (lang === 'ru' ? 'Тренировка' : 'Workout'),
+        title: typeof data.title === 'string' && data.title.length ? data.title : (lang === 'ru' ? 'Тренировка' : 'Workout'),
         durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : 30,
-        exercises: exercises.map((e: any, i: number) => ({
-            id: e?.id ?? `ex_${i}`,
-            name: e?.name ?? '',
-            sets: typeof e?.sets === 'number' ? e.sets : 3,
-            reps: typeof e?.reps === 'string' ? e.reps : '10',
-            restSeconds: typeof e?.restSeconds === 'number' ? e.restSeconds : 60,
-            notes: typeof e?.notes === 'string' ? e.notes : '',
-            equipment: typeof e?.equipment === 'string' ? e.equipment : '',
-        })),
+        exercises,
         date: getLocalISODate(),
     };
 }
