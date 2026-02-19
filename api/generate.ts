@@ -57,17 +57,24 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const systemInstruction = config?.systemInstruction;
+    const useJson =
+      config?.responseMimeType === "application/json" ||
+      (config?.responseSchema && Object.keys(config.responseSchema).length > 0);
+    const jsonInstruction =
+      "Respond with only valid JSON, no markdown, no code fences, no text before or after.";
+    const systemInstruction = config?.systemInstruction
+      ? useJson
+        ? `${config.systemInstruction}\n${jsonInstruction}`
+        : config.systemInstruction
+      : useJson
+        ? jsonInstruction
+        : undefined;
     const messages = geminiContentsToGroqMessages(contents || [], systemInstruction);
     if (messages.length === 0) {
       return res.status(400).json({
         error: "At least one message (or systemInstruction) is required.",
       });
     }
-
-    const useJson =
-      config?.responseMimeType === "application/json" ||
-      (config?.responseSchema && Object.keys(config.responseSchema).length > 0);
 
     const usedModel =
       model && typeof model === "string" && model.includes("llama") ? model : DEFAULT_MODEL;
