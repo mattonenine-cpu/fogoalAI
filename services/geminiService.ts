@@ -738,19 +738,24 @@ export async function generateWorkout(user: UserProfile, lang: Language, muscleG
         ? `Target ONLY these muscle groups: ${muscleGroups.join(', ')}. 4-6 exercises.`
         : 'Full body: legs, push, pull, core. 5-7 exercises, compound first then isolation.';
 
+    const langRule = lang === 'ru'
+        ? `LANGUAGE: Russian. Title and ALL exercise names MUST be in Russian. Use only professional Russian names that everyone uses in gyms (новички, любители, профессионалы). Examples: Жим лёжа, Становая тяга, Приседания со штангой, Подтягивания, Отжимания на брусьях, Тяга верхнего блока, Разгибание рук на блоке (трицепс), Жим ногами, Тяга гантели в наклоне, Сгибание рук с гантелями, Махи гантелями в стороны, Румынская тяга, Выпады с гантелями, Планка, Скручивания. No English names when lang is ru.`
+        : `LANGUAGE: English. Title and exercise names in English (e.g. Barbell Bench Press, Romanian Deadlift, Lat Pulldown).`;
+
     const prompt = `You are a fitness coach. Create ONE workout plan as JSON.
 
 RULES:
 1) ${levelRules[level] ?? levelRules.beginner}
 2) ${goalRules[goal] ?? goalRules['general fitness']}
 3) ${focusRule}
-4) Use ONLY equipment the user has (nothing else): ${equipmentStr}. Each exercise must be doable with this equipment. Set "equipment" to the piece used (one of the list above).
+4) Use ONLY equipment the user has: ${equipmentStr}. Set "equipment" to the piece used (one of the list).
+5) ${langRule}
 
-EXERCISES: Use standard, well-known gym exercise names—the kind people use in real gyms and on fitness sites (e.g. Barbell Bench Press, Romanian Deadlift, Lat Pulldown, Cable Rope Triceps Pushdown, Dumbbell Bent-Over Row, Leg Press, Pull-Up, Dip, Goblet Squat, Incline Dumbbell Press). Professional/common names only. No made-up or vague names.
+EXERCISES: Standard gym names only. For Russian: Жим лёжа, Становая тяга, Подтягивания, Тяга верхнего блока, Разгибание рук на блоке, Жим ногами, Тяга в наклоне, Отжимания на брусьях, Приседания, и т.д. For English: Barbell Bench Press, Lat Pulldown, Leg Press, etc. No made-up names.
 
-Output: JSON with "title", "durationMinutes", "exercises". Each exercise: "name" (professional exercise name), "sets", "reps" (e.g. "10" or "8-12"), "restSeconds", "notes" (optional), "equipment" (one of: ${equipmentStr}). Language for title: ${lang}. Max 8 exercises.
+Output: JSON with "title", "durationMinutes", "exercises". Each: "name" (professional name in the chosen language), "sets", "reps", "restSeconds", "notes", "equipment". Max 8 exercises.
 
-Return ONLY valid JSON. Example: {"title":"...","durationMinutes":45,"exercises":[{"name":"Barbell Bench Press","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"barbell"},...]}`;
+Return ONLY valid JSON. Example (ru): {"title":"Грудь и трицепс","durationMinutes":45,"exercises":[{"name":"Жим лёжа","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"barbell"},...]}`;
 
     const result = await callApi('/api/generate', {
         model: AI_MODEL,
