@@ -647,8 +647,18 @@ Lang: ${lang}`;
 }
 
 export async function generateTicketNote(question: string, subject: string, lang: Language) {
-    const prompt = `Write a comprehensive study note for the exam question: "${question}" in the subject: "${subject}". 
-    Format using Markdown. Lang: ${lang}. Focus on being educational and well-structured.`;
+    const prompt = `You are an expert teacher. Write a detailed, engaging study note (outline/concise) for this exam question.
+
+Exam subject: "${subject}"
+Question / topic: "${question}"
+
+Requirements:
+- Be maximally informative and detailed so the student can learn the topic well. Include key facts, definitions, examples, cause-effect, and context.
+- Structure with Markdown: use ## for main sections, ### for subsections, and - or * for bullet points. Use bold only where it really highlights a term (key words), not everywhere.
+- Make it interesting to read: add context, "why it matters", and connections to the bigger picture where useful.
+- Write in language: ${lang}. Keep a clear, educational tone.
+- Do not output raw asterisks for emphasis; use structure (headings and lists) for clarity. If you use bold, use **word** format.
+- Length: substantial. Cover the topic so that after reading, the student can answer the exam question and related ones.`;
     
     const result = await callApi('/api/generate', { 
         model: AI_MODEL, 
@@ -681,28 +691,29 @@ Lang: ${lang}`;
 }
 
 export async function generateQuiz(question: string, subject: string, lang: Language, count: number) {
-    const prompt = `Generate ${count} multiple-choice quiz questions for the topic: "${question}". Lang: ${lang}`;
+    const prompt = `Generate ${count} multiple-choice quiz questions to check knowledge on this exam ticket.
+
+Subject: "${subject}"
+Ticket topic / question: "${question}"
+
+Rules:
+- Every question MUST be directly about the topic of this ticket (and the subject). They are for self-test after studying the note.
+- Vary difficulty so the student can learn well:
+  - Easy (about 1/3): recall of facts, dates, definitions (e.g. "What is...?", "When did...?").
+  - Medium (about 1/3): understanding, cause-effect, comparison (e.g. "Why...?", "How did X relate to Y?").
+  - Hard (about 1/3): application, analysis, "which is correct interpretation" (e.g. "Which conclusion follows?", "What best explains...?").
+- Each question: 4 options, one correct. correctIndex is 0-based.
+- Language: ${lang}.
+
+Return ONLY a JSON array. Each object: "question" (string), "options" (array of 4 strings), "correctIndex" (number 0-3), "difficulty" (string: "easy" | "medium" | "hard"). Example: [{"question":"...","options":["A","B","C","D"],"correctIndex":0,"difficulty":"easy"},...]`;
     
     const result = await callApi('/api/generate', { 
         model: AI_MODEL, 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { 
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        question: { type: Type.STRING },
-                        options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        correctIndex: { type: Type.NUMBER }
-                    },
-                    required: ['question', 'options', 'correctIndex']
-                }
-            }
-        } 
+        config: { responseMimeType: "application/json" }
     });
-    return parseJsonResponse<{ question: string; options: string[]; correctIndex: number }[]>(result.text ?? '', []);
+    const arr = parseJsonResponse<{ question: string; options: string[]; correctIndex: number; difficulty?: string }[]>(result.text ?? '', []);
+    return Array.isArray(arr) ? arr : [];
 }
 
 export async function generateWorkout(user: UserProfile, lang: Language, muscleGroups: string[] = []): Promise<WorkoutPlan> {
