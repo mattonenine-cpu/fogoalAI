@@ -241,6 +241,48 @@ export const cleanTextOutput = (text: string = "") => {
     return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
+/** Safely parse JSON from API (Groq may wrap in text or add markdown). Returns default on failure. */
+function parseJsonResponse<T>(rawText: string, defaultVal: T): T {
+    const text = cleanTextOutput(rawText || '');
+    if (!text) return defaultVal;
+    try {
+        const parsed = JSON.parse(text);
+        return parsed as T;
+    } catch {
+        try {
+            const startObj = text.indexOf('{');
+            const startArr = text.indexOf('[');
+            let start = -1;
+            let isArray = false;
+            if (startObj >= 0 && (startArr < 0 || startObj < startArr)) {
+                start = startObj;
+            } else if (startArr >= 0) {
+                start = startArr;
+                isArray = true;
+            }
+            if (start >= 0) {
+                let depth = 0;
+                const open = isArray ? '[' : '{';
+                const close = isArray ? ']' : '}';
+                let end = start;
+                for (let i = start; i < text.length; i++) {
+                    if (text[i] === open) depth++;
+                    else if (text[i] === close) {
+                        depth--;
+                        if (depth === 0) {
+                            end = i + 1;
+                            break;
+                        }
+                    }
+                }
+                const slice = text.slice(start, end);
+                return JSON.parse(slice) as T;
+            }
+        } catch (_e) { /* ignore */ }
+    }
+    return defaultVal;
+}
+
 /**
  * Helper to call the Vercel API endpoints
  */
@@ -404,7 +446,7 @@ export async function decomposeTask(task: Task, profile: UserProfile, lang: Lang
             }
         }
     });
-    return JSON.parse(cleanTextOutput(result.text || "[]"));
+    return parseJsonResponse<Partial<Task>[]>(result.text ?? '', []);
 }
 
 export async function optimizeDailySchedule(tasks: Task[], profile: UserProfile, lang: Language): Promise<any> {
@@ -439,7 +481,7 @@ export async function optimizeDailySchedule(tasks: Task[], profile: UserProfile,
             }
         }
     });
-    return JSON.parse(cleanTextOutput(result.text || "{}"));
+    return parseJsonResponse<{ schedule: { taskId: string; time: string }[] }>(result.text ?? '', { schedule: [] });
 }
 
 export async function analyzeEcosystemSignals(profile: Partial<UserProfile>, lang: Language): Promise<EcosystemConfig[]> {
@@ -463,7 +505,7 @@ export async function analyzeEcosystemSignals(profile: Partial<UserProfile>, lan
             }
         }
     });
-    return JSON.parse(cleanTextOutput(result.text || "[]"));
+    return parseJsonResponse<EcosystemConfig[]>(result.text ?? '', []);
 }
 
 export async function generateFocuVisual(_prompt: string, _refImageBase64?: string): Promise<string | null> {
@@ -505,7 +547,21 @@ export async function evaluateProgress(logText: string, tasks: Task[], goals: Go
             }
         }
     });
-    return JSON.parse(cleanTextOutput(result.text || "{}"));
+    const defaultEval = {
+        productivityScore: 0,
+        feedback: '',
+        generalProgressAdd: 0,
+        updatedTaskIds: [] as string[],
+        goalUpdates: [] as { id: string; progressAdd: number }[],
+    };
+    const data = parseJsonResponse<typeof defaultEval>(result.text ?? '', defaultEval);
+    return {
+        productivityScore: typeof data.productivityScore === 'number' ? data.productivityScore : 0,
+        feedback: typeof data.feedback === 'string' ? data.feedback : '',
+        generalProgressAdd: typeof data.generalProgressAdd === 'number' ? data.generalProgressAdd : 0,
+        updatedTaskIds: Array.isArray(data.updatedTaskIds) ? data.updatedTaskIds : [],
+        goalUpdates: Array.isArray(data.goalUpdates) ? data.goalUpdates : [],
+    };
 }
 
 export async function generateDrawingTutorial(prompt: string, lang: Language, style: string, difficulty: string, material: string) {
@@ -539,7 +595,7 @@ export async function generateDrawingTutorial(prompt: string, lang: Language, st
             }
         }
     });
-    return JSON.parse(cleanTextOutput(result.text || "{}"));
+    return parseJsonResponse<{ title?: string; difficulty?: string; estimatedTime?: string; steps?: { text: string; visualPrompt: string }[]; tips?: string[] }>(result.text ?? '', { title: '', steps: [] });
 }
 
 export async function parseTicketsFromText(text: string, lang: Language) {
@@ -563,7 +619,7 @@ export async function parseTicketsFromText(text: string, lang: Language) {
             }
         } 
     });
-    return JSON.parse(cleanTextOutput(result.text || "[]"));
+    return parseJsonResponse<{ number?: number; question?: string }[]>(result.text ?? '', []);
 }
 
 export async function generateTicketNote(question: string, subject: string, lang: Language) {
@@ -618,7 +674,12 @@ export async function generateGlossaryAndCards(tickets: Ticket[], subject: strin
             }
         } 
     });
-    return JSON.parse(cleanTextOutput(result.text || "{}"));
+    const def = { glossary: [] as { word: string; definition: string }[], flashcards: [] as { question: string; answer: string }[] };
+    const data = parseJsonResponse<typeof def>(result.text ?? '', def);
+    return {
+        glossary: Array.isArray(data.glossary) ? data.glossary : [],
+        flashcards: Array.isArray(data.flashcards) ? data.flashcards : [],
+    };
 }
 
 export async function generateQuiz(question: string, subject: string, lang: Language, count: number) {
@@ -643,7 +704,7 @@ export async function generateQuiz(question: string, subject: string, lang: Lang
             }
         } 
     });
-    return JSON.parse(cleanTextOutput(result.text || "[]"));
+    return parseJsonResponse<{ question: string; options: string[]; correctIndex: number }[]>(result.text ?? '', []);
 }
 
 export async function generateWorkout(user: UserProfile, lang: Language, muscleGroups: string[] = []): Promise<WorkoutPlan> {
@@ -681,8 +742,23 @@ export async function generateWorkout(user: UserProfile, lang: Language, muscleG
             }
         } 
     });
-    const data = JSON.parse(cleanTextOutput(result.text || "{}"));
-    return { ...data, date: getLocalISODate() };
+    const def = { title: '', durationMinutes: 30, exercises: [] as WorkoutPlan['exercises'] };
+    const data = parseJsonResponse<{ title?: string; durationMinutes?: number; exercises?: WorkoutPlan['exercises'] }>(result.text ?? '', def);
+    const exercises = Array.isArray(data.exercises) ? data.exercises : [];
+    return {
+        title: typeof data.title === 'string' ? data.title : (lang === 'ru' ? 'Тренировка' : 'Workout'),
+        durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : 30,
+        exercises: exercises.map((e: any, i: number) => ({
+            id: e?.id ?? `ex_${i}`,
+            name: e?.name ?? '',
+            sets: typeof e?.sets === 'number' ? e.sets : 3,
+            reps: typeof e?.reps === 'string' ? e.reps : '10',
+            restSeconds: typeof e?.restSeconds === 'number' ? e.restSeconds : 60,
+            notes: typeof e?.notes === 'string' ? e.notes : '',
+            equipment: typeof e?.equipment === 'string' ? e.equipment : '',
+        })),
+        date: getLocalISODate(),
+    };
 }
 
 export async function getExerciseTechnique(exerciseName: string, equipment: string, lang: Language): Promise<string> {
@@ -724,6 +800,27 @@ export async function analyzeHealthLog(log: { sleep: number, stress: number, ene
             }
         } 
     });
-    const data = JSON.parse(cleanTextOutput(result.text || "{}"));
-    return { ...data, date: getLocalISODate(), sleep: log.sleep, stress: log.stress, energy: log.energy };
+    const def = {
+        energyScore: 5,
+        recoveryScore: 5,
+        burnoutRisk: 'Low' as const,
+        recommendations: { morning: '', day: '', evening: '' },
+        notes: '',
+    };
+    const data = parseJsonResponse<{ energyScore?: number; recoveryScore?: number; burnoutRisk?: string; recommendations?: { morning?: string; day?: string; evening?: string }; notes?: string }>(result.text ?? '', def);
+    return {
+        date: getLocalISODate(),
+        sleep: log.sleep,
+        stress: log.stress,
+        energy: log.energy,
+        energyScore: typeof data.energyScore === 'number' ? data.energyScore : 5,
+        recoveryScore: typeof data.recoveryScore === 'number' ? data.recoveryScore : 5,
+        burnoutRisk: (data.burnoutRisk === 'Low' || data.burnoutRisk === 'Medium' || data.burnoutRisk === 'High') ? data.burnoutRisk : 'Low',
+        recommendations: {
+            morning: data.recommendations?.morning ?? '',
+            day: data.recommendations?.day ?? '',
+            evening: data.recommendations?.evening ?? '',
+        },
+        notes: typeof data.notes === 'string' ? data.notes : '',
+    };
 }
