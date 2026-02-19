@@ -724,8 +724,8 @@ export async function generateWorkout(user: UserProfile, lang: Language, muscleG
 
     const levelRules: Record<string, string> = {
         beginner: 'Beginner: 4-5 exercises only, basic movements, 2-3 sets, simple progressions. No complex combinations.',
-        intermediate: 'Intermediate: 5-7 exercises, 3 sets typical. Can include moderate complexity.',
-        advanced: 'Advanced: 6-8 exercises, 3-4 sets. Can use advanced variations and intensity techniques.',
+        intermediate: 'Intermediate: 5-7 exercises, 3 sets. Include at least 1-2 classic real-gym exercises (e.g. bench press, barbell/dumbbell row, leg press, pull-ups, dips) that people actually do in gyms. Mix with simpler ones.',
+        advanced: 'Advanced: 6-8 exercises, 3-4 sets. Include several challenging gym standards: compound lifts (bench, squat, deadlift, row), pull-ups/dips, isolation with proper form. Exercises that real trainees do in the gym, not only basics.',
     };
     const goalRules: Record<string, string> = {
         'weight loss': 'Goal WEIGHT LOSS: higher reps (12-15), shorter rest (45-60s), include cardio-style or circuit if possible. Burn focus.',
@@ -753,7 +753,7 @@ Output format: single JSON object with keys "title", "durationMinutes", "exercis
 - durationMinutes: realistic total time (warmup + work + rest). Typically 35-50 for 4-6 exercises, 45-60 for 6-8.
 - exercises: array of objects. Each: "name" (string), "sets" (number), "reps" (string, e.g. "10" or "8-12"), "restSeconds" (number), "notes" (string, optional), "equipment" (string, one of: ${equipmentStr}).
 
-Order exercises logically: compound/big muscles first, then isolation. Number of exercises: 4-6 for one muscle group focus, 5-7 for full body. Do not exceed 8 exercises.
+Order exercises logically: compound/big muscles first, then isolation. For intermediate/advanced: prefer well-known gym exercise names (e.g. Barbell Bench Press, Romanian Deadlift, Bent-Over Row, Leg Press, Lat Pulldown) when equipment allows—what people actually do in real gyms. Number of exercises: 4-6 for one muscle group focus, 5-7 for full body. Do not exceed 8 exercises.
 
 Return ONLY valid JSON, no markdown, no text before or after. Example: {"title":"...","durationMinutes":45,"exercises":[{"name":"...","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"..."}]}`;
 
