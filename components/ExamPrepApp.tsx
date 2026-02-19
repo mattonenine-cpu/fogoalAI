@@ -318,8 +318,14 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       setAnswerFeedback(null); // Fix: Reset feedback state
       setSelectedAnswer(null); // Fix: Reset selected answer state
       try {
-          const quiz = await generateQuiz(activeTicket.question, activeExam!.subject, lang, quizCount);
-          setQuizQuestions(quiz || []);
+          const raw = await generateQuiz(activeTicket.question, activeExam!.subject, lang, quizCount);
+          const normalized: { question: string; options: string[]; correctIndex: number; difficulty?: 'easy' | 'medium' | 'hard' }[] = (raw || []).map(q => ({
+              question: q.question ?? '',
+              options: Array.isArray(q.options) ? q.options : [],
+              correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+              difficulty: q.difficulty === 'easy' || q.difficulty === 'medium' || q.difficulty === 'hard' ? q.difficulty : undefined,
+          }));
+          setQuizQuestions(normalized);
           setCurrentQuizStep(0);
           setTicketMode('quiz');
       } catch (e: any) { 
