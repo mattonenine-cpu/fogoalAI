@@ -9,6 +9,11 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
+  // Проверка: открыть в браузере /api/send-telegram — виден ли токен после деплоя
+  if (req.method === 'GET') {
+    const tokenSet = !!process.env.TELEGRAM_BOT_TOKEN;
+    return res.status(200).json({ tokenSet, hint: tokenSet ? 'Token OK. Use POST to send.' : 'Redeploy after adding TELEGRAM_BOT_TOKEN.' });
+  }
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
