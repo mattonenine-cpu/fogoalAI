@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Task, UserProfile, Language, TRANSLATIONS, Note, DailyStats } from '../types';
 import { GlassInput } from './GlassCard';
-import { Plus, Check, ChevronLeft, ChevronRight, Clock, Flag, Trash2, StickyNote, Edit2, Palette, X, Moon, Smile } from 'lucide-react';
+import { Plus, Check, ChevronLeft, ChevronRight, Clock, Flag, Trash2, StickyNote, Edit2, Palette, X, Moon, Smile, Move } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 
 interface SchedulerProps {
@@ -33,6 +33,8 @@ export const Scheduler: React.FC<SchedulerProps> = ({
     const [showColorPicker, setShowColorPicker] = useState<string | null>(null); // ISO Date string for the modal
     const [dayNote, setDayNote] = useState('');
     const [selectedColor, setSelectedColor] = useState('transparent');
+    const [movingTask, setMovingTask] = useState<Task | null>(null); // Task being moved
+    const [newTimeForMove, setNewTimeForMove] = useState<string>(''); // New time for the task being moved
 
     const selectedDateISO = getLocalISODate(currentDate);
     const todayISO = getLocalISODate(new Date());
@@ -77,6 +79,27 @@ export const Scheduler: React.FC<SchedulerProps> = ({
         if (!editingTask) return;
         setTasks(prev => prev.map(tk => tk.id === editingTask.id ? editingTask : tk));
         setEditingTask(null);
+    };
+
+    const handleStartMove = (task: Task) => {
+        setMovingTask(task);
+        setNewTimeForMove(task.scheduledTime || '');
+    };
+
+    const handleConfirmMove = () => {
+        if (!movingTask || !newTimeForMove) return;
+        setTasks(prev => prev.map(tk => 
+            tk.id === movingTask.id 
+                ? { ...tk, scheduledTime: newTimeForMove }
+                : tk
+        ));
+        setMovingTask(null);
+        setNewTimeForMove('');
+    };
+
+    const handleCancelMove = () => {
+        setMovingTask(null);
+        setNewTimeForMove('');
     };
 
     const handleOpenDayModal = (iso: string) => {
@@ -360,28 +383,41 @@ export const Scheduler: React.FC<SchedulerProps> = ({
                             dayTasks.map(tk => (
                                 <div 
                                     key={tk.id} 
-                                    className={`p-4 rounded-[24px] border border-[var(--border-glass)] flex items-center gap-3 transition-all relative overflow-hidden ${tk.completed ? 'opacity-40 grayscale' : 'shadow-sm'}`}
+                                    className={`p-4 rounded-[24px] border border-[var(--border-glass)] flex flex-col gap-2 transition-all relative overflow-hidden ${tk.completed ? 'opacity-40 grayscale' : 'shadow-sm'} ${movingTask?.id === tk.id ? 'ring-2 ring-indigo-500/50' : ''}`}
                                     style={{ backgroundColor: tk.color && tk.color !== 'transparent' ? `${tk.color}15` : 'rgba(255,255,255,0.05)' }}
                                 >
                                     {tk.color && tk.color !== 'transparent' && <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: tk.color }} />}
                                     
-                                    <button onClick={() => setTasks(prev => prev.map(t => t.id === tk.id ? {...t, completed: !t.completed} : t))} className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${tk.completed ? 'bg-[var(--text-primary)] border-[var(--text-primary)]' : 'border-[var(--text-secondary)]/30'}`}>
-                                        {tk.completed && <Check size={14} className="text-[var(--bg-main)]" strokeWidth={4} />}
-                                    </button>
-                                    <div className="flex-1 min-w-0" onClick={() => setEditingTask(tk)}>
-                                        <div className="flex items-center gap-2">
-                                            {tk.emoji && <span className="text-lg">{tk.emoji}</span>}
-                                            <p className={`text-sm font-medium text-[var(--text-primary)] leading-tight ${tk.completed ? 'line-through' : ''}`}>{tk.title}</p>
+                                    {/* Move button at the top */}
+                                    <div className="flex items-center justify-between w-full">
+                                        <button 
+                                            onClick={() => handleStartMove(tk)}
+                                            className="w-8 h-8 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center transition-all active:scale-95"
+                                            title={lang === 'ru' ? 'Переместить задачу' : 'Move task'}
+                                        >
+                                            <Move size={14} className="text-indigo-400" />
+                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button onClick={() => setEditingTask(tk)} className="text-[var(--text-secondary)] opacity-40 hover:opacity-100 p-2"><Edit2 size={14}/></button>
+                                            <button onClick={() => setTasks(prev => prev.filter(t => t.id !== tk.id))} className="text-rose-500/30 hover:text-rose-500 transition-colors p-2"><Trash2 size={16}/></button>
                                         </div>
-                                        {tk.scheduledTime && (
-                                            <div className="flex items-center gap-1.5 mt-1 opacity-50">
-                                                <Clock size={10} /><span className="text-mini font-medium">{tk.scheduledTime}</span>
-                                            </div>
-                                        )}
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <button onClick={() => setEditingTask(tk)} className="text-[var(--text-secondary)] opacity-40 hover:opacity-100 p-2"><Edit2 size={14}/></button>
-                                        <button onClick={() => setTasks(prev => prev.filter(t => t.id !== tk.id))} className="text-rose-500/30 hover:text-rose-500 transition-colors p-2"><Trash2 size={16}/></button>
+
+                                    <div className="flex items-center gap-3">
+                                        <button onClick={() => setTasks(prev => prev.map(t => t.id === tk.id ? {...t, completed: !t.completed} : t))} className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${tk.completed ? 'bg-[var(--text-primary)] border-[var(--text-primary)]' : 'border-[var(--text-secondary)]/30'}`}>
+                                            {tk.completed && <Check size={14} className="text-[var(--bg-main)]" strokeWidth={4} />}
+                                        </button>
+                                        <div className="flex-1 min-w-0" onClick={() => setEditingTask(tk)}>
+                                            <div className="flex items-center gap-2">
+                                                {tk.emoji && <span className="text-lg">{tk.emoji}</span>}
+                                                <p className={`text-sm font-medium text-[var(--text-primary)] leading-tight ${tk.completed ? 'line-through' : ''}`}>{tk.title}</p>
+                                            </div>
+                                            {tk.scheduledTime && (
+                                                <div className="flex items-center gap-1.5 mt-1 opacity-50">
+                                                    <Clock size={10} /><span className="text-mini font-medium">{tk.scheduledTime}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             ))
@@ -433,6 +469,69 @@ export const Scheduler: React.FC<SchedulerProps> = ({
                         <button onClick={handleSaveDayMarking} className="w-full h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase text-[11px] shadow-lg active:scale-95 transition-all">
                             {t.save}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* MOVE TASK MODAL */}
+            {movingTask && (
+                <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
+                    <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl space-y-6">
+                        <div className="flex justify-between items-center mb-2">
+                            <div>
+                                <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Переместить задачу' : 'Move Task'}</h3>
+                                <p className="text-xs text-[var(--text-secondary)] mt-1 truncate">{movingTask.title}</p>
+                            </div>
+                            <button onClick={handleCancelMove} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Новое время' : 'New Time'}</label>
+                                <input 
+                                    type="time"
+                                    value={newTimeForMove}
+                                    onChange={e => setNewTimeForMove(e.target.value)}
+                                    className="w-full h-14 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 text-[var(--text-primary)] text-lg font-bold focus:outline-none focus:border-indigo-500/50"
+                                />
+                            </div>
+
+                            {/* Quick time slots */}
+                            <div>
+                                <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 block">{lang === 'ru' ? 'Быстрый выбор' : 'Quick Select'}</label>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'].map(time => (
+                                        <button
+                                            key={time}
+                                            onClick={() => setNewTimeForMove(time)}
+                                            className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                                                newTimeForMove === time 
+                                                    ? 'bg-indigo-500 text-white' 
+                                                    : 'bg-white/5 border border-[var(--border-glass)] text-[var(--text-primary)] hover:bg-white/10'
+                                            }`}
+                                        >
+                                            {time}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={handleCancelMove} 
+                                className="flex-1 h-14 bg-white/5 border border-[var(--border-glass)] text-[var(--text-primary)] rounded-full font-black uppercase text-[11px] active:scale-95 transition-all"
+                            >
+                                {lang === 'ru' ? 'Отмена' : 'Cancel'}
+                            </button>
+                            <button 
+                                onClick={handleConfirmMove} 
+                                disabled={!newTimeForMove}
+                                className="flex-1 h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase text-[11px] shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {lang === 'ru' ? 'Переместить' : 'Move'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -492,3 +591,4 @@ export const Scheduler: React.FC<SchedulerProps> = ({
         </div>
     );
 };
+
