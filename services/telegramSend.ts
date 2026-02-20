@@ -64,7 +64,17 @@ export async function sendToTelegram(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ telegramId, text }),
     });
-    const data = await res.json();
+    const raw = await res.text();
+    let data: { ok?: boolean; error?: string } = {};
+    if (raw.trim()) {
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = { error: res.status === 404 ? 'API not found. Deploy with TELEGRAM_BOT_TOKEN on Vercel.' : raw.slice(0, 100) };
+      }
+    } else {
+      data = { error: res.statusText || `HTTP ${res.status}. Check Vercel env TELEGRAM_BOT_TOKEN and redeploy.` };
+    }
     if (!res.ok) return { ok: false, error: data.error || res.statusText };
     return data.ok ? { ok: true } : { ok: false, error: data.error || 'Unknown error' };
   } catch (e: any) {
