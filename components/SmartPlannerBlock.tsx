@@ -1,15 +1,18 @@
 
 import React from 'react';
-import { Task } from '../types';
+import { Task, Language } from '../types';
 import { PIXELS_PER_HOUR } from '../services/smartPlanner';
-import { GripVertical, CheckCircle2, Circle, Clock } from 'lucide-react';
+import { GripVertical, CheckCircle2, Circle, Clock, Move } from 'lucide-react';
 
 interface SmartBlockProps {
   task: Task;
   style?: React.CSSProperties;
-  onPointerDown: (e: React.PointerEvent, task: Task, type: 'DRAG' | 'RESIZE') => void;
+  onPointerDown: (e: React.PointerEvent, task: Task, type: 'RESIZE') => void;
   onToggleStatus: (id: string) => void;
   onClick: (task: Task) => void;
+  onStartMove: (task: Task) => void;
+  isMoving?: boolean;
+  lang: Language;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -25,7 +28,10 @@ export const SmartBlock: React.FC<SmartBlockProps> = ({
   style, 
   onPointerDown, 
   onToggleStatus,
-  onClick
+  onClick,
+  onStartMove,
+  isMoving = false,
+  lang
 }) => {
   const height = (task.durationMinutes / 60) * PIXELS_PER_HOUR;
   // Use task color if available, otherwise fallback to type color
@@ -34,26 +40,41 @@ export const SmartBlock: React.FC<SmartBlockProps> = ({
 
   return (
     <div
-      className={`absolute w-[95%] left-[2.5%] rounded-xl border shadow-sm group transition-all overflow-hidden select-none backdrop-blur-md ${baseColorClass} ${isDone ? 'opacity-50 grayscale' : ''}`}
+      className={`absolute w-[95%] left-[2.5%] rounded-xl border shadow-sm group transition-all overflow-hidden select-none backdrop-blur-md ${baseColorClass} ${isDone ? 'opacity-50 grayscale' : ''} ${isMoving ? 'ring-2 ring-indigo-500/50' : ''}`}
       style={{
         ...style,
         height: `${height}px`,
         touchAction: 'none', // Crucial for Pointer Events
-        zIndex: 10,
+        zIndex: isMoving ? 50 : 10,
         backgroundColor: task.color && task.color !== 'transparent' ? `${task.color}30` : undefined,
         borderColor: task.color && task.color !== 'transparent' ? `${task.color}50` : undefined,
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onClick(task);
+        if (!isMoving) {
+          onClick(task);
+        }
       }}
     >
-      {/* Header / Drag Handle */}
+      {/* Header / Move Button */}
       <div 
-        className="h-4 flex items-center justify-end px-1 cursor-grab active:cursor-grabbing border-b border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5"
-        onPointerDown={(e) => onPointerDown(e, task, 'DRAG')}
+        className="h-6 flex items-center justify-between px-2 border-b border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5"
       >
-        <GripVertical size={10} className="opacity-50 text-[var(--text-primary)]" />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartMove(task);
+          }}
+          className="w-6 h-6 rounded-md bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center transition-all active:scale-95"
+          title={lang === 'ru' ? 'Переместить задачу' : 'Move task'}
+        >
+          <Move size={12} className="text-indigo-400" />
+        </button>
+        {isMoving && (
+          <span className="text-[8px] font-bold text-indigo-400 uppercase">
+            {lang === 'ru' ? 'Выберите время' : 'Select time'}
+          </span>
+        )}
       </div>
 
       {/* Content */}
