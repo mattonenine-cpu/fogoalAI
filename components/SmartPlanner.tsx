@@ -180,6 +180,7 @@ export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lan
                 onTaskUpdate={handleUpdateTask}
                 onTaskClick={(task) => { setEditingTask(task); setIsModalOpen(true); }}
                 onAddClick={handleGridClick}
+                lang={lang}
              />
         </main>
 
