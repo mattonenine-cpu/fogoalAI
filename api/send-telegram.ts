@@ -41,10 +41,19 @@ export default async function handler(req: any, res: any) {
       }),
     });
 
-    const data = await response.json();
+    const raw = await response.text();
+    let data: { ok?: boolean; description?: string } = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      return res.status(502).json({
+        error: 'Telegram returned invalid response. Token may be wrong. Check TELEGRAM_BOT_TOKEN.',
+      });
+    }
     if (!data.ok) {
+      const msg = data.description || 'Telegram API error';
       console.error('Telegram API error:', data);
-      return res.status(400).json({ error: data.description || 'Telegram API error', ok: false });
+      return res.status(400).json({ error: msg, ok: false });
     }
     return res.status(200).json({ ok: true });
   } catch (err: any) {
