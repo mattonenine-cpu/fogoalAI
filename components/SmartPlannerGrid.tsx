@@ -18,7 +18,8 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
   tasks, 
   onTaskUpdate,
   onTaskClick,
-  onAddClick
+  onAddClick,
+  lang
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   // Generate 3 days starting from currentDate
