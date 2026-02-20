@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Task } from '../types';
+import { Task, Language } from '../types';
 import { HOURS_START, HOURS_END, PIXELS_PER_HOUR, TOTAL_HOURS, format, addDays, setHours, setMinutes, isSameDay, parseISO } from '../services/smartPlanner';
 import { SmartBlock } from './SmartPlannerBlock';
 
@@ -10,10 +10,11 @@ interface WeekGridProps {
   onTaskUpdate: (updatedTask: Task) => void;
   onTaskClick: (task: Task) => void;
   onAddClick?: (date: Date) => void;
+  lang: Language;
 }
 
 export const SmartPlannerGrid: React.FC<WeekGridProps> = ({ 
-  currentDate, 
+  currentDate,  
   tasks, 
   onTaskUpdate,
   onTaskClick,
@@ -24,10 +25,14 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
   const daysToShow = Array.from({ length: 3 }, (_, i) => addDays(currentDate, i));
   const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => HOURS_START + i);
 
-  // Dragging State
+  // Moving task state - for click-based movement
+  const [movingTask, setMovingTask] = useState<Task | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ day: Date; hour: number; minute: number } | null>(null);
+
+  // Dragging State (for resize only now)
   const [dragState, setDragState] = useState<{
     task: Task;
-    type: 'DRAG' | 'RESIZE';
+    type: 'RESIZE';
     startX: number;
     startY: number;
     initialStartTime: Date;
@@ -46,46 +51,9 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
     const handlePointerUp = () => {
       if (!dragState || !containerRef.current) return;
 
-      const { task, type, currentX, currentY } = dragState;
-      const rect = containerRef.current.getBoundingClientRect();
-      
-      const relX = currentX - rect.left;
-      const relY = currentY - rect.top;
+      const { task, type, currentY } = dragState;
 
-      const timeColWidth = 50;
-      const scrollLeft = containerRef.current.scrollLeft;
-      const scrollTop = containerRef.current.scrollTop;
-      const correctedX = relX + scrollLeft;
-      
-      const contentWidth = containerRef.current.scrollWidth;
-      // Adjusted for 3 days
-      const dayColWidth = (contentWidth - timeColWidth) / 3;
-
-      if (type === 'DRAG') {
-          let dayIndex = Math.floor((correctedX - timeColWidth) / dayColWidth);
-          dayIndex = Math.max(0, Math.min(2, dayIndex)); // Max index 2 for 3 days
-
-          const absoluteY = relY + scrollTop;
-          const hoursFromStart = absoluteY / PIXELS_PER_HOUR;
-          const minutesFromStart = hoursFromStart * 60;
-          const snappedMinutes = Math.round(minutesFromStart / 15) * 15;
-          
-          let newDate = addDays(currentDate, dayIndex);
-          newDate = setHours(newDate, HOURS_START);
-          newDate = setMinutes(newDate, 0);
-          newDate = setMinutes(newDate, snappedMinutes);
-
-          if (newDate.getHours() < HOURS_START) newDate.setHours(HOURS_START, 0);
-          
-          const dateStr = format(newDate, 'yyyy-MM-dd');
-          const timeStr = format(newDate, 'HH:mm');
-
-          onTaskUpdate({
-              ...task,
-              date: dateStr,
-              scheduledTime: timeStr
-          });
-      } else if (type === 'RESIZE') {
+      if (type === 'RESIZE') {
          const deltaY = currentY - dragState.startY;
          const deltaMinutes = (deltaY / PIXELS_PER_HOUR) * 60;
          
@@ -112,10 +80,39 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
       window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('pointercancel', handlePointerUp);
     };
-  }, [dragState, onTaskUpdate, currentDate]);
+  }, [dragState, onTaskUpdate]);
 
 
-  const handlePointerDown = (e: React.PointerEvent, task: Task, type: 'DRAG' | 'RESIZE') => {
+  const handleStartMove = (task: Task) => {
+    setMovingTask(task);
+    setSelectedCell(null);
+  };
+
+  const handleCancelMove = () => {
+    setMovingTask(null);
+    setSelectedCell(null);
+  };
+
+  const handleConfirmMove = () => {
+    if (!movingTask || !selectedCell) return;
+    
+    const newDate = new Date(selectedCell.day);
+    newDate.setHours(selectedCell.hour, selectedCell.minute, 0, 0);
+    
+    const dateStr = format(newDate, 'yyyy-MM-dd');
+    const timeStr = format(newDate, 'HH:mm');
+
+    onTaskUpdate({
+      ...movingTask,
+      date: dateStr,
+      scheduledTime: timeStr
+    });
+
+    setMovingTask(null);
+    setSelectedCell(null);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent, task: Task, type: 'RESIZE') => {
     e.currentTarget.setPointerCapture(e.pointerId);
     if (!task.date || !task.scheduledTime) return;
 
@@ -136,6 +133,19 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
   };
 
   const handleEmptyClick = (e: React.MouseEvent, day: Date) => {
+      // If we're in move mode, select the cell instead of adding
+      if (movingTask) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickY = e.clientY - rect.top;
+        
+        const hoursClicked = clickY / PIXELS_PER_HOUR;
+        const hour = HOURS_START + Math.floor(hoursClicked);
+        const minute = Math.round((hoursClicked % 1) * 60 / 15) * 15; // Snap to 15-minute intervals
+        
+        setSelectedCell({ day, hour, minute });
+        return;
+      }
+
       if (!onAddClick) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const clickY = e.clientY - rect.top;
@@ -210,28 +220,34 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
                     <div 
                         key={dayIdx} 
                         onClick={(e) => handleEmptyClick(e, day)}
-                        className="flex-1 relative border-r border-[var(--border-glass)]/50 last:border-r-0 hover:bg-white/[0.02] transition-colors cursor-pointer z-10"
+                        className={`flex-1 relative border-r border-[var(--border-glass)]/50 last:border-r-0 transition-colors z-10 ${
+                            movingTask ? 'cursor-pointer' : 'hover:bg-white/[0.02] cursor-pointer'
+                        }`}
                     >
+                        {/* Highlight selected cell when moving */}
+                        {movingTask && selectedCell && isSameDay(selectedCell.day, day) && (
+                            <div
+                                className="absolute left-0 right-0 border-2 border-indigo-500 bg-indigo-500/10 z-40 pointer-events-none"
+                                style={{
+                                    top: `${((selectedCell.hour - HOURS_START) * 60 + selectedCell.minute) / 60 * PIXELS_PER_HOUR}px`,
+                                    height: `${PIXELS_PER_HOUR}px`
+                                }}
+                            />
+                        )}
+
                         {/* Render Tasks */}
                         {getDayTasks(day).map(task => {
                             const [h, m] = (task.scheduledTime || "09:00").split(':').map(Number);
                             const startMin = (h - HOURS_START) * 60 + m;
                             const top = (startMin / 60) * PIXELS_PER_HOUR;
                             
-                            const isDragging = dragState?.task.id === task.id;
+                            const isResizing = dragState?.task.id === task.id;
                             
                             const style: React.CSSProperties = {
                                top: `${top}px`,
                             };
 
-                            if (isDragging && dragState.type === 'DRAG') {
-                               const deltaX = dragState.currentX - dragState.startX;
-                               const deltaY = dragState.currentY - dragState.startY;
-                               style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-                               style.zIndex = 50;
-                               style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.5)';
-                               style.opacity = 0.9;
-                            } else if (isDragging && dragState.type === 'RESIZE') {
+                            if (isResizing && dragState.type === 'RESIZE') {
                                  const deltaY = dragState.currentY - dragState.startY;
                                  const heightChange = deltaY;
                                  const originalHeight = (task.durationMinutes / 60) * PIXELS_PER_HOUR;
@@ -248,6 +264,9 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
                                     onPointerDown={handlePointerDown}
                                     onToggleStatus={(id) => onTaskUpdate({...task, completed: !task.completed})}
                                     onClick={onTaskClick}
+                                    onStartMove={handleStartMove}
+                                    isMoving={movingTask?.id === task.id}
+                                    lang={lang}
                                 />
                             );
                         })}
@@ -256,6 +275,54 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
             </div>
         </div>
       </div>
+
+      {/* Move confirmation modal */}
+      {movingTask && selectedCell && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl space-y-6">
+            <div className="flex justify-between items-center mb-2">
+              <div>
+                <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">
+                  {lang === 'ru' ? 'Переместить задачу' : 'Move Task'}
+                </h3>
+                <p className="text-xs text-[var(--text-secondary)] mt-1 truncate">{movingTask.title}</p>
+              </div>
+              <button 
+                onClick={handleCancelMove} 
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                <p className="text-xs text-[var(--text-secondary)] mb-2">
+                  {lang === 'ru' ? 'Новое время:' : 'New time:'}
+                </p>
+                <p className="text-lg font-bold text-[var(--text-primary)]">
+                  {format(selectedCell.day, 'EEE, d MMM')} {String(selectedCell.hour).padStart(2, '0')}:{String(selectedCell.minute).padStart(2, '0')}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={handleCancelMove} 
+                className="flex-1 h-14 bg-white/5 border border-[var(--border-glass)] text-[var(--text-primary)] rounded-full font-black uppercase text-[11px] active:scale-95 transition-all"
+              >
+                {lang === 'ru' ? 'Отмена' : 'Cancel'}
+              </button>
+              <button 
+                onClick={handleConfirmMove} 
+                className="flex-1 h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase text-[11px] shadow-lg active:scale-95 transition-all"
+              >
+                {lang === 'ru' ? 'Переместить' : 'Move'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
