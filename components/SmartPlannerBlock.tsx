@@ -40,7 +40,7 @@ export const SmartBlock: React.FC<SmartBlockProps> = ({
 
   return (
     <div
-      className={`absolute w-[95%] left-[2.5%] rounded-xl border shadow-sm group transition-all overflow-hidden select-none backdrop-blur-md ${baseColorClass} ${isDone ? 'opacity-50 grayscale' : ''} ${isMoving ? 'ring-2 ring-indigo-500/50' : ''}`}
+      className={`absolute w-[95%] left-[2.5%] rounded-xl border shadow-sm group transition-all overflow-visible select-none backdrop-blur-md ${baseColorClass} ${isDone ? 'opacity-50 grayscale' : ''} ${isMoving ? 'ring-4 ring-indigo-500/60 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : ''}`}
       style={{
         ...style,
         height: `${height}px`,
@@ -48,6 +48,7 @@ export const SmartBlock: React.FC<SmartBlockProps> = ({
         zIndex: isMoving ? 50 : 10,
         backgroundColor: task.color && task.color !== 'transparent' ? `${task.color}30` : undefined,
         borderColor: task.color && task.color !== 'transparent' ? `${task.color}50` : undefined,
+        animation: isMoving ? 'pulse-glow 2s ease-in-out infinite' : undefined,
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -56,29 +57,35 @@ export const SmartBlock: React.FC<SmartBlockProps> = ({
         }
       }}
     >
-      {/* Header / Move Button */}
-      <div 
-        className="h-6 flex items-center justify-between px-2 border-b border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5"
+      {/* Move Button - Absolute positioned top-left */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onStartMove(task);
+        }}
+        className={`absolute -top-2 -left-2 w-7 h-7 rounded-lg bg-indigo-500 hover:bg-indigo-600 border-2 border-white dark:border-gray-800 flex items-center justify-center transition-all active:scale-95 shadow-lg z-50 ${isMoving ? 'animate-pulse bg-indigo-600 ring-2 ring-indigo-400 ring-offset-2' : ''}`}
+        title={lang === 'ru' ? 'Переместить задачу' : 'Move task'}
       >
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onStartMove(task);
-          }}
-          className="w-6 h-6 rounded-md bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center transition-all active:scale-95"
-          title={lang === 'ru' ? 'Переместить задачу' : 'Move task'}
-        >
-          <Move size={12} className="text-indigo-400" />
-        </button>
-        {isMoving && (
-          <span className="text-[8px] font-bold text-indigo-400 uppercase">
+        <Move size={14} className="text-white" strokeWidth={2.5} />
+      </button>
+
+      {/* Moving indicator */}
+      {isMoving && (
+        <div className="absolute top-0 left-0 right-0 h-6 flex items-center justify-center bg-indigo-500/20 border-b border-indigo-500/30 z-40">
+          <span className="text-[8px] font-bold text-indigo-400 uppercase animate-pulse">
             {lang === 'ru' ? 'Выберите время' : 'Select time'}
           </span>
-        )}
+        </div>
+      )}
+
+      {/* Header */}
+      <div 
+        className={`flex items-center justify-between px-2 border-b border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 ${isMoving ? 'pt-8' : 'h-6'}`}
+      >
       </div>
 
       {/* Content */}
-      <div className="p-2 flex flex-col h-[calc(100%-16px)] relative">
+      <div className={`p-2 flex flex-col relative ${isMoving ? 'h-[calc(100%-32px)]' : 'h-[calc(100%-16px)]'}`}>
         <div className="flex items-start gap-2">
             <button 
                 onClick={(e) => {
@@ -115,3 +122,4 @@ export const SmartBlock: React.FC<SmartBlockProps> = ({
     </div>
   );
 };
+
