@@ -4,8 +4,10 @@ import { UserProfile, DailyStats, Language, TRANSLATIONS, Task, AppView, Goal } 
 import { GlassCard, GlassInput } from './GlassCard';
 import { Mascot } from './Mascot';
 import { 
-  Sparkles, List, Trophy, X, Edit3, Check, Plus, Star, Trash2, Edit, CalendarDays
+  Sparkles, List, Trophy, X, Edit3, Check, Plus, Star, Trash2, Edit, CalendarDays, Send
 } from 'lucide-react';
+import { getTelegramUserFromWebApp } from '../services/telegramAuth';
+import { buildDailySummary, sendToTelegram } from '../services/telegramSend';
 
 interface DashboardProps {
   user: UserProfile;
@@ -41,6 +43,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
   const [progressInput, setProgressInput] = useState('');
+  const [telegramSending, setTelegramSending] = useState(false);
+  const telegramUser = getTelegramUserFromWebApp();
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { 
@@ -129,6 +133,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
       setProgressInput('');
   };
 
+  const handleSendToTelegram = async () => {
+    if (!telegramUser || telegramSending) return;
+    setTelegramSending(true);
+    const text = buildDailySummary(user, tasks, lang);
+    const result = await sendToTelegram(telegramUser.id, text);
+    setTelegramSending(false);
+    if (result.ok) {
+      alert(lang === 'ru' ? 'Отправлено в Telegram.' : 'Sent to Telegram.');
+    } else {
+      alert((lang === 'ru' ? 'Ошибка: ' : 'Error: ') + (result.error || ''));
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in-up pb-24 px-1">
        {/* 1. Date & Level Row */}
@@ -175,6 +192,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
              )}
           </GlassCard>
        </div>
+
+       {telegramUser && (
+          <div className="flex justify-end">
+             <button
+                onClick={handleSendToTelegram}
+                disabled={telegramSending}
+                className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-all disabled:opacity-50 text-sm font-medium"
+             >
+                <Send size={16} />
+                {telegramSending ? (lang === 'ru' ? 'Отправка…' : 'Sending…') : (lang === 'ru' ? 'В Telegram' : 'Send to Telegram')}
+             </button>
+          </div>
+       )}
 
        {/* 3. Goals */}
        <div className="space-y-3">
