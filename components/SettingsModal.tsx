@@ -183,11 +183,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                 </h4>
                                 {user.credits && (
                                     <div className="p-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)]">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-sm text-[var(--text-secondary)]">
+                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
+                                            <span className="text-sm text-[var(--text-secondary)] whitespace-nowrap">
                                                 {lang === 'ru' ? 'Доступно:' : 'Available:'}
                                             </span>
-                                            <span className="text-lg font-bold text-[var(--text-primary)]">
+                                            <span className="text-lg font-bold text-[var(--text-primary)] break-words sm:text-right">
                                                 {user.credits.hasUnlimitedAccess 
                                                     ? (lang === 'ru' ? 'Безлимитно' : 'Unlimited')
                                                     : `${user.credits.availableCredits} / ${user.credits.totalCredits}`
@@ -208,23 +208,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                 <h4 className="text-lg font-black text-[var(--text-primary)]">
                                     {lang === 'ru' ? 'Промокод' : 'Promo Code'}
                                 </h4>
-                                <div className="flex gap-2">
+                                <div className="flex flex-col sm:flex-row gap-2">
                                     <input
                                         type="text"
                                         value={promoCode}
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPromoCode(e.target.value)}
                                         placeholder={lang === 'ru' ? 'Введите промокод...' : 'Enter promo code...'}
-                                        className="flex-1 px-4 py-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent)]/20"
+                                        className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent)]/20"
                                     />
                                     <button
                                         onClick={handleApplyPromoCode}
-                                        className="px-6 py-3 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors"
+                                        className="px-6 py-3 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors whitespace-nowrap shrink-0"
                                     >
                                         {lang === 'ru' ? 'Применить' : 'Apply'}
                                     </button>
                                 </div>
                                 {promoMessage && (
-                                    <div className={`text-sm p-3 rounded-xl ${
+                                    <div className={`text-sm p-3 rounded-xl break-words ${
                                         promoMessage.includes('🎉') 
                                             ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
                                             : 'bg-red-500/10 text-red-500 border border-red-500/20'
@@ -234,11 +234,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-6">
-                                <div className="w-20 h-20 rounded-[32px] bg-indigo-500/20 flex items-center justify-center text-4xl border border-indigo-500/30">👤</div>
-                                <div>
-                                    <h4 className="text-2xl font-black text-[var(--text-primary)]">{user.name || 'Explorer'}</h4>
-                                    <p className="text-mini font-black uppercase tracking-widest opacity-30">{user.occupation || 'FoGoal User'}</p>
+                            <div className="flex items-center gap-4 sm:gap-6">
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-[32px] bg-indigo-500/20 flex items-center justify-center text-3xl sm:text-4xl border border-indigo-500/30 shrink-0">👤</div>
+                                <div className="min-w-0 flex-1">
+                                    <h4 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] truncate">{user.name || 'Explorer'}</h4>
+                                    <p className="text-mini font-black uppercase tracking-widest opacity-30 truncate">{user.occupation || 'FoGoal User'}</p>
                                 </div>
                             </div>
                             <button onClick={handleLogout} className="w-full p-6 rounded-[32px] bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center group active:scale-95 transition-all">
