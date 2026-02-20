@@ -140,8 +140,17 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
         const clickY = e.clientY - rect.top;
         
         const hoursClicked = clickY / PIXELS_PER_HOUR;
-        const hour = HOURS_START + Math.floor(hoursClicked);
-        const minute = Math.round((hoursClicked % 1) * 60 / 15) * 15; // Snap to 15-minute intervals
+        let hour = HOURS_START + Math.floor(hoursClicked);
+        let minute = Math.round((hoursClicked % 1) * 60 / 15) * 15; // Snap to 15-minute intervals
+        
+        // Fix overflow: if minute is 60, move to next hour
+        if (minute >= 60) {
+          hour += 1;
+          minute = 0;
+        }
+        
+        // Ensure hour is within valid range
+        hour = Math.max(HOURS_START, Math.min(HOURS_END - 1, hour));
         
         setSelectedCell({ day, hour, minute });
         return;
@@ -280,8 +289,8 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
       {/* Move confirmation modal */}
       {movingTask && selectedCell && (
         <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl space-y-6">
-            <div className="flex justify-between items-center mb-2">
+          <div className="w-full max-w-md bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl space-y-6">
+            <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">
                   {lang === 'ru' ? 'Переместить задачу' : 'Move Task'}
@@ -290,33 +299,72 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
               </div>
               <button 
                 onClick={handleCancelMove} 
-                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
                 ×
               </button>
             </div>
             
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                <p className="text-xs text-[var(--text-secondary)] mb-2">
-                  {lang === 'ru' ? 'Новое время:' : 'New time:'}
+              {/* Time Display */}
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20">
+                <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3">
+                  {lang === 'ru' ? 'Новое время' : 'New Time'}
                 </p>
-                <p className="text-lg font-bold text-[var(--text-primary)]">
-                  {format(selectedCell.day, 'EEE, d MMM')} {String(selectedCell.hour).padStart(2, '0')}:{String(selectedCell.minute).padStart(2, '0')}
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs text-[var(--text-secondary)] font-medium">
+                    {format(selectedCell.day, 'EEE')}
+                  </span>
+                  <span className="text-3xl font-black text-[var(--text-primary)]">
+                    {String(selectedCell.hour).padStart(2, '0')}
+                  </span>
+                  <span className="text-3xl font-black text-indigo-400">:</span>
+                  <span className="text-3xl font-black text-[var(--text-primary)]">
+                    {String(selectedCell.minute).padStart(2, '0')}
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--text-secondary)] mt-2">
+                  {format(selectedCell.day, 'd MMM yyyy')}
                 </p>
+              </div>
+
+              {/* Quick time buttons */}
+              <div>
+                <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3">
+                  {lang === 'ru' ? 'Быстрый выбор' : 'Quick Select'}
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[0, 15, 30, 45].map(m => {
+                    const timeHour = selectedCell.hour;
+                    const isSelected = selectedCell.minute === m;
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => setSelectedCell({ ...selectedCell, minute: m })}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                          isSelected 
+                            ? 'bg-indigo-500 text-white shadow-md scale-105' 
+                            : 'bg-white/5 border border-[var(--border-glass)] text-[var(--text-primary)] hover:bg-white/10'
+                        }`}
+                      >
+                        {String(timeHour).padStart(2, '0')}:{String(m).padStart(2, '0')}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-2">
               <button 
                 onClick={handleCancelMove} 
-                className="flex-1 h-14 bg-white/5 border border-[var(--border-glass)] text-[var(--text-primary)] rounded-full font-black uppercase text-[11px] active:scale-95 transition-all"
+                className="flex-1 h-14 bg-white/5 border border-[var(--border-glass)] text-[var(--text-primary)] rounded-full font-black uppercase text-[11px] active:scale-95 transition-all hover:bg-white/10"
               >
                 {lang === 'ru' ? 'Отмена' : 'Cancel'}
               </button>
               <button 
                 onClick={handleConfirmMove} 
-                className="flex-1 h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase text-[11px] shadow-lg active:scale-95 transition-all"
+                className="flex-1 h-14 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full font-black uppercase text-[11px] shadow-lg active:scale-95 transition-all hover:shadow-xl hover:from-indigo-600 hover:to-purple-600"
               >
                 {lang === 'ru' ? 'Переместить' : 'Move'}
               </button>
@@ -327,3 +375,4 @@ export const SmartPlannerGrid: React.FC<WeekGridProps> = ({
     </div>
   );
 };
+
