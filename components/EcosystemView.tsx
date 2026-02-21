@@ -2,12 +2,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { EcosystemType, UserProfile, Task, Language, TRANSLATIONS, Practice, Goal, AppView, AppTheme } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
-import { createChatSession, cleanTextOutput, evaluateProgress, generateFocuVisual, getLocalISODate } from '../services/geminiService';
+import { createChatSession, cleanTextOutput, evaluateProgress, getLocalISODate } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
 import { ExamPrepApp } from './ExamPrepApp';
 import { SportApp } from './SportApp';
 import { HealthApp } from './HealthApp'; 
-import { Activity, Bot, Sparkles, Loader2, Send, Brain, CheckCircle, X, ChevronRight, Trophy, Star, TrendingUp, ListTodo, History, Lightbulb, Clock, Check, Dumbbell, Heart, Palette, Image as ImageIcon, Download, Wand2, Share2, Upload, PenTool, LayoutTemplate, Camera, RefreshCcw, Droplet, Pencil, Brush, Highlighter, Quote } from 'lucide-react';
+import { Activity, Bot, Sparkles, Loader2, Send, Brain, CheckCircle, X, ChevronRight, Trophy, Star, TrendingUp, ListTodo, History, Lightbulb, Clock, Check, Dumbbell, Heart, Share2, RefreshCcw, Quote } from 'lucide-react';
 
 interface EcosystemViewProps {
   type: EcosystemType;
@@ -20,27 +20,6 @@ interface EcosystemViewProps {
   theme: AppTheme;
   onDeductCredits?: (cost: number) => void;
 }
-
-const GET_ART_STYLES = (lang: Language) => [
-    { label: lang === 'ru' ? 'Реализм' : 'Realism', value: 'photorealistic, 8k, highly detailed, realistic texture, photography' },
-    { label: lang === 'ru' ? 'Киберпанк' : 'Cyberpunk', value: 'cyberpunk style, neon lights, futuristic, night city, high contrast' },
-    { label: lang === 'ru' ? 'Масло' : 'Oil Painting', value: 'oil painting texture, visible brushstrokes, artistic, impressionism' },
-    { label: lang === 'ru' ? '3D Рендер' : '3D Render', value: '3D render, blender, octane render, isometric, unreal engine 5' },
-    { label: lang === 'ru' ? 'Аниме' : 'Anime', value: 'anime style, studio ghibli, vibrant colors, detailed background' },
-    { label: lang === 'ru' ? 'Пиксель-арт' : 'Pixel Art', value: 'pixel art, 16-bit, retro game style, low res' },
-    { label: lang === 'ru' ? 'Акварель' : 'Watercolor', value: 'watercolor painting, soft edges, artistic, paper texture, wet on wet' },
-    { label: lang === 'ru' ? 'Студийное фото' : 'Studio', value: 'studio lighting, professional photography, clean background, sharp focus' },
-    { label: lang === 'ru' ? 'Кинематограф' : 'Cinematic', value: 'cinematic shot, movie scene, dramatic lighting, 35mm film, anamorphic lens' },
-    { label: lang === 'ru' ? 'Винтаж' : 'Vintage', value: 'vintage photo, polaroid style, film grain, retro filter, 1990s' },
-    { label: lang === 'ru' ? 'Макро' : 'Macro', value: 'macro photography, extreme close-up, depth of field, bokeh, detailed insects/plants' },
-    { label: lang === 'ru' ? 'Концепт-арт' : 'Concept Art', value: 'digital concept art, fantasy landscape, epic scale, matte painting' },
-    { label: lang === 'ru' ? 'Карандаш' : 'Pencil', value: 'pencil sketch, charcoal drawing, monochrome, hand drawn, rough lines' },
-    { label: lang === 'ru' ? 'Поп-арт' : 'Pop Art', value: 'pop art, warhol style, vibrant colors, halftone dots, comic book style' },
-    { label: lang === 'ru' ? 'Минимализм' : 'Minimalism', value: 'minimalist, simple lines, clean composition, pastel colors, flat design' },
-    { label: lang === 'ru' ? 'Нуар' : 'Noir', value: 'film noir, black and white, high contrast, dramatic shadows, detective style' },
-    { label: lang === 'ru' ? 'Стимпанк' : 'Steampunk', value: 'steampunk, gears, brass, victorian era, steam engine, copper' },
-    { label: lang === 'ru' ? 'Вейпорвейв' : 'Vaporwave', value: 'vaporwave, aesthetics, glitch art, pastel pink and blue, greek statues, 90s internet' }
-];
 
 export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks, lang, onUpdateTasks, onUpdateProfile, onNavigate, theme, onDeductCredits }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
@@ -66,39 +45,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
   const [domainInputValue, setDomainInputValue] = useState('');
   const [domainLoading, setDomainLoading] = useState(false);
 
-  // -- CREATIVITY SPECIFIC STATES --
-  const [genPrompt, setGenPrompt] = useState('');
-  const [genImage, setGenImage] = useState<string | null>(null);
-  const [refImage, setRefImage] = useState<string | null>(null);
-  const [isGenLoading, setIsGenLoading] = useState(false);
-
-  const artStyles = useMemo(() => GET_ART_STYLES(lang), [lang]);
-
-  // Load history from localStorage
-  const [genHistory, setGenHistory] = useState<string[]>(() => {
-      try {
-          const saved = localStorage.getItem('focu_gen_history');
-          return saved ? JSON.parse(saved) : [];
-      } catch { return []; }
-  });
-
-  // Save history to localStorage whenever it changes, with quota handling
-  useEffect(() => {
-      try {
-          localStorage.setItem('focu_gen_history', JSON.stringify(genHistory));
-      } catch (e) {
-          console.warn("Storage quota exceeded, trimming history...");
-          // Keep only the latest 2 images to stay within limits
-          try {
-              const trimmed = genHistory.slice(0, 2);
-              localStorage.setItem('focu_gen_history', JSON.stringify(trimmed));
-          } catch (e2) {
-              console.error("Failed to save history subset", e2);
-          }
-      }
-  }, [genHistory]);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const practiceSessionRef = useRef<any>(null);
   const domainSessionRef = useRef<any>(null);
 
@@ -159,10 +106,6 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
               lang === 'ru' ? "Маленькие шаги в питании дают огромный эффект через год." : "Small dietary changes lead to massive effects in a year.",
               lang === 'ru' ? "Медитация на 5 минут лучше, чем отсутствие медитации." : "5 minutes of meditation is better than no meditation at all."
           ],
-          creativity: [
-              lang === 'ru' ? "Количество рождает качество. Просто начните творить." : "Quantity breeds quality. Just start creating.",
-              lang === 'ru' ? "Смена обстановки может разблокировать новые идеи." : "A change of environment can unlock new ideas."
-          ]
       };
       const list = insights[type] || [lang === 'ru' ? "Фокус — это мышца. Тренируйте её каждый день." : "Focus is a muscle. Train it every day."];
       return list[Math.floor(Math.random() * list.length)];
@@ -209,82 +152,6 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
   }, [type, lang]);
 
   // -- HANDLERS --
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-              const img = new Image();
-              img.onload = () => {
-                  const canvas = document.createElement('canvas');
-                  let width = img.width;
-                  let height = img.height;
-                  
-                  // Max dimension 1024 to save bandwidth and fit model constraints if any
-                  const MAX_SIZE = 1024;
-                  if (width > height) {
-                      if (width > MAX_SIZE) {
-                          height *= MAX_SIZE / width;
-                          width = MAX_SIZE;
-                      }
-                  } else {
-                      if (height > MAX_SIZE) {
-                          width *= MAX_SIZE / height;
-                          height = MAX_SIZE;
-                      }
-                  }
-                  
-                  canvas.width = width;
-                  canvas.height = height;
-                  const ctx = canvas.getContext('2d');
-                  if (ctx) {
-                      ctx.drawImage(img, 0, 0, width, height);
-                      // Use jpeg for better compression
-                      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                      setRefImage(dataUrl);
-                  } else {
-                      // Fallback
-                      setRefImage(event.target?.result as string);
-                  }
-              };
-              img.src = event.target?.result as string;
-          };
-          reader.readAsDataURL(file);
-      }
-  };
-
-  const handleGenerateArt = async () => {
-      if (!genPrompt.trim() || isGenLoading) return;
-      setIsGenLoading(true);
-      try {
-          const image = await generateFocuVisual(genPrompt, refImage || undefined);
-          if (image) {
-              setGenImage(image);
-              setGenHistory(prev => [image, ...prev].slice(0, 10)); // Limit in-memory history too
-              
-              let newXp = (user.totalExperience || 0) + 15;
-              onUpdateProfile({ 
-                  ...user, 
-                  totalExperience: newXp,
-                  activityHistory: [...(user.activityHistory || []), `CREATIVITY: Generated art`]
-              });
-          }
-      } catch (e) {
-          console.error(e);
-      } finally {
-          setIsGenLoading(false);
-      }
-  };
-
-  const downloadImage = (base64Data: string) => {
-      const link = document.createElement('a');
-      link.href = base64Data;
-      link.download = `focu-art-${Date.now()}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-  };
 
   const handlePracticeSend = async () => {
     if (!inputValue.trim() || chatLoading) return;
@@ -461,125 +328,6 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
         <div className="animate-fadeIn pb-32">
             <HealthApp user={user} lang={lang} onUpdateProfile={onUpdateProfile} theme={theme} />
         </div>
-      );
-  }
-
-  if (type === 'creativity') {
-      return (
-          <div className="animate-fadeIn pb-32 space-y-6">
-              <header className="flex justify-between items-center px-1 mb-2">
-                  <div>
-                      <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight uppercase">{lang === 'ru' ? 'Арт Студия' : 'Art Studio'}</h1>
-                      <p className="text-[10px] text-purple-500 font-black uppercase tracking-[0.2em]">{lang === 'ru' ? 'Воображение без границ' : 'Limitless Imagination'}</p>
-                  </div>
-                   <button 
-                    onClick={() => { setShowDomainChat(true); setDomainMessages([{role: 'model', text: lang === 'ru' ? `Привет! Я твой муза. Что создадим?` : `Hello! I'm your muse. What shall we create?`}]); }}
-                    className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 border border-purple-500/20"
-                  >
-                      <Bot size={20} />
-                  </button>
-              </header>
-
-                    <GlassCard className="p-6 border-[var(--border-glass)] rounded-[32px] bg-[var(--bg-card)] shadow-2xl relative overflow-hidden">
-                        <div className="absolute -top-20 -right-20 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
-                        
-                        {genImage ? (
-                            <div className="space-y-4 animate-fade-in-up">
-                                <div className="relative rounded-[24px] overflow-hidden shadow-xl border border-white/10 group">
-                                    <img src={genImage} alt="Generated Art" className="w-full h-auto object-cover" />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 backdrop-blur-sm">
-                                        <button onClick={() => downloadImage(genImage)} className="p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition-all border border-white/20"><Download size={20}/></button>
-                                        <button onClick={() => setGenImage(null)} className="p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition-all border border-white/20"><X size={20}/></button>
-                                    </div>
-                                </div>
-                                <button onClick={() => setGenImage(null)} className="w-full py-3 text-[10px] font-bold text-purple-400 uppercase tracking-widest border border-purple-500/20 rounded-xl hover:bg-purple-500/10 transition-colors">
-                                    {lang === 'ru' ? 'Создать еще' : 'Create New'}
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'ПРОМПТ' : 'PROMPT'}</label>
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
-                                    <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider transition-all ${refImage ? 'text-purple-400' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
-                                        {refImage ? (lang === 'ru' ? 'Изображение выбрано' : 'Image Selected') : (lang === 'ru' ? '+ Референс' : '+ Reference')}
-                                    </button>
-                                </div>
-                                
-                                {refImage && (
-                                    <div className="relative w-full h-20 rounded-xl overflow-hidden border border-white/10 group">
-                                        <img src={refImage} className="w-full h-full object-cover opacity-60" alt="Reference" />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <button onClick={() => { setRefImage(null); if(fileInputRef.current) fileInputRef.current.value = ''; }} className="p-1 bg-black/50 rounded-full text-white"><X size={14} /></button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <GlassTextArea 
-                                    value={genPrompt} 
-                                    onChange={e => setGenPrompt(e.target.value)} 
-                                    placeholder={lang === 'ru' ? "Опишите вашу идею..." : "Describe your idea..."} 
-                                    className="h-32 rounded-[20px] text-sm resize-none bg-black/5 focus:bg-black/10" 
-                                />
-                                
-                                <div>
-                                    <label className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'СТИЛЬ' : 'STYLE'}</label>
-                                    <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto scrollbar-hide">
-                                        {artStyles.map(style => {
-                                            const isSelected = genPrompt.includes(style.value);
-                                            return (
-                                                <button 
-                                                    key={style.label} 
-                                                    onClick={() => {
-                                                        setGenPrompt(prev => {
-                                                            if (prev.includes(style.value)) {
-                                                                return prev.replace(style.value, '').replace(/,\s*,/g, ', ').replace(/^,\s*/, '').replace(/,\s*$/, '').trim();
-                                                            } else {
-                                                                return prev + (prev.trim() && !prev.trim().endsWith(',') ? ', ' : '') + style.value;
-                                                            }
-                                                        });
-                                                    }} 
-                                                    className={`px-3 py-1.5 rounded-xl border text-[9px] font-bold uppercase tracking-wider transition-all ${
-                                                        isSelected 
-                                                        ? 'bg-purple-600 border-purple-600 text-white' 
-                                                        : 'bg-white/5 border-transparent text-[var(--text-secondary)] hover:bg-white/10'
-                                                    }`}
-                                                >
-                                                    {style.label}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                <button 
-                                    onClick={handleGenerateArt} 
-                                    disabled={!genPrompt.trim() || isGenLoading} 
-                                    className="w-full h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-[20px] font-black uppercase text-[11px] shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
-                                >
-                                    {isGenLoading ? <Loader2 className="animate-spin" size={18}/> : (lang === 'ru' ? 'СГЕНЕРИРОВАТЬ' : 'GENERATE')}
-                                </button>
-                            </div>
-                        )}
-                    </GlassCard>
-
-                    {genHistory.length > 0 && (
-                        <div className="space-y-3 animate-fade-in-up">
-                            <div className="flex items-center gap-2 px-2">
-                                <ImageIcon size={14} className="text-slate-500" />
-                                <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{lang === 'ru' ? 'Галерея' : 'Gallery'}</h3>
-                            </div>
-                            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-4 px-1">
-                                {genHistory.map((img, i) => (
-                                    <div key={i} className="relative shrink-0 w-24 h-24 rounded-2xl overflow-hidden border border-white/10 group cursor-pointer" onClick={() => setGenImage(img)}>
-                                        <img src={img} className="w-full h-full object-cover" alt="History" />
-                                        <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-all" />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-          </div>
       );
   }
 
