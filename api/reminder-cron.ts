@@ -111,7 +111,7 @@ export default async function handler(req: any, res: any) {
       const todayLocal = getLocalISODate(tzOffset);
 
       if (data.reminderFrequency === 'daily') {
-        const wantedHour = typeof data.reminderHour === 'number' && data.reminderHour >= 0 && data.reminderHour <= 23 ? data.reminderHour : 9;
+        const wantedHour = typeof data.reminderHour === 'number' && data.reminderHour >= 0 && data.reminderHour <= 23 ? data.reminderHour : 12;
         const isUserReminderHour = userNow.getHours() === wantedHour;
         if (isUserReminderHour && data.lastDailySentDate !== todayLocal) {
           const text = buildDailySummary(data);
@@ -135,4 +135,3 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: e.message || 'Cron failed' });
   }
 }
-
