@@ -7,7 +7,7 @@ import { authService, type UserDataPayload } from '../services/authService';
 import { ThemeSelector } from './ThemeSelector';
 import { Mascot } from './Mascot';
 import { Logo } from './Logo';
-import { Sparkles, ArrowRight, ArrowLeft, Battery, Zap, Brain, Shield, Plus, Loader2, Check, X, Lock, User, LogIn, ChevronDown, Trophy, GraduationCap, Heart, Palette, Briefcase, Info } from 'lucide-react';
+import { Sparkles, ArrowRight, ArrowLeft, Battery, Zap, Brain, Shield, Plus, Loader2, Check, X, Lock, User, LogIn, ChevronDown, Trophy, GraduationCap, Heart, Briefcase, Info } from 'lucide-react';
 
 interface OnboardingProps {
   onComplete: (profile: UserProfile) => void;
@@ -22,7 +22,6 @@ const ECO_CONFIG: Record<string, { color: string, icon: any }> = {
     sport: { color: '#f97316', icon: Trophy }, // Orange
     study: { color: '#6366f1', icon: GraduationCap }, // Indigo
     health: { color: '#ec4899', icon: Heart }, // Pink
-    creativity: { color: '#a855f7', icon: Palette }, // Purple
     work: { color: '#3b82f6', icon: Briefcase } // Blue
 };
 
@@ -39,10 +38,6 @@ const ECO_DETAILS: Record<string, { en: { inside: string, whom: string }, ru: { 
         en: { inside: "Vitality monitoring, burnout prevention, sleep & stress analytics.", whom: "High performers managing stress and prioritizing well-being." },
         ru: { inside: "Мониторинг витальности, защита от выгорания, анализ сна и стресса.", whom: "Люди с высоким уровнем стресса и те, кто следит за здоровьем." }
     },
-    creativity: {
-        en: { inside: "AI Art canvas, idea generator.", whom: "Artists, designers, and hobbyists looking for inspiration." },
-        ru: { inside: "ИИ-холст, генератор идей и муза.", whom: "Художники, дизайнеры и все, кто ищет вдохновение." }
-    }
 };
 
 const ONBOARDING_GOAL_COLORS = ['#6366f1', '#ef4444', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'];
@@ -189,8 +184,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
       const defaultSignals: EcosystemConfig[] = [
           { type: 'sport', label: 'SPORT', icon: '💪', enabled: true, justification: lang === 'ru' ? 'Физическая форма' : 'Physical well-being' },
           { type: 'study', label: 'STUDY', icon: '📚', enabled: true, justification: lang === 'ru' ? 'Обучение и развитие' : 'Learning & Development' },
-          { type: 'health', label: 'HEALTH', icon: '❤️', enabled: true, justification: lang === 'ru' ? 'Здоровье и энергия' : 'Health & Vitality' },
-          { type: 'creativity', label: 'CREATIVITY', icon: '🎨', enabled: true, justification: lang === 'ru' ? 'Творческий потенциал' : 'Creative outlet' }
+          { type: 'health', label: 'HEALTH', icon: '❤️', enabled: true, justification: lang === 'ru' ? 'Здоровье и энергия' : 'Health & Vitality' }
       ];
       setSignals(defaultSignals);
       setStep(4);
