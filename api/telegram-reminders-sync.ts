@@ -1,6 +1,6 @@
 /**
  * Сохраняет настройки напоминаний и снимок задач/целей для крон-напоминаний.
- * POST body: { telegramId, reminderFrequency, reminderLeadMinutes, tasks, goals, lang, timezoneOffset }
+ * POST body: { telegramId, reminderFrequency, reminderHour, tasks, goals, lang, timezoneOffset }
  * Хранилище: Vercel Blob (reminders/<telegramId>.json). Если BLOB_READ_WRITE_TOKEN не задан — возвращаем ok, но данные не сохраняются.
  */
 import { put, del } from '@vercel/blob';
@@ -8,8 +8,8 @@ declare const process: { env: { [key: string]: string | undefined } };
 
 interface SyncPayload {
   telegramId: number;
-  reminderFrequency: 'off' | 'daily' | 'per_task';
-  reminderLeadMinutes: number;
+  reminderFrequency: 'off' | 'daily';
+  reminderHour: number;
   tasks: { id: string; title: string; date?: string; scheduledTime?: string; completed: boolean }[];
   goals: { id: string; title: string; progress: number; target: number; completed: boolean }[];
   lang: 'ru' | 'en';
@@ -22,7 +22,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = req.body as SyncPayload;
-    const { telegramId, reminderFrequency, reminderLeadMinutes, tasks, goals, lang, timezoneOffset } = body || {};
+    const { telegramId, reminderFrequency, reminderHour, tasks, goals, lang, timezoneOffset } = body || {};
     if (telegramId == null || !Number.isFinite(Number(telegramId))) {
       return res.status(400).json({ ok: false, error: 'telegramId required' });
     }
@@ -37,17 +37,17 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true });
     }
 
+    const hour = typeof reminderHour === 'number' && reminderHour >= 0 && reminderHour <= 23 ? reminderHour : 9;
     const payload = {
       telegramId: id,
       reminderFrequency,
-      reminderLeadMinutes: reminderLeadMinutes || 15,
+      reminderHour: hour,
       tasks: Array.isArray(tasks) ? tasks : [],
       goals: Array.isArray(goals) ? goals : [],
       lang: lang || 'ru',
       timezoneOffset: typeof timezoneOffset === 'number' ? timezoneOffset : 0,
       updatedAt: new Date().toISOString(),
       lastDailySentDate: null as string | null,
-      lastTaskReminderSent: {} as Record<string, string>,
     };
 
     const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -62,3 +62,4 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ ok: false, error: e.message || 'Internal error' });
   }
 }
+
