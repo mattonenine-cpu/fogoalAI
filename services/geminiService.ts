@@ -115,7 +115,7 @@ const BASIC_PATTERNS: { lang: Language; patterns: RegExp[]; reply: string }[] = 
   {
     lang: 'en',
     patterns: [/^(who are you|what can you do|what do you do)$/],
-    reply: 'I am FoGoal AI: I help you plan your day, study, workouts, health and creativity with smart guidance.'
+    reply: 'I am FoGoal AI: I help you plan your day, study, workouts and health with smart guidance.'
   },
   {
     lang: 'en',
@@ -130,11 +130,11 @@ const BASIC_PATTERNS: { lang: Language; patterns: RegExp[]; reply: string }[] = 
   {
     lang: 'en',
     patterns: [/^(what is fogoal|what is fo goal|what is this app)$/],
-    reply: 'FoGoal is an AI assistant that combines planning, study, workouts, health and creativity in one workspace.'
+    reply: 'FoGoal is an AI assistant that combines planning, study, workouts and health in one workspace.'
   }
 ];
 
-// Ecosystem-specific canned replies (work / sport / study / health / creativity)
+// Ecosystem-specific canned replies (work / sport / study / health)
 // These are also instant and scoped by ecosystem "type" in createChatSession.
 const ECOSYSTEM_PATTERNS: {
   lang: Language;
@@ -198,17 +198,10 @@ const ECOSYSTEM_PATTERNS: {
     reply: 'Let’s evaluate your state. Send me: sleep (0–10), stress (0–10) and energy (0–10) — I will give focused recovery suggestions.'
   },
 
-  // ---------- CREATIVITY ----------
-  {
-    lang: 'ru',
-    ecosystem: 'creativity',
-    patterns: [/^нет идей$/, /^нет идей что рисовать$/, /^что нарисовать$/, /^дай идею рисунка$/, /^идея для арты?$/, /^идея для рисунка$/],
-    reply: 'Давай найдем идею для рисунка. Напиши 2–3 слова про настроение или тему (например: космос, дождь, кошка) — я предложу несколько вариантов.'
-  },
   {
     lang: 'en',
-    ecosystem: 'creativity',
-    patterns: [/^no ideas$/, /^no ideas what to draw$/, /^what to draw$/, /^give me drawing idea$/, /^idea for art$/, /^idea for drawing$/],
+    ecosystem: 'x',
+    patterns: [/^never-match$/],
     reply: 'Let’s find an idea to draw. Send 2–3 words about mood or theme (e.g. space, rain, cat) — I will suggest options.'
   }
 ];
@@ -530,7 +523,7 @@ export async function analyzeEcosystemSignals(profile: Partial<UserProfile>, lan
                 items: {
                     type: Type.OBJECT,
                     properties: {
-                        type: { type: Type.STRING, enum: ['work', 'sport', 'study', 'health', 'creativity'] },
+                        type: { type: Type.STRING, enum: ['work', 'sport', 'study', 'health'] },
                         enabled: { type: Type.BOOLEAN },
                         justification: { type: Type.STRING }
                     },
