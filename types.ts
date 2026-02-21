@@ -60,6 +60,14 @@ export interface UserSettings {
   fontSize: AppFontSize;
 }
 
+export interface CreditsSystem {
+  totalCredits: number;
+  availableCredits: number;
+  usedCredits: number;
+  lastResetDate: string;
+  hasUnlimitedAccess: boolean;
+}
+
 export interface UserProfile {
   username?: string; 
   name: string;
@@ -94,6 +102,7 @@ export interface UserProfile {
   telegramReminderEnabled?: boolean;
   telegramReminderTime?: string;
   telegramReminderFrequency?: 'daily' | 'weekdays' | 'weekends';
+  credits?: CreditsSystem;
 }
 
 export interface Goal {
@@ -628,4 +637,3 @@ export const TRANSLATIONS: any = {
     backlog: "Задачи"
   }
 };
-
