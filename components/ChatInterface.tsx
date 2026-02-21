@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, ChatMessage, Language, TRANSLATIONS, Task, Category } from '../types';
-import { getLocalISODate, generateFocuVisual, createChatSession, cleanTextOutput } from '../services/geminiService';
+import { getLocalISODate, createChatSession, cleanTextOutput } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
 import { Bot, User, Loader2, X, AlertTriangle, Key, ArrowUp, Trash2 } from 'lucide-react';
 import { renderTextWithMath } from '../LatexRenderer';
