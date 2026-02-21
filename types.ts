@@ -100,6 +100,18 @@ export interface UserProfile {
   telegramId?: number;
   telegramUsername?: string;
   telegramPhotoUrl?: string;
+  /** Настройки напоминаний в Telegram: частота и за сколько минут до задачи */
+  telegramReminderSettings?: TelegramReminderSettings;
+}
+
+/** Частота напоминаний в Telegram */
+export type TelegramReminderFrequency = 'off' | 'daily' | 'per_task';
+
+export interface TelegramReminderSettings {
+  /** off = только по кнопке, daily = раз в день сводка, per_task = перед каждой задачей */
+  frequency: TelegramReminderFrequency;
+  /** За сколько минут до времени задачи присылать напоминание (для per_task) */
+  leadMinutes: number;
 }
 
 export interface Goal {
