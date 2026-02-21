@@ -7,7 +7,7 @@ import {
   Sparkles, List, Trophy, X, Edit3, Check, Plus, Star, Trash2, Edit, CalendarDays, Send
 } from 'lucide-react';
 import { getTelegramUserFromWebApp } from '../services/telegramAuth';
-import { buildDailySummary, sendToTelegram, syncReminderSettingsToServer, REMINDER_LEAD_OPTIONS } from '../services/telegramSend';
+import { buildDailySummary, sendToTelegram, syncReminderSettingsToServer, REMINDER_HOUR_OPTIONS } from '../services/telegramSend';
 
 interface DashboardProps {
   user: UserProfile;
@@ -46,9 +46,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
   const [telegramSending, setTelegramSending] = useState(false);
   const [showTelegramReminderModal, setShowTelegramReminderModal] = useState(false);
   const telegramUser = getTelegramUserFromWebApp();
-  const reminderSettings = user.telegramReminderSettings ?? { frequency: 'daily' as TelegramReminderFrequency, leadMinutes: 15 };
+  const reminderSettings = user.telegramReminderSettings ?? { frequency: 'daily' as TelegramReminderFrequency, reminderHour: 9 };
   const [reminderFrequency, setReminderFrequency] = useState<TelegramReminderFrequency>(reminderSettings.frequency);
-  const [reminderLeadMinutes, setReminderLeadMinutes] = useState(reminderSettings.leadMinutes);
+  const [reminderHour, setReminderHour] = useState(reminderSettings.reminderHour ?? 9);
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { 
@@ -139,13 +139,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
 
   const openTelegramModal = () => {
     setReminderFrequency(reminderSettings.frequency);
-    setReminderLeadMinutes(reminderSettings.leadMinutes);
+    setReminderHour(reminderSettings.reminderHour ?? 9);
     setShowTelegramReminderModal(true);
   };
 
   const handleSaveRemindersAndSend = async () => {
     if (!telegramUser || telegramSending) return;
-    const newSettings = { frequency: reminderFrequency, leadMinutes: reminderLeadMinutes };
+    const newSettings = { frequency: reminderFrequency, reminderHour };
     onUpdateProfile({ ...user, telegramReminderSettings: newSettings });
     setShowTelegramReminderModal(false);
     setTelegramSending(true);
@@ -233,11 +233,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
                    <button onClick={() => setShowTelegramReminderModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
                 </div>
                 <p className="text-xs text-[var(--text-secondary)] mb-4">
-                   {lang === 'ru' ? 'Выберите частоту и за сколько до задачи присылать напоминания.' : 'Choose how often and how long before each task to get reminders.'}
+                   {lang === 'ru' ? 'Раз в день в выбранный час вам придёт сводка целей и задач в Telegram.' : 'Once a day at the chosen time you\'ll get a summary of goals and tasks in Telegram.'}
                 </p>
                 <div className="space-y-4">
                    <div>
-                      <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Частота' : 'Frequency'}</label>
+                      <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Напоминания' : 'Reminders'}</label>
                       <select
                          value={reminderFrequency}
                          onChange={e => setReminderFrequency(e.target.value as TelegramReminderFrequency)}
@@ -245,23 +245,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
                       >
                          <option value="off">{lang === 'ru' ? 'Только по кнопке' : 'Only when I send'}</option>
                          <option value="daily">{lang === 'ru' ? 'Раз в день (сводка)' : 'Once a day (summary)'}</option>
-                         <option value="per_task">{lang === 'ru' ? 'Перед каждой задачей' : 'Before each task'}</option>
                       </select>
                    </div>
-                   {reminderFrequency === 'per_task' && (
+                   {reminderFrequency === 'daily' && (
                       <div>
-                         <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Напоминать за' : 'Remind before'}</label>
-                         <div className="flex flex-wrap gap-2">
-                            {REMINDER_LEAD_OPTIONS.map(opt => (
-                               <button
-                                  key={opt.value}
-                                  onClick={() => setReminderLeadMinutes(opt.value)}
-                                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${reminderLeadMinutes === opt.value ? 'bg-indigo-500 text-white' : 'bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:bg-white/10'}`}
-                               >
-                                  {lang === 'ru' ? opt.labelRu : opt.labelEn}
-                               </button>
+                         <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Время (ваш часовой пояс)' : 'Time (your timezone)'}</label>
+                         <select
+                            value={reminderHour}
+                            onChange={e => setReminderHour(Number(e.target.value))}
+                            className="w-full h-12 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 text-[var(--text-primary)] text-sm font-bold focus:outline-none focus:border-indigo-500/50"
+                         >
+                            {REMINDER_HOUR_OPTIONS.map(opt => (
+                               <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
-                         </div>
+                         </select>
                       </div>
                    )}
                 </div>
@@ -554,4 +551,5 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
     </div>
   );
 };
+
 
