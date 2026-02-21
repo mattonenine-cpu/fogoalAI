@@ -3,6 +3,7 @@
  * POST body: { telegramId, reminderFrequency, reminderLeadMinutes, tasks, goals, lang, timezoneOffset }
  * Хранилище: Vercel Blob (reminders/<telegramId>.json). Если BLOB_READ_WRITE_TOKEN не задан — возвращаем ok, но данные не сохраняются.
  */
+import { put, del } from '@vercel/blob';
 declare const process: { env: { [key: string]: string | undefined } };
 
 interface SyncPayload {
@@ -28,9 +29,7 @@ export default async function handler(req: any, res: any) {
     const id = Number(telegramId);
 
     if (reminderFrequency === 'off') {
-      // Удалить данные напоминаний для этого пользователя
       try {
-        const { del } = await import('@vercel/blob');
         await del(`reminders/${id}.json`);
       } catch {
         // ignore
@@ -56,7 +55,6 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, hint: 'BLOB_READ_WRITE_TOKEN not set; reminders will not run until Blob is configured.' });
     }
 
-    const { put } = await import('@vercel/blob');
     await put(`reminders/${id}.json`, JSON.stringify(payload), { access: 'public' });
     return res.status(200).json({ ok: true });
   } catch (e: any) {
