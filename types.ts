@@ -60,15 +60,6 @@ export interface UserSettings {
   fontSize: AppFontSize;
 }
 
-export interface CreditsSystem {
-  totalCredits: number;
-  availableCredits: number;
-  usedCredits: number;
-  lastResetDate: string; // ISO date string of last monthly reset
-  hasUnlimitedAccess: boolean; // For promo code users
-  promoCode?: string;
-}
-
 export interface UserProfile {
   username?: string; 
   name: string;
@@ -95,11 +86,14 @@ export interface UserProfile {
   fitnessOnboarded?: boolean;
   healthHistory?: HealthDailyLog[];
   settings?: UserSettings;
-  credits?: CreditsSystem;
   /** Привязка Telegram: данные приходят из Telegram Login Widget или WebApp initData */
   telegramId?: number;
   telegramUsername?: string;
   telegramPhotoUrl?: string;
+  /** Напоминания в Telegram: время в формате "HH:mm", регулярность */
+  telegramReminderEnabled?: boolean;
+  telegramReminderTime?: string;
+  telegramReminderFrequency?: 'daily' | 'weekdays' | 'weekends';
 }
 
 export interface Goal {
@@ -634,3 +628,4 @@ export const TRANSLATIONS: any = {
     backlog: "Задачи"
   }
 };
+
