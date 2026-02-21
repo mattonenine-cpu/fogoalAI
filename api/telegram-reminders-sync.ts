@@ -37,7 +37,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true });
     }
 
-    const hour = typeof reminderHour === 'number' && reminderHour >= 0 && reminderHour <= 23 ? reminderHour : 9;
+    const hour = typeof reminderHour === 'number' && reminderHour >= 0 && reminderHour <= 23 ? reminderHour : 12;
     const payload = {
       telegramId: id,
       reminderFrequency,
@@ -62,4 +62,3 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ ok: false, error: e.message || 'Internal error' });
   }
 }
-
