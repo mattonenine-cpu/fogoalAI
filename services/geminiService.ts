@@ -200,8 +200,8 @@ const ECOSYSTEM_PATTERNS: {
 
   {
     lang: 'en',
-    ecosystem: 'x',
-    patterns: [/^never-match$/],
+    ecosystem: '_',
+    patterns: [/^never-match-creativity$/],
     reply: 'Let’s find an idea to draw. Send 2–3 words about mood or theme (e.g. space, rain, cat) — I will suggest options.'
   }
 ];
@@ -402,7 +402,7 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
 
     return {
         sendMessage: async ({ message }: { message: string }) => {
-            // 1) Ecosystem‑specific canned replies (for sport / study / health / creativity / work)
+            // 1) Ecosystem‑specific canned replies (for sport / study / health / work)
             if (type && type !== 'General') {
                 const ecoReply = getEcosystemAutoReply(message, lang, type);
                 if (ecoReply) {
@@ -751,11 +751,8 @@ function normalizeExerciseNameRu(name: string): string {
         return 'Планка';
     if (/crunch|скручиван/i.test(raw))
         return 'Скручивания';
-    // Опечатка БІСЕРЅ и прочие латинские вкрапления
-    let s = raw.replace(/бісерѕ|бісерs|БІСЕРЅ/gi, 'бицепс').replace(/Biceps|Curl|Crossover|Fly|Chest\s+Press|Press|Cable/gi, (m) => {
-        const map: Record<string, string> = { biceps: 'бицепс', curl: 'сгибание рук на блоке', crossover: 'в кроссовере', fly: 'сведение рук', chest: 'грудь', press: 'жим', cable: 'на блоке' };
-        return map[m.toLowerCase()] || m;
-    });
+    // Опечатка БІСЕРЅ и прочие латинские вкрапления в оставшейся строке
+    let s = raw.replace(/бісерѕ|бісерs|БІСЕРЅ/gi, 'бицепс');
     s = s.replace(/\s+/g, ' ').trim();
     if (s.length > 0) s = s[0].toUpperCase() + s.slice(1).toLowerCase();
     return s || raw;
