@@ -1,9 +1,6 @@
 
 import { UserProfile, Task, Language, Goal, EcosystemType, HelpContext, EcosystemConfig, HealthDailyLog, WorkoutPlan, Ticket } from '../types';
 
-// Groq model (change here to switch model, e.g. llama-3.3-70b-versatile)
-const AI_MODEL = 'llama-3.1-8b-instant';
-
 // Helper for type compatibility without importing the full SDK
 export const Type = {
   STRING: 'STRING',
@@ -115,12 +112,12 @@ const BASIC_PATTERNS: { lang: Language; patterns: RegExp[]; reply: string }[] = 
   {
     lang: 'en',
     patterns: [/^(who are you|what can you do|what do you do)$/],
-    reply: 'I am FoGoal AI: I help you plan your day, study, workouts, health and creativity with smart guidance.'
+    reply: 'I am FoGoal AI: I help you plan your day, study, workouts and health with smart guidance.'
   },
   {
     lang: 'en',
     patterns: [/^(how can you help me|what can you help with)$/],
-    reply: 'I can break tasks into steps, design your day, assist with study, workouts, health and creative ideas.'
+    reply: 'I can break tasks into steps, design your day, assist with study, workouts and health.'
   },
   {
     lang: 'en',
@@ -130,11 +127,11 @@ const BASIC_PATTERNS: { lang: Language; patterns: RegExp[]; reply: string }[] = 
   {
     lang: 'en',
     patterns: [/^(what is fogoal|what is fo goal|what is this app)$/],
-    reply: 'FoGoal is an AI assistant that combines planning, study, workouts, health and creativity in one workspace.'
+    reply: 'FoGoal is an AI assistant that combines planning, study, workouts and health in one workspace.'
   }
 ];
 
-// Ecosystem-specific canned replies (work / sport / study / health / creativity)
+// Ecosystem-specific canned replies (work / sport / study / health)
 // These are also instant and scoped by ecosystem "type" in createChatSession.
 const ECOSYSTEM_PATTERNS: {
   lang: Language;
@@ -198,19 +195,6 @@ const ECOSYSTEM_PATTERNS: {
     reply: 'Let’s evaluate your state. Send me: sleep (0–10), stress (0–10) and energy (0–10) — I will give focused recovery suggestions.'
   },
 
-  // ---------- CREATIVITY ----------
-  {
-    lang: 'ru',
-    ecosystem: 'creativity',
-    patterns: [/^нет идей$/, /^нет идей что рисовать$/, /^что нарисовать$/, /^дай идею рисунка$/, /^идея для арты?$/, /^идея для рисунка$/],
-    reply: 'Давай найдем идею для рисунка. Напиши 2–3 слова про настроение или тему (например: космос, дождь, кошка) — я предложу несколько вариантов.'
-  },
-  {
-    lang: 'en',
-    ecosystem: 'creativity',
-    patterns: [/^no ideas$/, /^no ideas what to draw$/, /^what to draw$/, /^give me drawing idea$/, /^idea for art$/, /^idea for drawing$/],
-    reply: 'Let’s find an idea to draw. Send 2–3 words about mood or theme (e.g. space, rain, cat) — I will suggest options.'
-  }
 ];
 
 function getBasicAutoReply(message: string, lang: Language): string | null {
@@ -240,82 +224,6 @@ function getEcosystemAutoReply(message: string, lang: Language, type: string): s
 export const cleanTextOutput = (text: string = "") => {
     return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
-
-/** Safely parse JSON from API (Groq may wrap in text or add markdown). Returns default on failure. */
-function parseJsonResponse<T>(rawText: string, defaultVal: T): T {
-    const text = cleanTextOutput(rawText || '');
-    if (!text) return defaultVal;
-    let parsed: unknown;
-    try {
-        parsed = JSON.parse(text);
-    } catch {
-        try {
-            const startObj = text.indexOf('{');
-            const startArr = text.indexOf('[');
-            let start = -1;
-            let isArray = false;
-            if (startObj >= 0 && (startArr < 0 || startObj < startArr)) {
-                start = startObj;
-            } else if (startArr >= 0) {
-                start = startArr;
-                isArray = true;
-            }
-            if (start >= 0) {
-                let depth = 0;
-                const open = isArray ? '[' : '{';
-                const close = isArray ? ']' : '}';
-                let end = start;
-                for (let i = start; i < text.length; i++) {
-                    if (text[i] === open) depth++;
-                    else if (text[i] === close) {
-                        depth--;
-                        if (depth === 0) {
-                            end = i + 1;
-                            break;
-                        }
-                    }
-                }
-                parsed = JSON.parse(text.slice(start, end));
-            } else {
-                return defaultVal;
-            }
-        } catch (_e) {
-            return defaultVal;
-        }
-    }
-    return normalizeParsedForGroq(parsed, defaultVal) as T;
-}
-
-/** Groq sometimes returns object when we need array, or different key names. Unwrap to match expected shape. */
-function normalizeParsedForGroq(parsed: unknown, defaultVal: any): any {
-    if (parsed == null) return defaultVal;
-    if (Array.isArray(defaultVal)) {
-        if (Array.isArray(parsed)) return parsed;
-        if (typeof parsed === 'object' && parsed !== null) {
-            const obj = parsed as Record<string, unknown>;
-            for (const k of ['tickets', 'questions', 'items', 'data', 'results', 'array']) {
-                if (Array.isArray(obj[k])) return obj[k];
-            }
-            const firstArr = Object.values(obj).find(v => Array.isArray(v));
-            if (firstArr) return firstArr;
-        }
-        return defaultVal;
-    }
-    if (typeof defaultVal === 'object' && defaultVal !== null && !Array.isArray(defaultVal)) {
-        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return parsed as any;
-        const obj = parsed as Record<string, unknown>;
-        if (defaultVal.glossary !== undefined && defaultVal.flashcards !== undefined) {
-            const glossary = Array.isArray(obj.glossary) ? obj.glossary : (Array.isArray(obj.glossary_terms) ? obj.glossary_terms : []);
-            const flashcards = Array.isArray(obj.flashcards) ? obj.flashcards : (Array.isArray(obj.cards) ? obj.cards : []);
-            return { glossary, flashcards };
-        }
-        if (defaultVal.exercises !== undefined) {
-            const exercises = Array.isArray(obj.exercises) ? obj.exercises : (Array.isArray(obj.workout) ? obj.workout : (Array.isArray(obj.items) ? obj.items : []));
-            return { ...obj, exercises };
-        }
-    }
-    return parsed;
-}
 
 /**
  * Helper to call the Vercel API endpoints
@@ -379,7 +287,7 @@ export function createHelpSession(context: HelpContext, profile: UserProfile, la
             localHistory.push({ role: 'user', parts: [{ text: message }] });
             
             const result = await callApi('/api/generate', {
-                model: AI_MODEL,
+                model: 'gemini-3-flash-preview',
                 contents: localHistory,
                 config: { systemInstruction }
             });
@@ -409,7 +317,7 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
 
     return {
         sendMessage: async ({ message }: { message: string }) => {
-            // 1) Ecosystem‑specific canned replies (for sport / study / health / creativity / work)
+            // 1) Ecosystem‑specific canned replies (for sport / study / health / work)
             if (type && type !== 'General') {
                 const ecoReply = getEcosystemAutoReply(message, lang, type);
                 if (ecoReply) {
@@ -442,7 +350,7 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
             localHistory.push({ role: 'user', parts: [{ text: message }] });
             
             const result = await callApi('/api/generate', {
-                model: AI_MODEL,
+                model: 'gemini-3-flash-preview',
                 contents: localHistory,
                 config: { systemInstruction }
             });
@@ -463,7 +371,7 @@ export async function decomposeTask(task: Task, profile: UserProfile, lang: Lang
     Lang: ${lang}`;
     
     const result = await callApi('/api/generate', {
-        model: AI_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -480,7 +388,7 @@ export async function decomposeTask(task: Task, profile: UserProfile, lang: Lang
             }
         }
     });
-    return parseJsonResponse<Partial<Task>[]>(result.text ?? '', []);
+    return JSON.parse(cleanTextOutput(result.text || "[]"));
 }
 
 export async function optimizeDailySchedule(tasks: Task[], profile: UserProfile, lang: Language): Promise<any> {
@@ -492,7 +400,7 @@ export async function optimizeDailySchedule(tasks: Task[], profile: UserProfile,
     Return a schedule mapping IDs to times.`;
 
     const result = await callApi('/api/generate', {
-        model: AI_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
             responseMimeType: "application/json",
@@ -515,13 +423,13 @@ export async function optimizeDailySchedule(tasks: Task[], profile: UserProfile,
             }
         }
     });
-    return parseJsonResponse<{ schedule: { taskId: string; time: string }[] }>(result.text ?? '', { schedule: [] });
+    return JSON.parse(cleanTextOutput(result.text || "{}"));
 }
 
 export async function analyzeEcosystemSignals(profile: Partial<UserProfile>, lang: Language): Promise<EcosystemConfig[]> {
     const prompt = `Analyze this user profile to recommend life ecosystems. User: ${JSON.stringify(profile)}. Return JSON array of recommendations. Language: ${lang}`;
     const result = await callApi('/api/generate', {
-        model: AI_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
             responseMimeType: "application/json",
@@ -530,7 +438,7 @@ export async function analyzeEcosystemSignals(profile: Partial<UserProfile>, lan
                 items: {
                     type: Type.OBJECT,
                     properties: {
-                        type: { type: Type.STRING, enum: ['work', 'sport', 'study', 'health', 'creativity'] },
+                        type: { type: Type.STRING, enum: ['work', 'sport', 'study', 'health'] },
                         enabled: { type: Type.BOOLEAN },
                         justification: { type: Type.STRING }
                     },
@@ -539,12 +447,7 @@ export async function analyzeEcosystemSignals(profile: Partial<UserProfile>, lan
             }
         }
     });
-    return parseJsonResponse<EcosystemConfig[]>(result.text ?? '', []);
-}
-
-export async function generateFocuVisual(_prompt: string, _refImageBase64?: string): Promise<string | null> {
-    // Image generation disabled (Groq is text-only).
-    return null;
+    return JSON.parse(cleanTextOutput(result.text || "[]"));
 }
 
 export async function evaluateProgress(logText: string, tasks: Task[], goals: Goal[], type: EcosystemType, lang: Language) {
@@ -554,7 +457,7 @@ export async function evaluateProgress(logText: string, tasks: Task[], goals: Go
     Lang: ${lang}`;
     
     const result = await callApi('/api/generate', {
-        model: AI_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -581,28 +484,14 @@ export async function evaluateProgress(logText: string, tasks: Task[], goals: Go
             }
         }
     });
-    const defaultEval = {
-        productivityScore: 0,
-        feedback: '',
-        generalProgressAdd: 0,
-        updatedTaskIds: [] as string[],
-        goalUpdates: [] as { id: string; progressAdd: number }[],
-    };
-    const data = parseJsonResponse<typeof defaultEval>(result.text ?? '', defaultEval);
-    return {
-        productivityScore: typeof data.productivityScore === 'number' ? data.productivityScore : 0,
-        feedback: typeof data.feedback === 'string' ? data.feedback : '',
-        generalProgressAdd: typeof data.generalProgressAdd === 'number' ? data.generalProgressAdd : 0,
-        updatedTaskIds: Array.isArray(data.updatedTaskIds) ? data.updatedTaskIds : [],
-        goalUpdates: Array.isArray(data.goalUpdates) ? data.goalUpdates : [],
-    };
+    return JSON.parse(cleanTextOutput(result.text || "{}"));
 }
 
 export async function generateDrawingTutorial(prompt: string, lang: Language, style: string, difficulty: string, material: string) {
     const contentPrompt = `Create a step-by-step drawing tutorial for "${prompt}" in ${style} style using ${material}. Difficulty: ${difficulty}. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', {
-        model: AI_MODEL,
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: contentPrompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -629,225 +518,157 @@ export async function generateDrawingTutorial(prompt: string, lang: Language, st
             }
         }
     });
-    return parseJsonResponse<{ title?: string; difficulty?: string; estimatedTime?: string; steps?: { text: string; visualPrompt: string }[]; tips?: string[] }>(result.text ?? '', { title: '', steps: [] });
+    return JSON.parse(cleanTextOutput(result.text || "{}"));
 }
 
 export async function parseTicketsFromText(text: string, lang: Language) {
-    const prompt = `Extract exam tickets from the text below. Return ONLY a valid JSON array. Each element must be an object with exactly two keys: "number" (integer, 1-based) and "question" (string). Example: [{"number":1,"question":"What is..."},{"number":2,"question":"Explain..."}]. No other text, no markdown.
-Text: ${text.substring(0, 5000)}
-Lang: ${lang}`;
-
-    const result = await callApi('/api/generate', {
-        model: AI_MODEL,
+    const prompt = `Extract exam tickets/questions from this text: "${text.substring(0, 5000)}". Lang: ${lang}`;
+    
+    const result = await callApi('/api/generate', { 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json" }
+        config: { 
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        number: { type: Type.NUMBER },
+                        question: { type: Type.STRING }
+                    },
+                    required: ['number', 'question']
+                }
+            }
+        } 
     });
-    const arr = parseJsonResponse<{ number?: number; question?: string }[]>(result.text ?? '', []);
-    return Array.isArray(arr) ? arr.filter((t: any) => t && (t.question != null && String(t.question).trim() !== '')) : [];
+    return JSON.parse(cleanTextOutput(result.text || "[]"));
 }
 
 export async function generateTicketNote(question: string, subject: string, lang: Language) {
-    const prompt = `You are an expert teacher. Write a detailed, engaging study note (outline/concise) for this exam question.
-
-Exam subject: "${subject}"
-Question / topic: "${question}"
-
-Requirements:
-- Be maximally informative and detailed so the student can learn the topic well. Include key facts, definitions, examples, cause-effect, and context.
-- Structure with Markdown: use ## for main sections, ### for subsections, and - or * for bullet points. Use bold only where it really highlights a term (key words), not everywhere.
-- Make it interesting to read: add context, "why it matters", and connections to the bigger picture where useful.
-- Write in language: ${lang}. Keep a clear, educational tone.
-- Do not output raw asterisks for emphasis; use structure (headings and lists) for clarity. If you use bold, use **word** format.
-- Length: substantial. Cover the topic so that after reading, the student can answer the exam question and related ones.`;
+    const prompt = `Write a comprehensive study note for the exam question: "${question}" in the subject: "${subject}". 
+    Format using Markdown. Lang: ${lang}. Focus on being educational and well-structured.`;
     
     const result = await callApi('/api/generate', { 
-        model: AI_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
     return result.text || "";
 }
 
 export async function generateGlossaryAndCards(tickets: Ticket[], subject: string, lang: Language) {
-    const questionsList = tickets.map(t => t.question).filter(Boolean);
-    const prompt = `Create a study glossary and flashcards for the subject: "${subject}".
-Based on these exam questions, generate:
-1) "glossary" - array of objects, each with "word" (term) and "definition" (short explanation).
-2) "flashcards" - array of objects, each with "question" and "answer". Answers MUST be max 15 words. Create 2-5 flashcards per topic for full coverage.
-Return ONLY one JSON object with exactly two keys: "glossary" and "flashcards". Example: {"glossary":[{"word":"X","definition":"..."}],"flashcards":[{"question":"?","answer":"..."}]}
-Questions: ${JSON.stringify(questionsList.slice(0, 50))}
-Lang: ${lang}`;
-
-    const result = await callApi('/api/generate', {
-        model: AI_MODEL,
+    const prompt = `Create a glossary and flashcards for studying the subject: "${subject}". 
+    IMPORTANT: Flashcard answers MUST be extremly concise (max 15 words).
+    For EACH question in the provided list, generate between 2 to 5 flashcards depending on the complexity and volume of the topic. Ensure comprehensive coverage.
+    Questions: ${JSON.stringify(tickets.map(t => t.question))}. Lang: ${lang}`;
+    
+    const result = await callApi('/api/generate', { 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json" }
+        config: { 
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    glossary: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                word: { type: Type.STRING },
+                                definition: { type: Type.STRING }
+                            },
+                            required: ['word', 'definition']
+                        }
+                    },
+                    flashcards: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                question: { type: Type.STRING },
+                                answer: { type: Type.STRING }
+                            },
+                            required: ['question', 'answer']
+                        }
+                    }
+                },
+                required: ['glossary', 'flashcards']
+            }
+        } 
     });
-    const def = { glossary: [] as { word: string; definition: string }[], flashcards: [] as { question: string; answer: string }[] };
-    const data = parseJsonResponse<typeof def>(result.text ?? '', def);
-    return {
-        glossary: Array.isArray(data.glossary) ? data.glossary : [],
-        flashcards: Array.isArray(data.flashcards) ? data.flashcards : [],
-    };
+    return JSON.parse(cleanTextOutput(result.text || "{}"));
 }
 
 export async function generateQuiz(question: string, subject: string, lang: Language, count: number) {
-    const prompt = `Generate ${count} multiple-choice quiz questions to check knowledge on this exam ticket.
-
-Subject: "${subject}"
-Ticket topic / question: "${question}"
-
-Rules:
-- Every question MUST be directly about the topic of this ticket (and the subject). They are for self-test after studying the note.
-- Vary difficulty so the student can learn well:
-  - Easy (about 1/3): recall of facts, dates, definitions (e.g. "What is...?", "When did...?").
-  - Medium (about 1/3): understanding, cause-effect, comparison (e.g. "Why...?", "How did X relate to Y?").
-  - Hard (about 1/3): application, analysis, "which is correct interpretation" (e.g. "Which conclusion follows?", "What best explains...?").
-- Each question: 4 options, one correct. correctIndex is 0-based.
-- Language: ${lang}.
-
-Return ONLY a JSON array. Each object: "question" (string), "options" (array of 4 strings), "correctIndex" (number 0-3), "difficulty" (string: "easy" | "medium" | "hard"). Example: [{"question":"...","options":["A","B","C","D"],"correctIndex":0,"difficulty":"easy"},...]`;
+    const prompt = `Generate ${count} multiple-choice quiz questions for the topic: "${question}". Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: AI_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json" }
+        config: { 
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        question: { type: Type.STRING },
+                        options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        correctIndex: { type: Type.NUMBER }
+                    },
+                    required: ['question', 'options', 'correctIndex']
+                }
+            }
+        } 
     });
-    const arr = parseJsonResponse<{ question: string; options: string[]; correctIndex: number; difficulty?: string }[]>(result.text ?? '', []);
-    return Array.isArray(arr) ? arr : [];
-}
-
-/** Приводит названия упражнений к нормальным русским (без смешения с английским и опечаток). */
-function normalizeExerciseNameRu(name: string): string {
-    if (!name || !name.trim()) return name;
-    const raw = name.trim();
-    // Сначала точные соответствия для типичных кривых названий от API
-    const lower = raw.toLowerCase();
-    if (/\b(cable|кабел|блок).*(biceps|бісер|бицепс).*(curl|сгибание)/i.test(raw) || /бісер[sѕ].*curl|кабельный.*curl/i.test(raw))
-        return 'Сгибание рук на блоке (бицепс)';
-    if (/\b(cable|кабел).*(crossover|кроссовер).*(fly|сведение)/i.test(raw) || /crossover\s*fly|сведение.*кроссовер/i.test(raw))
-        return 'Сведение рук в кроссовере';
-    if (/\b(cable|кабел).*(chest|груд).*(press|жим)/i.test(raw) || /chest\s*press/i.test(raw))
-        return 'Жим в кроссовере';
-    if (/triceps.*pushdown|разгибание.*трицепс|разгибание.*канат/i.test(raw))
-        return 'Разгибание рук на блоке (трицепс)';
-    if (/lat\s*pulldown|тяга.*верхнего блока/i.test(raw))
-        return 'Тяга верхнего блока';
-    if (/leg\s*press|жим ногами/i.test(raw))
-        return 'Жим ногами';
-    if (/bent[- ]?over\s*row|тяга в наклоне/i.test(raw))
-        return 'Тяга в наклоне';
-    if (/pull[- ]?up|подтягиван/i.test(raw))
-        return 'Подтягивания';
-    if (/\bdip\b|отжимания на брусьях/i.test(raw))
-        return 'Отжимания на брусьях';
-    if (/bench\s*press|жим лёжа|жим лежа/i.test(raw))
-        return 'Жим лёжа';
-    if (/deadlift|становая тяга/i.test(raw))
-        return 'Становая тяга';
-    if (/squat|приседан/i.test(raw) && /штанг|barbell/i.test(raw))
-        return 'Приседания со штангой';
-    if (/goblet\s*squat|гоблет/i.test(raw))
-        return 'Гоблет-присед';
-    if (/dumbbell.*row|тяга гантел/i.test(raw))
-        return 'Тяга гантели в наклоне';
-    if (/lateral\s*raise|махи в стороны/i.test(raw))
-        return 'Махи гантелями в стороны';
-    if (/romanian|румынская/i.test(raw))
-        return 'Румынская тяга';
-    if (/plank|планка/i.test(raw))
-        return 'Планка';
-    if (/crunch|скручиван/i.test(raw))
-        return 'Скручивания';
-    // Опечатка БІСЕРЅ и прочие латинские вкрапления
-    let s = raw.replace(/бісерѕ|бісерs|БІСЕРЅ/gi, 'бицепс').replace(/Biceps|Curl|Crossover|Fly|Chest\s+Press|Press|Cable/gi, (m) => {
-        const map: Record<string, string> = { biceps: 'бицепс', curl: 'сгибание рук на блоке', crossover: 'в кроссовере', fly: 'сведение рук', chest: 'грудь', press: 'жим', cable: 'на блоке' };
-        return map[m.toLowerCase()] || m;
-    });
-    s = s.replace(/\s+/g, ' ').trim();
-    if (s.length > 0) s = s[0].toUpperCase() + s.slice(1).toLowerCase();
-    return s || raw;
+    return JSON.parse(cleanTextOutput(result.text || "[]"));
 }
 
 export async function generateWorkout(user: UserProfile, lang: Language, muscleGroups: string[] = []): Promise<WorkoutPlan> {
-    const level = user.fitnessLevel || 'beginner';
-    const goal = user.fitnessGoal || 'general fitness';
-    const equipmentList = (user.fitnessEquipment && user.fitnessEquipment.length) ? user.fitnessEquipment : ['bodyweight'];
-    const equipmentStr = equipmentList.join(', ');
-
-    const levelRules: Record<string, string> = {
-        beginner: 'Beginner: 4-5 exercises only, basic movements, 2-3 sets, simple progressions. No complex combinations.',
-        intermediate: 'Intermediate: 5-7 exercises, 3 sets. Include at least 1-2 classic real-gym exercises (e.g. bench press, barbell/dumbbell row, leg press, pull-ups, dips) that people actually do in gyms. Mix with simpler ones.',
-        advanced: 'Advanced: 6-8 exercises, 3-4 sets. Include several challenging gym standards: compound lifts (bench, squat, deadlift, row), pull-ups/dips, isolation with proper form. Exercises that real trainees do in the gym, not only basics.',
-    };
-    const goalRules: Record<string, string> = {
-        'weight loss': 'Goal WEIGHT LOSS: higher reps (12-15), shorter rest (45-60s), include cardio-style or circuit if possible. Burn focus.',
-        'muscle gain': 'Goal MUSCLE GAIN: hypertrophy style, 8-12 reps, 3-4 sets, rest 60-90s. Compound then isolation. Strength focus.',
-        'general fitness': 'Goal GENERAL FITNESS: balanced, 10-12 reps, 3 sets, 60s rest. Mix compound and isolation.',
-        'endurance': 'Goal ENDURANCE: higher reps (15-20), shorter rest (30-45s), lighter load emphasis. Stamina focus.',
-    };
-
-    const focusRule = muscleGroups.length > 0
-        ? `Target ONLY these muscle groups: ${muscleGroups.join(', ')}. 4-6 exercises.`
-        : 'Full body: legs, push, pull, core. 5-7 exercises, compound first then isolation.';
-
-    const langRule = lang === 'ru'
-        ? `LANGUAGE: ONLY RUSSIAN. Title and every exercise "name" must be 100% in Russian. FORBIDDEN: English words (Curl, Fly, Press, Cable, Crossover, Biceps, etc.), mixed names like "Кабельный Curl" or "Cable Biceps". Use ONLY these style names:
-Штанга: Жим лёжа, Становая тяга, Приседания со штангой, Тяга штанги в наклоне, Жим стоя, Сгибание рук со штангой.
-Гантели: Тяга гантели в наклоне, Жим гантелей лёжа, Сгибание рук с гантелями, Махи гантелями в стороны, Разводка гантелей, Румынская тяга с гантелями, Выпады с гантелями, Гоблет-присед.
-Блок/кабель/кроссовер: Сгибание рук на блоке (бицепс), Разгибание рук на блоке (трицепс), Тяга верхнего блока, Тяга горизонтального блока, Сведение рук в кроссовере, Разгибание рук с канатом на блоке, Жим в кроссовере.
-Турник/брусья: Подтягивания, Отжимания на брусьях, Подъём ног в висе.
-Ноги: Жим ногами, Разгибание ног в тренажёре, Сгибание ног лёжа.
-Кор: Планка, Скручивания, Подъём корпуса.
-Write "бицепс" and "трицепс" in Russian only, no Biceps/Curl.`
-        : `LANGUAGE: English. Title and exercise names in English (e.g. Barbell Bench Press, Lat Pulldown).`;
-
-    const prompt = `You are a fitness coach. Create ONE workout plan as JSON.
-
-RULES:
-1) ${levelRules[level] ?? levelRules.beginner}
-2) ${goalRules[goal] ?? goalRules['general fitness']}
-3) ${focusRule}
-4) Use ONLY equipment the user has: ${equipmentStr}. Set "equipment" to the piece used.
-5) ${langRule}
-
-Output: JSON with "title", "durationMinutes", "exercises". Each: "name" (only in the required language, no mixing), "sets", "reps", "restSeconds", "notes", "equipment". Max 8 exercises.
-
-Return ONLY valid JSON. Example for Russian: {"title":"Грудь и бицепс","durationMinutes":45,"exercises":[{"name":"Жим лёжа","sets":3,"reps":"10","restSeconds":60,"notes":"","equipment":"barbell"},{"name":"Сгибание рук на блоке","sets":3,"reps":"12","restSeconds":60,"notes":"","equipment":"cable"}]}`;
-
-    const result = await callApi('/api/generate', {
-        model: AI_MODEL,
+    const muscleContext = muscleGroups.length > 0 ? `Focus ONLY on these muscle groups: ${muscleGroups.join(', ')}.` : 'Create a balanced full-body workout.';
+    const prompt = `Generate a workout plan for a user with goal: ${user.fitnessGoal}, level: ${user.fitnessLevel}, and equipment: ${user.fitnessEquipment?.join(', ')}. ${muscleContext} Lang: ${lang}`;
+    
+    const result = await callApi('/api/generate', { 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json" }
+        config: { 
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    durationMinutes: { type: Type.NUMBER },
+                    exercises: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                id: { type: Type.STRING },
+                                name: { type: Type.STRING },
+                                sets: { type: Type.NUMBER },
+                                reps: { type: Type.STRING },
+                                restSeconds: { type: Type.NUMBER },
+                                notes: { type: Type.STRING },
+                                equipment: { type: Type.STRING }
+                            },
+                            required: ['id', 'name', 'sets', 'reps']
+                        }
+                    }
+                },
+                required: ['title', 'exercises']
+            }
+        } 
     });
-    const def = { title: '', durationMinutes: 30, exercises: [] as WorkoutPlan['exercises'] };
-    const data = parseJsonResponse<{ title?: string; durationMinutes?: number; exercises?: any[] }>(result.text ?? '', def);
-    const rawExercises = Array.isArray(data.exercises) ? data.exercises : [];
-    const exercises = rawExercises.map((e: any, i: number) => {
-        let name = (e?.name ?? e?.title ?? e?.exercise ?? '').toString().trim() || `Exercise ${i + 1}`;
-        if (lang === 'ru') name = normalizeExerciseNameRu(name);
-        return {
-            id: (e?.id ?? e?.name ?? name ?? `ex_${i}`).toString().replace(/\s+/g, '_'),
-            name,
-            sets: typeof e?.sets === 'number' ? e.sets : (typeof e?.sets === 'string' ? parseInt(e.sets, 10) : 3) || 3,
-            reps: (e?.reps ?? e?.rep_range ?? e?.repetitions ?? '10').toString(),
-            restSeconds: typeof e?.restSeconds === 'number' ? e.restSeconds : (typeof e?.rest === 'number' ? e.rest : 60),
-            notes: (e?.notes ?? e?.description ?? '').toString(),
-            equipment: (e?.equipment ?? e?.equipment_needed ?? '').toString(),
-        };
-    }).filter((e: { name: string }) => e.name.length > 0);
-    return {
-        title: typeof data.title === 'string' && data.title.length ? data.title : (lang === 'ru' ? 'Тренировка' : 'Workout'),
-        durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : 30,
-        exercises,
-        date: getLocalISODate(),
-    };
+    const data = JSON.parse(cleanTextOutput(result.text || "{}"));
+    return { ...data, date: getLocalISODate() };
 }
 
 export async function getExerciseTechnique(exerciseName: string, equipment: string, lang: Language): Promise<string> {
     const prompt = `Explain the proper technique and safety tips for the exercise: "${exerciseName}" using ${equipment}. Format using Markdown. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: AI_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
     return result.text || "";
@@ -857,7 +678,7 @@ export async function analyzeHealthLog(log: { sleep: number, stress: number, ene
     const prompt = `Analyze health log: Sleep ${log.sleep}/10, Stress ${log.stress}/10, Energy ${log.energy}/10. User Profile: ${JSON.stringify(user.energyProfile)}. Lang: ${lang}`;
     
     const result = await callApi('/api/generate', { 
-        model: AI_MODEL, 
+        model: 'gemini-3-flash-preview', 
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { 
             responseMimeType: "application/json",
@@ -882,27 +703,6 @@ export async function analyzeHealthLog(log: { sleep: number, stress: number, ene
             }
         } 
     });
-    const def = {
-        energyScore: 5,
-        recoveryScore: 5,
-        burnoutRisk: 'Low' as const,
-        recommendations: { morning: '', day: '', evening: '' },
-        notes: '',
-    };
-    const data = parseJsonResponse<{ energyScore?: number; recoveryScore?: number; burnoutRisk?: string; recommendations?: { morning?: string; day?: string; evening?: string }; notes?: string }>(result.text ?? '', def);
-    return {
-        date: getLocalISODate(),
-        sleep: log.sleep,
-        stress: log.stress,
-        energy: log.energy,
-        energyScore: typeof data.energyScore === 'number' ? data.energyScore : 5,
-        recoveryScore: typeof data.recoveryScore === 'number' ? data.recoveryScore : 5,
-        burnoutRisk: (data.burnoutRisk === 'Low' || data.burnoutRisk === 'Medium' || data.burnoutRisk === 'High') ? data.burnoutRisk : 'Low',
-        recommendations: {
-            morning: data.recommendations?.morning ?? '',
-            day: data.recommendations?.day ?? '',
-            evening: data.recommendations?.evening ?? '',
-        },
-        notes: typeof data.notes === 'string' ? data.notes : '',
-    };
+    const data = JSON.parse(cleanTextOutput(result.text || "{}"));
+    return { ...data, date: getLocalISODate(), sleep: log.sleep, stress: log.stress, energy: log.energy };
 }
