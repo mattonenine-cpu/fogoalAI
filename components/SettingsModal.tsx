@@ -22,7 +22,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
   const settings: UserSettings = user.settings || {
     aiPersona: 'balanced',
     aiDetailLevel: 'medium',
-    visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'],
+    visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'],
     fontSize: 'normal'
   };
 
@@ -142,8 +142,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                     { id: 'notes', emoji: '📝', label: 'ЗАМЕТКИ' },
                                     { id: 'sport', emoji: '💪', label: 'SPORT' },
                                     { id: 'study', emoji: '📚', label: 'STUDY' },
-                                    { id: 'health', emoji: '❤️', label: 'HEALTH' },
-                                    { id: 'creativity', emoji: '🎨', label: 'CREA..' }
+                                    { id: 'health', emoji: '❤️', label: 'HEALTH' }
                                 ].map(item => {
                                     const isVisible = settings.visibleViews.includes(item.id);
                                     return (
