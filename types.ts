@@ -14,7 +14,7 @@ export enum AppView {
   NOTES = 'notes'
 }
 
-export type EcosystemType = 'work' | 'sport' | 'study' | 'health' | 'creativity';
+export type EcosystemType = 'work' | 'sport' | 'study' | 'health';
 
 export type AiPersona = 'balanced' | 'concise' | 'professional' | 'friendly' | 'academic';
 
@@ -24,8 +24,7 @@ export enum Category {
   WORK = 'work',
   SPORT = 'sport',
   STUDY = 'study',
-  HEALTH = 'health',
-  CREATIVITY = 'creativity'
+  HEALTH = 'health'
 }
 
 export type ZoneId = 'morning' | 'midday' | 'evening' | 'night' | 'unassigned';
