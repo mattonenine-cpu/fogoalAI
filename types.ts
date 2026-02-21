@@ -104,13 +104,13 @@ export interface UserProfile {
 }
 
 /** Частота напоминаний в Telegram */
-export type TelegramReminderFrequency = 'off' | 'daily' | 'per_task';
+export type TelegramReminderFrequency = 'off' | 'daily';
 
 export interface TelegramReminderSettings {
-  /** off = только по кнопке, daily = раз в день сводка, per_task = перед каждой задачей */
+  /** off = только по кнопке, daily = раз в день сводка */
   frequency: TelegramReminderFrequency;
-  /** За сколько минут до времени задачи присылать напоминание (для per_task) */
-  leadMinutes: number;
+  /** Час (0–23) по местному времени пользователя, в который присылать ежедневное напоминание */
+  reminderHour: number;
 }
 
 export interface Goal {
@@ -645,3 +645,4 @@ export const TRANSLATIONS: any = {
     backlog: "Задачи"
   }
 };
+
