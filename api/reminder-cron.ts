@@ -8,15 +8,14 @@ declare const process: { env: { [key: string]: string | undefined } };
 
 interface StoredReminder {
   telegramId: number;
-  reminderFrequency: 'daily' | 'per_task';
-  reminderLeadMinutes: number;
+  reminderFrequency: 'daily';
+  reminderHour: number;
   tasks: { id: string; title: string; date?: string; scheduledTime?: string; completed: boolean }[];
   goals: { id: string; title: string; progress: number; target: number; completed: boolean }[];
   lang: 'ru' | 'en';
   timezoneOffset: number;
   updatedAt: string;
   lastDailySentDate: string | null;
-  lastTaskReminderSent: Record<string, string>;
 }
 
 function getLocalISODate(offsetMinutes: number): string {
@@ -26,13 +25,6 @@ function getLocalISODate(offsetMinutes: number): string {
   const m = String(local.getMonth() + 1).padStart(2, '0');
   const day = String(local.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-}
-
-function parseTimeToMinutes(s?: string): number | null {
-  if (!s || typeof s !== 'string') return null;
-  const [h, m] = s.trim().split(':').map(Number);
-  if (!Number.isFinite(h)) return null;
-  return (h || 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
 
 function buildDailySummary(data: StoredReminder): string {
@@ -71,20 +63,6 @@ function buildDailySummary(data: StoredReminder): string {
     });
   }
   return lines.join('\n').trim() || (ru ? 'Нет целей и задач на сегодня.' : 'No goals or tasks for today.');
-}
-
-function buildTaskReminderText(
-  tasks: { title: string; scheduledTime?: string; date?: string }[],
-  lang: 'ru' | 'en'
-): string {
-  const ru = lang === 'ru';
-  const lines = ru ? ['⏰ Напоминание о задачах:', ''] : ['⏰ Task reminders:', ''];
-  tasks.slice(0, 10).forEach((t) => {
-    const time = t.scheduledTime ? ` ${t.scheduledTime}` : '';
-    const date = t.date ? ` (${t.date})` : '';
-    lines.push(`• ${t.title}${time}${date}`);
-  });
-  return lines.join('\n');
 }
 
 export default async function handler(req: any, res: any) {
@@ -133,7 +111,9 @@ export default async function handler(req: any, res: any) {
       const todayLocal = getLocalISODate(tzOffset);
 
       if (data.reminderFrequency === 'daily') {
-        if (data.lastDailySentDate !== todayLocal) {
+        const wantedHour = typeof data.reminderHour === 'number' && data.reminderHour >= 0 && data.reminderHour <= 23 ? data.reminderHour : 9;
+        const isUserReminderHour = userNow.getHours() === wantedHour;
+        if (isUserReminderHour && data.lastDailySentDate !== todayLocal) {
           const text = buildDailySummary(data);
           const sendRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
@@ -146,44 +126,6 @@ export default async function handler(req: any, res: any) {
             await put(blob.pathname!, JSON.stringify(data), { access: 'public' });
           }
         }
-        continue;
-      }
-
-      if (data.reminderFrequency === 'per_task') {
-        const leadMin = data.reminderLeadMinutes ?? 15;
-        const currentMinutes = userNow.getHours() * 60 + userNow.getMinutes();
-
-        // Отправляем напоминания по всем задачам на сегодня, у которых время напоминания (задача − leadMin) уже наступило и ещё не отправляли.
-        // При одном запуске в день (Hobby) придут «догоняющие» напоминания; при вызове каждые 15 мин — точно за leadMin до задачи.
-        const toRemind: { id: string; title: string; scheduledTime?: string; date?: string }[] = [];
-        for (const t of data.tasks) {
-          if (t.completed || !t.date) continue;
-          if (t.date !== todayLocal) continue;
-          const taskMin = parseTimeToMinutes(t.scheduledTime);
-          if (taskMin == null) continue;
-          const reminderAt = taskMin - leadMin;
-          const sentKey = `${t.id}-${t.date}-${t.scheduledTime || ''}`;
-          if (reminderAt <= currentMinutes && !data.lastTaskReminderSent[sentKey]) {
-            toRemind.push({ id: t.id, title: t.title, scheduledTime: t.scheduledTime, date: t.date });
-          }
-        }
-
-        if (toRemind.length > 0) {
-          const text = buildTaskReminderText(toRemind, data.lang);
-          const sendRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: telegramId, text: text.slice(0, 4096), disable_web_page_preview: true }),
-          });
-          if (sendRes.ok) {
-            for (const t of toRemind) {
-              const sentKey = `${t.id}-${t.date || ''}-${t.scheduledTime || ''}`;
-              data.lastTaskReminderSent[sentKey] = new Date().toISOString();
-            }
-            results.push({ telegramId, task: toRemind.length });
-            await put(blob.pathname!, JSON.stringify(data), { access: 'public' });
-          }
-        }
       }
     }
 
@@ -193,3 +135,4 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: e.message || 'Cron failed' });
   }
 }
+
