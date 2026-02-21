@@ -1,14 +1,11 @@
 import type { UserProfile, Task, Goal, Language, TelegramReminderSettings } from '../types';
 import { getLocalISODate } from './geminiService';
 
-/** Полезные варианты «за сколько минут до задачи» для напоминаний */
-export const REMINDER_LEAD_OPTIONS = [
-  { value: 5, labelRu: '5 мин', labelEn: '5 min' },
-  { value: 15, labelRu: '15 мин', labelEn: '15 min' },
-  { value: 30, labelRu: '30 мин', labelEn: '30 min' },
-  { value: 60, labelRu: '1 ч', labelEn: '1 h' },
-  { value: 120, labelRu: '2 ч', labelEn: '2 h' },
-] as const;
+/** Часы для выбора времени ежедневного напоминания (0–23) */
+export const REMINDER_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
+  value: i,
+  label: `${String(i).padStart(2, '0')}:00`,
+}));
 
 /**
  * Builds a short daily summary: goals + today's tasks (and nearest deadlines).
@@ -109,7 +106,7 @@ export async function syncReminderSettingsToServer(
       body: JSON.stringify({
         telegramId,
         reminderFrequency: settings.frequency,
-        reminderLeadMinutes: settings.leadMinutes,
+        reminderHour: settings.reminderHour,
         tasks: tasks.map((t) => ({
           id: t.id,
           title: t.title,
@@ -144,20 +141,5 @@ export async function syncReminderSettingsToServer(
   }
 }
 
-/**
- * Формирует текст напоминания о ближайших задачах (для per_task).
- */
-export function buildTaskReminderText(
-  tasks: { title: string; scheduledTime?: string; date?: string }[],
-  lang: Language
-): string {
-  const ru = lang === 'ru';
-  const lines = ru ? ['⏰ Напоминание о задачах:', ''] : ['⏰ Task reminders:', ''];
-  tasks.slice(0, 10).forEach((t) => {
-    const time = t.scheduledTime ? ` ${t.scheduledTime}` : '';
-    const date = t.date ? ` (${t.date})` : '';
-    lines.push(`• ${t.title}${time}${date}`);
-  });
-  return lines.join('\n');
-}
+
 
