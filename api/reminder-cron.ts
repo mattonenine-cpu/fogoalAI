@@ -1,8 +1,9 @@
 /**
- * Крон: каждые 15 мин проверяет сохранённые напоминания и отправляет в Telegram.
- * Vercel Cron: schedule "*/15 * * * *"
+ * Крон: раз в день проверяет сохранённые напоминания и отправляет в Telegram.
+ * Vercel Cron: schedule "0 9 * * *" (ежедневно в 9:00 UTC, Hobby).
  * Env: TELEGRAM_BOT_TOKEN, BLOB_READ_WRITE_TOKEN (опционально), CRON_SECRET для авторизации вызова.
  */
+import { list, put } from '@vercel/blob';
 declare const process: { env: { [key: string]: string | undefined } };
 
 interface StoredReminder {
@@ -105,7 +106,6 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { list } = await import('@vercel/blob');
     const { blobs } = await list({ prefix: 'reminders/', limit: 500 });
     const now = new Date();
     const results: { telegramId: number; daily?: boolean; task?: number }[] = [];
@@ -142,7 +142,6 @@ export default async function handler(req: any, res: any) {
           if (sendRes.ok) {
             data.lastDailySentDate = todayLocal;
             results.push({ telegramId, daily: true });
-            const { put } = await import('@vercel/blob');
             await put(blob.pathname!, JSON.stringify(data), { access: 'public' });
           }
         }
@@ -183,7 +182,6 @@ export default async function handler(req: any, res: any) {
               data.lastTaskReminderSent[sentKey] = new Date().toISOString();
             }
             results.push({ telegramId, task: toRemind.length });
-            const { put } = await import('@vercel/blob');
             await put(blob.pathname!, JSON.stringify(data), { access: 'public' });
           }
         }
