@@ -262,3 +262,4 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
     </div>
   );
 };
+
