@@ -125,7 +125,8 @@ export default async function handler(req: any, res: any) {
         continue;
       }
 
-      if (data.reminderFrequency === 'off' || !data.telegramId) continue;
+      if (!data.telegramId) continue;
+      if ((data as { reminderFrequency?: string }).reminderFrequency === 'off') continue;
 
       const tzOffset = data.timezoneOffset ?? 0;
       const userNow = new Date(now.getTime() + tzOffset * 60 * 1000);
