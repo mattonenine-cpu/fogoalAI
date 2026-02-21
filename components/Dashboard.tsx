@@ -7,7 +7,7 @@ import {
   Sparkles, List, Trophy, X, Edit3, Check, Plus, Star, Trash2, Edit, CalendarDays, Send
 } from 'lucide-react';
 import { getTelegramUserFromWebApp } from '../services/telegramAuth';
-import { buildDailySummary, sendToTelegram, syncReminderSettingsToServer, REMINDER_HOUR_OPTIONS } from '../services/telegramSend';
+import { buildDailySummary, sendToTelegram, syncReminderSettingsToServer } from '../services/telegramSend';
 
 interface DashboardProps {
   user: UserProfile;
@@ -46,9 +46,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
   const [telegramSending, setTelegramSending] = useState(false);
   const [showTelegramReminderModal, setShowTelegramReminderModal] = useState(false);
   const telegramUser = getTelegramUserFromWebApp();
-  const reminderSettings = user.telegramReminderSettings ?? { frequency: 'daily' as TelegramReminderFrequency, reminderHour: 9 };
+  const reminderSettings = user.telegramReminderSettings ?? { frequency: 'daily' as TelegramReminderFrequency, reminderHour: 12 };
   const [reminderFrequency, setReminderFrequency] = useState<TelegramReminderFrequency>(reminderSettings.frequency);
-  const [reminderHour, setReminderHour] = useState(reminderSettings.reminderHour ?? 9);
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { 
@@ -139,13 +138,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
 
   const openTelegramModal = () => {
     setReminderFrequency(reminderSettings.frequency);
-    setReminderHour(reminderSettings.reminderHour ?? 9);
     setShowTelegramReminderModal(true);
   };
 
   const handleSaveRemindersAndSend = async () => {
     if (!telegramUser || telegramSending) return;
-    const newSettings = { frequency: reminderFrequency, reminderHour };
+    const newSettings = { frequency: reminderFrequency, reminderHour: 12 };
     onUpdateProfile({ ...user, telegramReminderSettings: newSettings });
     setShowTelegramReminderModal(false);
     setTelegramSending(true);
@@ -233,34 +231,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
                    <button onClick={() => setShowTelegramReminderModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
                 </div>
                 <p className="text-xs text-[var(--text-secondary)] mb-4">
-                   {lang === 'ru' ? 'Раз в день в выбранный час вам придёт сводка целей и задач в Telegram.' : 'Once a day at the chosen time you\'ll get a summary of goals and tasks in Telegram.'}
+                   {lang === 'ru' ? 'Отправлять сводку по кнопке или каждый день в 12:00 по вашему времени.' : 'Send summary by button or every day at 12:00 your time.'}
                 </p>
-                <div className="space-y-4">
-                   <div>
-                      <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Напоминания' : 'Reminders'}</label>
-                      <select
-                         value={reminderFrequency}
-                         onChange={e => setReminderFrequency(e.target.value as TelegramReminderFrequency)}
-                         className="w-full h-12 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 text-[var(--text-primary)] text-sm font-bold focus:outline-none focus:border-indigo-500/50"
-                      >
-                         <option value="off">{lang === 'ru' ? 'Только по кнопке' : 'Only when I send'}</option>
-                         <option value="daily">{lang === 'ru' ? 'Раз в день (сводка)' : 'Once a day (summary)'}</option>
-                      </select>
-                   </div>
-                   {reminderFrequency === 'daily' && (
-                      <div>
-                         <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Время (ваш часовой пояс)' : 'Time (your timezone)'}</label>
-                         <select
-                            value={reminderHour}
-                            onChange={e => setReminderHour(Number(e.target.value))}
-                            className="w-full h-12 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 text-[var(--text-primary)] text-sm font-bold focus:outline-none focus:border-indigo-500/50"
-                         >
-                            {REMINDER_HOUR_OPTIONS.map(opt => (
-                               <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                         </select>
-                      </div>
-                   )}
+                <div>
+                   <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Напоминания' : 'Reminders'}</label>
+                   <select
+                      value={reminderFrequency}
+                      onChange={e => setReminderFrequency(e.target.value as TelegramReminderFrequency)}
+                      className="w-full h-12 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 text-[var(--text-primary)] text-sm font-bold focus:outline-none focus:border-indigo-500/50"
+                   >
+                      <option value="off">{lang === 'ru' ? 'Только по кнопке' : 'Only when I send'}</option>
+                      <option value="daily">{lang === 'ru' ? 'Каждый день в 12:00' : 'Every day at 12:00'}</option>
+                   </select>
                 </div>
                 <div className="flex gap-3 mt-6">
                    <button onClick={() => setShowTelegramReminderModal(false)} className="flex-1 h-12 rounded-2xl border border-[var(--border-glass)] text-[var(--text-secondary)] font-bold text-sm hover:bg-white/5 transition-all">
@@ -551,5 +533,3 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
     </div>
   );
 };
-
-
