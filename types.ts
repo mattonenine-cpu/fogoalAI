@@ -1,5 +1,5 @@
 
-export type Language = 'en' | 'ru'
+export type Language = 'en' | 'ru';
 
 export type AppTheme = 'ice' | 'dark' | 'white';
 
