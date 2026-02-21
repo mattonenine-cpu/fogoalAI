@@ -152,9 +152,9 @@ export default async function handler(req: any, res: any) {
       if (data.reminderFrequency === 'per_task') {
         const leadMin = data.reminderLeadMinutes ?? 15;
         const currentMinutes = userNow.getHours() * 60 + userNow.getMinutes();
-        const windowStart = currentMinutes;
-        const windowEnd = currentMinutes + 15;
 
+        // Отправляем напоминания по всем задачам на сегодня, у которых время напоминания (задача − leadMin) уже наступило и ещё не отправляли.
+        // При одном запуске в день (Hobby) придут «догоняющие» напоминания; при вызове каждые 15 мин — точно за leadMin до задачи.
         const toRemind: { id: string; title: string; scheduledTime?: string; date?: string }[] = [];
         for (const t of data.tasks) {
           if (t.completed || !t.date) continue;
@@ -162,11 +162,9 @@ export default async function handler(req: any, res: any) {
           const taskMin = parseTimeToMinutes(t.scheduledTime);
           if (taskMin == null) continue;
           const reminderAt = taskMin - leadMin;
-          if (reminderAt >= windowStart && reminderAt < windowEnd) {
-            const sentKey = `${t.id}-${t.date}-${t.scheduledTime || ''}`;
-            if (!data.lastTaskReminderSent[sentKey]) {
-              toRemind.push({ id: t.id, title: t.title, scheduledTime: t.scheduledTime, date: t.date });
-            }
+          const sentKey = `${t.id}-${t.date}-${t.scheduledTime || ''}`;
+          if (reminderAt <= currentMinutes && !data.lastTaskReminderSent[sentKey]) {
+            toRemind.push({ id: t.id, title: t.title, scheduledTime: t.scheduledTime, date: t.date });
           }
         }
 
