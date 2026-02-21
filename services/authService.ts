@@ -262,7 +262,6 @@ export const authService = {
                         { type: 'sport', label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
                         { type: 'study', label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
                         { type: 'health', label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
-                        { type: 'creativity', label: 'Creativity', icon: '🎨', enabled: true, justification: 'Creative projects and hobbies' }
                     ],
                     statsHistory: [],
                     telegramId: payload.id,
@@ -271,7 +270,7 @@ export const authService = {
                     settings: {
                         aiPersona: 'balanced',
                         aiDetailLevel: 'medium',
-                        visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'],
+                        visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'],
                         fontSize: 'normal'
                     }
                 },
