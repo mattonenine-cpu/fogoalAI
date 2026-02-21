@@ -1,9 +1,9 @@
+
 import React, { useState } from 'react';
 import { UserProfile, Language, TRANSLATIONS, AiPersona, UserSettings, EcosystemType, AppFontSize } from '../types';
 import { authService } from '../services/authService';
-import { CreditsService } from '../services/creditsService';
 import { GlassCard } from './GlassCard';
-import { X, Check, Globe, Bot, Layout, LogOut, User, SlidersHorizontal, Layers, Link2, Unlink } from 'lucide-react';
+import { X, Check, Globe, Bot, Layout, LogOut, User, SlidersHorizontal, Layers, Link2, Unlink, Bell, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SettingsModalProps {
   user: UserProfile;
@@ -16,13 +16,21 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpdate, onLanguageChange, onClose }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [activeTab, setActiveTab] = useState<'interface' | 'ecosystems' | 'account'>('interface');
-  const [promoCode, setPromoCode] = useState('');
-  const [promoMessage, setPromoMessage] = useState('');
+  const [showReminderSettings, setShowReminderSettings] = useState(false);
+  const [reminderTime, setReminderTime] = useState(user.telegramReminderTime ?? '09:00');
+  const [reminderFrequency, setReminderFrequency] = useState<'daily' | 'weekdays' | 'weekends'>(user.telegramReminderFrequency ?? 'daily');
+  const [reminderEnabled, setReminderEnabled] = useState(!!user.telegramReminderEnabled);
+
+  React.useEffect(() => {
+    setReminderTime(user.telegramReminderTime ?? '09:00');
+    setReminderFrequency(user.telegramReminderFrequency ?? 'daily');
+    setReminderEnabled(!!user.telegramReminderEnabled);
+  }, [user.telegramReminderTime, user.telegramReminderFrequency, user.telegramReminderEnabled]);
 
   const settings: UserSettings = user.settings || {
     aiPersona: 'balanced',
     aiDetailLevel: 'medium',
-    visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'],
+    visibleViews: ['dashboard', 'scheduler', 'chat', 'notes'],
     fontSize: 'normal'
   };
 
@@ -35,24 +43,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
           await authService.logout();
           window.location.reload(); 
       }
-  };
-
-  const handleApplyPromoCode = () => {
-    if (!promoCode.trim()) {
-      setPromoMessage(lang === 'ru' ? 'Введите промокод' : 'Enter promo code');
-      return;
-    }
-
-    const currentCredits = user.credits || CreditsService.initializeCredits();
-    const updatedCredits = CreditsService.applyPromoCode(currentCredits, promoCode.trim());
-    
-    if (updatedCredits.hasUnlimitedAccess) {
-      setPromoMessage(lang === 'ru' ? '🎉 Безлимитный доступ активирован!' : '🎉 Unlimited access activated!');
-      onUpdate({ ...user, credits: updatedCredits });
-      setPromoCode('');
-    } else {
-      setPromoMessage(lang === 'ru' ? '❌ Неверный промокод' : '❌ Invalid promo code');
-    }
   };
 
   const menuItems = [
@@ -176,71 +166,96 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                     <div className="space-y-6 animate-fade-in-up">
                          <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'ПРОФИЛЬ' : 'PROFILE'}</h3>
                          <GlassCard className="p-8 border-[var(--border-glass)] bg-white/2 space-y-8 rounded-[40px]">
-                            {/* Credits Info */}
-                            <div className="space-y-4">
-                                <h4 className="text-lg font-black text-[var(--text-primary)]">
-                                    {lang === 'ru' ? 'Кредиты AI' : 'AI Credits'}
-                                </h4>
-                                {user.credits && (
-                                    <div className="p-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)]">
-                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
-                                            <span className="text-sm text-[var(--text-secondary)] whitespace-nowrap">
-                                                {lang === 'ru' ? 'Доступно:' : 'Available:'}
-                                            </span>
-                                            <span className="text-lg font-bold text-[var(--text-primary)] break-words sm:text-right">
-                                                {user.credits.hasUnlimitedAccess 
-                                                    ? (lang === 'ru' ? 'Безлимитно' : 'Unlimited')
-                                                    : `${user.credits.availableCredits} / ${user.credits.totalCredits}`
-                                                }
-                                            </span>
-                                        </div>
-                                        {!user.credits.hasUnlimitedAccess && (
-                                            <div className="text-xs text-[var(--text-secondary)]">
-                                                {lang === 'ru' ? 'Использовано:' : 'Used:'} {user.credits.usedCredits}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                            <div className="flex items-center gap-6">
+                                <div className="w-20 h-20 rounded-[32px] bg-indigo-500/20 flex items-center justify-center text-4xl border border-indigo-500/30">👤</div>
+                                <div>
+                                    <h4 className="text-2xl font-black text-[var(--text-primary)]">{user.name || 'Explorer'}</h4>
+                                    <p className="text-mini font-black uppercase tracking-widest opacity-30">{user.occupation || 'FoGoal User'}</p>
+                                </div>
                             </div>
 
-                            {/* Promo Code */}
-                            <div className="space-y-4">
-                                <h4 className="text-lg font-black text-[var(--text-primary)]">
-                                    {lang === 'ru' ? 'Промокод' : 'Promo Code'}
-                                </h4>
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                    <input
-                                        type="text"
-                                        value={promoCode}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPromoCode(e.target.value)}
-                                        placeholder={lang === 'ru' ? 'Введите промокод...' : 'Enter promo code...'}
-                                        className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent)]/20"
-                                    />
+                            {user.telegramId && (
+                                <section className="space-y-3">
+                                    <h4 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'НАПОМИНАНИЯ В TELEGRAM' : 'TELEGRAM REMINDERS'}</h4>
                                     <button
-                                        onClick={handleApplyPromoCode}
-                                        className="px-6 py-3 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors whitespace-nowrap shrink-0"
+                                        type="button"
+                                        onClick={() => setShowReminderSettings(!showReminderSettings)}
+                                        className="w-full p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-[var(--text-primary)] flex items-center justify-between hover:bg-indigo-500/20 transition-colors"
                                     >
-                                        {lang === 'ru' ? 'Применить' : 'Apply'}
+                                        <span className="flex items-center gap-2">
+                                            <Bell size={20} className="text-indigo-400" />
+                                            {lang === 'ru' ? 'Настроить напоминания' : 'Set up reminders'}
+                                        </span>
+                                        {showReminderSettings ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                                     </button>
-                                </div>
-                                {promoMessage && (
-                                    <div className={`text-sm p-3 rounded-xl break-words ${
-                                        promoMessage.includes('🎉') 
-                                            ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
-                                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
-                                    }`}>
-                                        {promoMessage}
-                                    </div>
-                                )}
-                            </div>
+                                    {showReminderSettings && (
+                                        <div className="p-5 rounded-2xl bg-white/5 border border-[var(--border-glass)] space-y-4 animate-fade-in-up">
+                                            <label className="flex items-center justify-between gap-4 cursor-pointer">
+                                                <span className="text-sm text-[var(--text-primary)]">{lang === 'ru' ? 'Включить напоминания' : 'Enable reminders'}</span>
+                                                <button
+                                                    type="button"
+                                                    role="switch"
+                                                    aria-checked={reminderEnabled}
+                                                    onClick={() => setReminderEnabled(!reminderEnabled)}
+                                                    className={`relative w-12 h-7 rounded-full transition-colors ${reminderEnabled ? 'bg-indigo-500' : 'bg-white/10'}`}
+                                                >
+                                                    <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${reminderEnabled ? 'left-7 translate-x-[-100%]' : 'left-1'}`} />
+                                                </button>
+                                            </label>
+                                            <div>
+                                                <label className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest block mb-2">{lang === 'ru' ? 'Время' : 'Time'}</label>
+                                                <input
+                                                    type="time"
+                                                    value={reminderTime}
+                                                    onChange={(e) => setReminderTime(e.target.value)}
+                                                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-[var(--border-glass)] text-[var(--text-primary)] focus:outline-none focus:border-indigo-500/50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest block mb-2">{lang === 'ru' ? 'Регулярность' : 'Frequency'}</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {(['daily', 'weekdays', 'weekends'] as const).map((freq) => (
+                                                        <button
+                                                            key={freq}
+                                                            type="button"
+                                                            onClick={() => setReminderFrequency(freq)}
+                                                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${reminderFrequency === freq ? 'bg-indigo-500 text-white' : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'}`}
+                                                        >
+                                                            {lang === 'ru' ? (freq === 'daily' ? 'Каждый день' : freq === 'weekdays' ? 'Будни' : 'Выходные') : (freq === 'daily' ? 'Daily' : freq === 'weekdays' ? 'Weekdays' : 'Weekends')}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = { ...user, telegramReminderEnabled: reminderEnabled, telegramReminderTime: reminderTime, telegramReminderFrequency: reminderFrequency };
+                                                    onUpdate(updated);
+                                                    const base = typeof window !== 'undefined' ? window.location.origin : '';
+                                                    if (user.telegramId && base) {
+                                                        fetch(`${base}/api/register-reminder`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ telegramId: user.telegramId, time: reminderTime, frequency: reminderFrequency, enabled: reminderEnabled })
+                                                        }).catch(() => {});
+                                                    }
+                                                    setShowReminderSettings(false);
+                                                }}
+                                                className="w-full py-3 rounded-xl bg-indigo-500 text-white font-bold text-sm"
+                                            >
+                                                {lang === 'ru' ? 'Сохранить' : 'Save'}
+                                            </button>
+                                        </div>
+                                    )}
 
-                            <div className="flex items-center gap-4 sm:gap-6">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-[32px] bg-indigo-500/20 flex items-center justify-center text-3xl sm:text-4xl border border-indigo-500/30 shrink-0">👤</div>
-                                <div className="min-w-0 flex-1">
-                                    <h4 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] truncate">{user.name || 'Explorer'}</h4>
-                                    <p className="text-mini font-black uppercase tracking-widest opacity-30 truncate">{user.occupation || 'FoGoal User'}</p>
-                                </div>
-                            </div>
+                                    {user.telegramReminderEnabled && user.telegramReminderTime && (
+                                        <p className="text-mini text-[var(--text-secondary)]">
+                                            {lang === 'ru' ? `Напоминания: ${user.telegramReminderTime}, ${user.telegramReminderFrequency === 'daily' ? 'каждый день' : user.telegramReminderFrequency === 'weekdays' ? 'будни' : 'выходные'}` : `Reminders: ${user.telegramReminderTime}, ${user.telegramReminderFrequency}`}
+                                        </p>
+                                    )}
+                                </section>
+                            )}
+
                             <button onClick={handleLogout} className="w-full p-6 rounded-[32px] bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center group active:scale-95 transition-all">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center"><LogOut size={20} /></div>
@@ -263,4 +278,3 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
     </div>
   );
 };
-
