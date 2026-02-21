@@ -56,7 +56,7 @@ export default function App() {
               parsed.settings = {
                   aiPersona: 'balanced',
                   aiDetailLevel: 'medium',
-                  visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'],
+                  visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'],
                   fontSize: 'normal'
               };
           } else {
@@ -212,13 +212,12 @@ export default function App() {
             { type: 'sport' as const, label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
             { type: 'study' as const, label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
             { type: 'health' as const, label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
-            { type: 'creativity' as const, label: 'Creativity', icon: '🎨', enabled: true, justification: 'Creative projects and hobbies' }
           ],
           statsHistory: [],
           telegramId: payload.id,
           telegramUsername: payload.username,
           telegramPhotoUrl: payload.photo_url,
-          settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'], fontSize: 'normal' }
+          settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'], fontSize: 'normal' }
         },
         tasks: [],
         notes: [],
@@ -430,13 +429,12 @@ export default function App() {
             { type: 'sport' as const, label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
             { type: 'study' as const, label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
             { type: 'health' as const, label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
-            { type: 'creativity' as const, label: 'Creativity', icon: '🎨', enabled: true, justification: 'Creative projects and hobbies' }
           ],
             statsHistory: [],
             telegramId: payload.id,
             telegramUsername: payload.username,
             telegramPhotoUrl: payload.photo_url,
-            settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'], fontSize: 'normal' }
+            settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'], fontSize: 'normal' }
           },
           tasks: [],
           notes: [],
@@ -523,7 +521,6 @@ export default function App() {
       case 'sport': return '💪';
       case 'study': return '📚';
       case 'health': return '❤️';
-      case 'creativity': return '🎨';
       default: return '📍';
     }
   };
