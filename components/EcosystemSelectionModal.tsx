@@ -27,12 +27,6 @@ const ECOSYSTEM_OPTIONS: { type: EcosystemType; label: string; icon: string; des
     label: 'Health',
     icon: '❤️',
     description: { ru: 'Мониторинг здоровья и wellness', en: 'Health monitoring and wellness' }
-  },
-  {
-    type: 'creativity',
-    label: 'Creativity',
-    icon: '🎨',
-    description: { ru: 'Творческие проекты и хобби', en: 'Creative projects and hobbies' }
   }
 ];
 
