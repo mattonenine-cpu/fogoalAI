@@ -5,9 +5,8 @@ import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
 import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2 } from 'lucide-react';
-import { renderTextWithMath } from '../LatexRenderer';
+import { renderTextWithMath, renderBoldFragments } from '../LatexRenderer';
 
-// ... helper functions (getDaysLeft, NoteRenderer, renderBoldText) unchanged ...
 const getDaysLeft = (dateStr: string) => {
   const target = new Date(dateStr);
   const now = new Date();
@@ -16,45 +15,71 @@ const getDaysLeft = (dateStr: string) => {
   return diffDays > 0 ? diffDays : 0;
 };
 
+const NOTE_BOLD_CLASS = 'text-indigo-300 font-semibold';
+
+function renderNoteInline(content: string): React.ReactNode {
+  const nodes = renderTextWithMath(content);
+  return (
+    <>
+      {nodes.map((node, i) =>
+        typeof node === 'string'
+          ? <React.Fragment key={i}>{renderBoldFragments(node, NOTE_BOLD_CLASS)}</React.Fragment>
+          : <React.Fragment key={i}>{node}</React.Fragment>
+      )}
+    </>
+  );
+}
+
 const NoteRenderer: React.FC<{ text: string; lang: Language }> = ({ text }) => {
     const lines = text.split('\n');
     return (
-        <div className="space-y-6 text-[var(--text-primary)] leading-relaxed font-medium">
+        <div className="note-conspect space-y-5 text-[var(--text-primary)] leading-relaxed font-medium max-w-full overflow-hidden break-words">
             {lines.map((line, idx) => {
                 const trimmed = line.trim();
-                if (!trimmed) return <div key={idx} className="h-2" />;
+                if (!trimmed) return <div key={idx} className="h-2 shrink-0" />;
                 if (trimmed.startsWith('# ')) {
                     const content = trimmed.substring(2);
                     return (
-                        <h1 key={idx} className="text-3xl font-black text-[var(--text-primary)] tracking-tight pt-2 border-b-2 border-indigo-500/30 pb-6 mb-8 text-center bg-gradient-to-r from-indigo-500/10 to-violet-500/10 rounded-2xl px-6 py-4">
-                            {renderTextWithMath(content)}
+                        <h1 key={idx} className="text-2xl sm:text-3xl font-black text-[var(--text-primary)] tracking-tight pt-2 border-b-2 border-indigo-500/40 pb-4 mb-6 text-center bg-gradient-to-r from-indigo-500/15 to-violet-500/15 rounded-2xl px-4 py-5 break-words">
+                            {renderNoteInline(content)}
                         </h1>
                     );
                 }
                 if (trimmed.startsWith('## ')) {
                     const content = trimmed.substring(3);
                     return (
-                        <div key={idx} className="pt-8 mt-4 mb-4">
-                            <h2 className="text-xl font-black text-indigo-400 tracking-wide uppercase flex items-center gap-3">
-                                <span className="w-1.5 h-6 bg-gradient-to-b from-indigo-500 to-violet-500 rounded-full shadow-[0_0_12px_rgba(99,102,241,0.4)]"></span>
-                                {renderTextWithMath(content)}
+                        <div key={idx} className="pt-6 mt-2 mb-2 shrink-0">
+                            <h2 className="text-lg sm:text-xl font-black text-indigo-400 tracking-wide uppercase flex items-center gap-3 break-words min-w-0">
+                                <span className="w-1.5 h-5 sm:h-6 bg-gradient-to-b from-indigo-500 to-violet-500 rounded-full shrink-0 shadow-[0_0_10px_rgba(99,102,241,0.35)]" />
+                                <span className="min-w-0">{renderNoteInline(content)}</span>
                             </h2>
                         </div>
                     );
                 }
                 if (trimmed.startsWith('### ')) {
                     const content = trimmed.substring(4);
-                    return <h3 key={idx} className="text-lg font-bold text-violet-300/95 tracking-tight mt-4">{renderTextWithMath(content)}</h3>;
+                    return (
+                        <h3 key={idx} className="text-base sm:text-lg font-bold text-violet-300/95 tracking-tight mt-4 mb-1 break-words">
+                            {renderNoteInline(content)}
+                        </h3>
+                    );
                 }
                 if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                    const bulletContent = trimmed.substring(2);
                     return (
-                        <div key={idx} className="flex items-start gap-3 pl-2 group">
-                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2.5 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
-                            <p className="text-[16px] leading-relaxed text-[var(--text-secondary)] flex-1">{renderTextWithMath(trimmed.substring(2))}</p>
+                        <div key={idx} className="flex items-start gap-3 pl-1 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 mt-2 shrink-0 shadow-[0_0_6px_rgba(99,102,241,0.5)]" aria-hidden />
+                            <p className="text-[15px] sm:text-[16px] leading-relaxed text-[var(--text-secondary)] flex-1 min-w-0 break-words">
+                                {renderNoteInline(bulletContent)}
+                            </p>
                         </div>
                     );
                 }
-                return <p key={idx} className="text-[17px] leading-8 text-[var(--text-primary)] font-normal tracking-wide">{renderTextWithMath(trimmed)}</p>;
+                return (
+                    <p key={idx} className="text-[15px] sm:text-[17px] leading-7 sm:leading-8 text-[var(--text-primary)] font-normal tracking-wide break-words">
+                        {renderNoteInline(trimmed)}
+                    </p>
+                );
             })}
         </div>
     );
