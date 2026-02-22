@@ -640,18 +640,31 @@ Lang: ${lang}`;
 }
 
 export async function generateTicketNote(question: string, subject: string, lang: Language) {
-    const prompt = `You are an expert examiner and teacher. Write a study note (concise outline) that maximizes the student's chance of passing the exam on this exact question.
+    const prompt = `You are an expert examiner and teacher. Write a full, detailed study note (конспект) for this exam ticket so the student can understand the topic deeply and pass the exam.
 
 Exam subject: "${subject}"
 Exam question / ticket: "${question}"
 
-Goals:
-- Prioritize information that is most likely to be asked or that examiners expect to see in a good answer. Start with the core definition or thesis, then key points in logical order.
-- Include: precise definitions (as they appear in curricula or textbooks), main facts, cause-effect, one or two short examples. Add "typical exam traps" or common mistakes to avoid if relevant.
-- Structure for quick revision: use Markdown with ## for main sections, ### for subsections, - for bullet points. Bold only key terms (e.g. **term**), not whole sentences.
-- Be accurate and concise: no filler. Every sentence should be something the student might need to reproduce or recognize in the exam. Prefer clarity and completeness over length.
-- Language: ${lang}. Tone: clear, educational, exam-oriented.
-- Do not output raw asterisks for emphasis; use structure and **word** for bold. After reading, the student should be able to answer this ticket and related follow-up questions.`;
+Requirements:
+
+1) LENGTH & DEPTH
+- Write a substantial note: not a short outline, but a full explanation a student can learn from. Aim for roughly 400–800 words (or equivalent in ${lang}). Cover the topic so that after one read the student understands causes, definitions, context, and can answer both the main question and typical follow-ups.
+- Include: a clear core definition or thesis at the start; main concepts; cause–effect and "why"; 2–3 concrete examples where useful; links between ideas. Add a short "Что часто спрашивают" / "Typical exam follow-ups" or "Common mistakes" only if it helps (1–2 sentences).
+
+2) STRUCTURE (strict Markdown)
+- Use exactly one # for the main title (the topic or question in short form).
+- Use ## for major sections (e.g. "Definition", "Main points", "Examples", "Conclusion").
+- Use ### for subsections inside them.
+- Use - or * for bullet lists. Use numbered list only when order matters (steps, chronology).
+- Bold only key terms and definitions with **term** (e.g. **Key concept**). Do not bold whole sentences.
+- Do not use raw asterisks for emphasis; only **...** for bold. No markdown outside this (no inline code unless necessary).
+
+3) CLARITY & ACCURACY
+- Write in ${lang}. Tone: clear, educational, exam-oriented. Explain so a student can follow without prior knowledge of this exact topic.
+- Be accurate: definitions and facts as in standard curricula or textbooks. Every paragraph should add information the student might need to reproduce or recognize on the exam.
+- Avoid filler. Prefer complete, structured content over brevity.
+
+Output only the Markdown note, no preamble or closing.`;
     
     const result = await callApi('/api/generate', { 
         model: AI_MODEL, 
@@ -704,21 +717,19 @@ Example shape: {"glossary":[{"word":"X","definition":"..."}],"flashcards":[{"que
 }
 
 export async function generateQuiz(question: string, subject: string, lang: Language, count: number) {
-    const prompt = `Generate ${count} multiple-choice quiz questions to check knowledge on this exam ticket.
+    const prompt = `Generate ${count} multiple-choice quiz questions to check knowledge after the student has read the study note for this exam ticket.
 
 Subject: "${subject}"
-Ticket topic / question: "${question}"
+This ticket only (do not go beyond this topic): "${question}"
 
-Rules:
-- Every question MUST be directly about the topic of this ticket (and the subject). They are for self-test after studying the note.
-- Vary difficulty so the student can learn well:
-  - Easy (about 1/3): recall of facts, dates, definitions (e.g. "What is...?", "When did...?").
-  - Medium (about 1/3): understanding, cause-effect, comparison (e.g. "Why...?", "How did X relate to Y?").
-  - Hard (about 1/3): application, analysis, "which is correct interpretation" (e.g. "Which conclusion follows?", "What best explains...?").
-- Each question: 4 options, one correct. correctIndex is 0-based.
+Strict rules:
+- Every question MUST be strictly and only about this ticket's topic. Base questions on the kind of content that would appear in a study note for this exact question: definitions, main facts, cause-effect, and examples from this topic only. Do not ask about other topics or tangents.
+- Be concrete: ask about specific facts, terms, or reasoning that a student would learn from the note (e.g. "What is the definition of X in this context?", "Why does Y happen according to this theory?", "Which of the following is an example of Z?"). Avoid vague or generic questions.
+- Vary difficulty: about 1/3 easy (direct recall), 1/3 medium (understanding, cause-effect), 1/3 hard (application, correct interpretation). All must still be on this ticket only.
+- Each question: exactly 4 options, one correct. correctIndex is 0-based (0, 1, 2, or 3). Options must be clear and distinct.
 - Language: ${lang}.
 
-Return ONLY a JSON array. Each object: "question" (string), "options" (array of 4 strings), "correctIndex" (number 0-3), "difficulty" (string: "easy" | "medium" | "hard"). Example: [{"question":"...","options":["A","B","C","D"],"correctIndex":0,"difficulty":"easy"},...]`;
+Return ONLY a JSON array. Each object: "question" (string), "options" (array of 4 strings), "correctIndex" (number 0-3), "difficulty" (string: "easy" | "medium" | "hard"). No other text.`;
     
     const result = await callApi('/api/generate', { 
         model: AI_MODEL, 
