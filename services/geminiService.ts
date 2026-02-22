@@ -200,8 +200,8 @@ const ECOSYSTEM_PATTERNS: {
 
   {
     lang: 'en',
-    ecosystem: '_',
-    patterns: [/^never-match-creativity$/],
+    ecosystem: 'x',
+    patterns: [/^never-match$/],
     reply: 'Let’s find an idea to draw. Send 2–3 words about mood or theme (e.g. space, rain, cat) — I will suggest options.'
   }
 ];
@@ -402,7 +402,7 @@ export function createChatSession(user: UserProfile, history: any[], lang: Langu
 
     return {
         sendMessage: async ({ message }: { message: string }) => {
-            // 1) Ecosystem‑specific canned replies (for sport / study / health / work)
+            // 1) Ecosystem‑specific canned replies (for sport / study / health / creativity / work)
             if (type && type !== 'General') {
                 const ecoReply = getEcosystemAutoReply(message, lang, type);
                 if (ecoReply) {
@@ -640,18 +640,18 @@ Lang: ${lang}`;
 }
 
 export async function generateTicketNote(question: string, subject: string, lang: Language) {
-    const prompt = `You are an expert teacher. Write a detailed, engaging study note (outline/concise) for this exam question.
+    const prompt = `You are an expert examiner and teacher. Write a study note (concise outline) that maximizes the student's chance of passing the exam on this exact question.
 
 Exam subject: "${subject}"
-Question / topic: "${question}"
+Exam question / ticket: "${question}"
 
-Requirements:
-- Be maximally informative and detailed so the student can learn the topic well. Include key facts, definitions, examples, cause-effect, and context.
-- Structure with Markdown: use ## for main sections, ### for subsections, and - or * for bullet points. Use bold only where it really highlights a term (key words), not everywhere.
-- Make it interesting to read: add context, "why it matters", and connections to the bigger picture where useful.
-- Write in language: ${lang}. Keep a clear, educational tone.
-- Do not output raw asterisks for emphasis; use structure (headings and lists) for clarity. If you use bold, use **word** format.
-- Length: substantial. Cover the topic so that after reading, the student can answer the exam question and related ones.`;
+Goals:
+- Prioritize information that is most likely to be asked or that examiners expect to see in a good answer. Start with the core definition or thesis, then key points in logical order.
+- Include: precise definitions (as they appear in curricula or textbooks), main facts, cause-effect, one or two short examples. Add "typical exam traps" or common mistakes to avoid if relevant.
+- Structure for quick revision: use Markdown with ## for main sections, ### for subsections, - for bullet points. Bold only key terms (e.g. **term**), not whole sentences.
+- Be accurate and concise: no filler. Every sentence should be something the student might need to reproduce or recognize in the exam. Prefer clarity and completeness over length.
+- Language: ${lang}. Tone: clear, educational, exam-oriented.
+- Do not output raw asterisks for emphasis; use structure and **word** for bold. After reading, the student should be able to answer this ticket and related follow-up questions.`;
     
     const result = await callApi('/api/generate', { 
         model: AI_MODEL, 
@@ -661,21 +661,41 @@ Requirements:
 }
 
 export async function generateGlossaryAndCards(tickets: Ticket[], subject: string, lang: Language) {
-    const questionsList = tickets.map(t => t.question).filter(Boolean);
-    const prompt = `Create a study glossary and flashcards for the subject: "${subject}".
-Based on these exam questions, generate:
-1) "glossary" - array of objects, each with "word" (term) and "definition" (short explanation).
-2) "flashcards" - array of objects, each with "question" and "answer". Answers MUST be max 15 words. Create 2-5 flashcards per topic for full coverage.
-Return ONLY one JSON object with exactly two keys: "glossary" and "flashcards". Example: {"glossary":[{"word":"X","definition":"..."}],"flashcards":[{"question":"?","answer":"..."}]}
-Questions: ${JSON.stringify(questionsList.slice(0, 50))}
-Lang: ${lang}`;
+    const ticketsList = tickets.slice(0, 80).map((t, i) => ({ number: i + 1, question: t.question })).filter(t => t.question);
+    const prompt = `You are an expert teacher preparing a student for an exam. Create a glossary and flashcards that maximize exam success.
+
+Subject: "${subject}"
+
+Tickets (each has a number 1, 2, 3, ...). For EACH ticket you MUST generate exactly 2, 3, or 4 flashcards depending on topic complexity:
+- Simple / narrow topic → 2 flashcards
+- Medium topic → 3 flashcards
+- Broad or complex topic → 4 flashcards
+
+Tickets list (number + question):
+${JSON.stringify(ticketsList, null, 0)}
+
+Output requirements:
+1) "glossary" – array of objects with "word" and "definition". Include the most important terms that appear across these tickets. Definitions must be short, precise, and exam-ready (as in textbooks or curricula). No filler.
+
+2) "flashcards" – array of objects. Each object MUST have:
+   - "question" (string): one clear question suitable for active recall. Prefer exam-style formulations (definitions, "What is...?", "Why...?", "How does...?").
+   - "answer" (string): concise answer, maximum 15 words. Only key facts the student must reproduce.
+   - "ticketNumber" (number): the ticket number (1-based) this card belongs to. Every card must be assigned to exactly one ticket.
+
+Rules:
+- Total flashcards = sum over all tickets: each ticket gets 2, 3, or 4 cards (never 1 or 5+). So if there are 10 tickets, you produce between 20 and 40 cards.
+- Prioritize high-yield information: what is most likely to be asked or required in a good answer. One question–answer per card; no compound questions.
+- Language: ${lang}.
+
+Return ONLY a valid JSON object with exactly two keys: "glossary" and "flashcards". No other text, no markdown.
+Example shape: {"glossary":[{"word":"X","definition":"..."}],"flashcards":[{"question":"...?","answer":"...","ticketNumber":1},...]}`;
 
     const result = await callApi('/api/generate', {
         model: AI_MODEL,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { responseMimeType: "application/json" }
     });
-    const def = { glossary: [] as { word: string; definition: string }[], flashcards: [] as { question: string; answer: string }[] };
+    const def = { glossary: [] as { word: string; definition: string }[], flashcards: [] as { question: string; answer: string; ticketNumber?: number }[] };
     const data = parseJsonResponse<typeof def>(result.text ?? '', def);
     return {
         glossary: Array.isArray(data.glossary) ? data.glossary : [],
@@ -751,8 +771,11 @@ function normalizeExerciseNameRu(name: string): string {
         return 'Планка';
     if (/crunch|скручиван/i.test(raw))
         return 'Скручивания';
-    // Опечатка БІСЕРЅ и прочие латинские вкрапления в оставшейся строке
-    let s = raw.replace(/бісерѕ|бісерs|БІСЕРЅ/gi, 'бицепс');
+    // Опечатка БІСЕРЅ и прочие латинские вкрапления
+    let s = raw.replace(/бісерѕ|бісерs|БІСЕРЅ/gi, 'бицепс').replace(/Biceps|Curl|Crossover|Fly|Chest\s+Press|Press|Cable/gi, (m) => {
+        const map: Record<string, string> = { biceps: 'бицепс', curl: 'сгибание рук на блоке', crossover: 'в кроссовере', fly: 'сведение рук', chest: 'грудь', press: 'жим', cable: 'на блоке' };
+        return map[m.toLowerCase()] || m;
+    });
     s = s.replace(/\s+/g, ' ').trim();
     if (s.length > 0) s = s[0].toUpperCase() + s.slice(1).toLowerCase();
     return s || raw;
