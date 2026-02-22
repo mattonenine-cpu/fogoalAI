@@ -177,12 +177,20 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
             word: typeof g.word === 'string' ? g.word : '',
             definition: typeof g.definition === 'string' ? g.definition : '',
         }));
+        const ticketIndex = (num: number) => Math.min(Math.max(0, (num || 1) - 1), tickets.length - 1);
         const fullExam: Exam = { 
             ...(newExam as Exam), 
             tickets, 
             calendar: [], 
             glossary: glossaryTerms, 
-            flashcards: (flashcards || []).map((f: any) => ({ ...f, id: `fc_${Date.now()}_${Math.random()}`, status: 'new' })), 
+            flashcards: (flashcards || []).map((f: any) => ({
+                id: `fc_${Date.now()}_${Math.random()}`,
+                question: f.question ?? '',
+                answer: f.answer ?? '',
+                confidence: 0,
+                status: 'new',
+                ticketId: tickets[ticketIndex(f.ticketNumber)]?.id,
+            })), 
             progress: 0 
         };
         setPreparedExamData(fullExam);
