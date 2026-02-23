@@ -19,9 +19,10 @@ interface EcosystemViewProps {
   onNavigate: (view: AppView) => void;
   theme: AppTheme;
   onDeductCredits?: (cost: number) => void;
+  onLogout?: () => void;
 }
 
-export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks, lang, onUpdateTasks, onUpdateProfile, onNavigate, theme, onDeductCredits }) => {
+export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks, lang, onUpdateTasks, onUpdateProfile, onNavigate, theme, onDeductCredits, onLogout }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   
   // -- STATES --
@@ -314,11 +315,11 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
                     <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight uppercase">{lang === 'ru' ? 'Атлетика' : 'Athletics'}</h1>
                     <p className="text-[10px] text-orange-500 font-black uppercase tracking-[0.2em]">{t.sportHubSub}</p>
                 </div>
-                <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-400 shadow-xl border border-orange-500/20">
+                <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
                     <Dumbbell size={24} />
                 </div>
             </header>
-            <SportApp user={user} lang={lang} onUpdateProfile={onUpdateProfile} onAddTasks={(newTasks) => onUpdateTasks(prev => [...prev, ...newTasks])} theme={theme} onDeductCredits={onDeductCredits} />
+            <SportApp user={user} lang={lang} onUpdateProfile={onUpdateProfile} onAddTasks={(newTasks) => onUpdateTasks(prev => [...prev, ...newTasks])} theme={theme} onDeductCredits={onDeductCredits} onLogout={onLogout} />
         </div>
       );
   }
@@ -349,7 +350,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
       </header>
 
       <section className="space-y-3">
-          <GlassCard className="p-6 bg-[var(--bg-card)] border-[var(--border-glass)] shadow-2xl relative overflow-hidden rounded-[32px]">
+          <GlassCard className="p-6 bg-[var(--bg-card)] border-[var(--border-glass)] shadow-lg relative overflow-hidden rounded-[32px]">
               <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-2">
                     <Trophy size={14} className="text-amber-400" />
@@ -391,7 +392,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
                   <button 
                     onClick={handleLogProgress}
                     disabled={isLogging || !logValue.trim()}
-                    className="w-12 h-12 bg-[var(--bg-active)] rounded-full flex items-center justify-center text-[var(--bg-active-text)] active:scale-90 transition-all disabled:opacity-30 shadow-2xl"
+                    className="w-12 h-12 bg-[var(--bg-active)] rounded-full flex items-center justify-center text-[var(--bg-active-text)] active:scale-90 transition-all disabled:opacity-30 shadow-lg"
                   >
                     {isLogging ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} strokeWidth={2.5} />}
                   </button>
@@ -480,7 +481,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
                   <button 
                     key={p.id} 
                     onClick={() => { setSelectedPractice(p); setMessages([{role: 'model', text: p.description}]); }}
-                    className="w-full p-6 rounded-[32px] bg-[var(--bg-card)] border border-[var(--border-glass)] hover:bg-white/5 transition-all flex items-center justify-between group shadow-xl active:scale-[0.98]"
+                    className="w-full p-6 rounded-[32px] bg-[var(--bg-card)] border border-[var(--border-glass)] hover:bg-white/5 transition-all flex items-center justify-between group shadow-md active:scale-[0.98]"
                   >
                       <div className="flex items-center gap-5">
                         <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500/20 transition-all">
@@ -500,7 +501,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
       {showDomainChat && (
         <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex flex-col p-4 animate-fadeIn">
             <div className="flex-1 flex flex-col pb-[110px] w-full max-w-lg mx-auto">
-                <header className="flex justify-between items-center p-6 bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-t-[40px] shadow-2xl">
+                <header className="flex justify-between items-center p-6 bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-t-[40px] shadow-lg">
                     <div className="flex items-center gap-3">
                         <Bot size={24} className="text-indigo-400" />
                         <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Эксперт' : 'Expert'} {ecoLabel}</h3>
@@ -525,7 +526,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
                     )}
                 </div>
                 <div className="p-6 bg-[var(--bg-main)] border-x border-b border-[var(--border-glass)] rounded-b-[40px]">
-                    <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-2xl focus-within:border-white/20 transition-all w-full">
+                    <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-lg focus-within:border-white/20 transition-all w-full">
                         <input 
                             value={domainInputValue} 
                             onChange={e => setDomainInputValue(e.target.value)} 
