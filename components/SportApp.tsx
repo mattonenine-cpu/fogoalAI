@@ -5,7 +5,7 @@ import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput, getLocalISODate } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
 import { renderBoldFragments } from '../LatexRenderer';
-import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward, ArrowLeft, Star, Trophy, Flame } from 'lucide-react';
+import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward, ArrowLeft, Star, Trophy, Flame, LogOut, UserCog } from 'lucide-react';
 
 interface SportAppProps {
   user: UserProfile;
@@ -14,6 +14,7 @@ interface SportAppProps {
   onAddTasks?: (tasks: Task[]) => void;
   theme: AppTheme;
   onDeductCredits?: (cost: number) => void;
+  onLogout?: () => void;
 }
 
 const EQUIPMENT_LIST = [
@@ -83,7 +84,7 @@ const SportNoteRenderer: React.FC<{ text: string }> = ({ text }) => {
                     return (
                         <div key={idx} className="pt-6 mt-2 mb-3">
                             <h2 className="text-lg font-black text-orange-400 tracking-widest uppercase flex items-center gap-3">
-                                <span className="w-1 h-5 bg-gradient-to-b from-orange-500 to-amber-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]"></span>
+                                <span className="w-1 h-5 bg-gradient-to-b from-orange-500 to-amber-500 rounded-full"></span>
                                 {parseBold(trimmed.substring(3), 'text-orange-400 font-semibold')}
                             </h2>
                         </div>
@@ -92,7 +93,7 @@ const SportNoteRenderer: React.FC<{ text: string }> = ({ text }) => {
                 if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                     return (
                         <div key={idx} className="flex items-start gap-3 pl-1 group">
-                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-2.5 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-2.5 shrink-0 group-hover:scale-125 transition-transform" />
                             <p className="text-[15px] leading-relaxed text-[var(--text-primary)] flex-1">{parseBold(trimmed.substring(2))}</p>
                         </div>
                     );
@@ -103,7 +104,7 @@ const SportNoteRenderer: React.FC<{ text: string }> = ({ text }) => {
     );
 };
 
-export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile, onAddTasks, theme, onDeductCredits }) => {
+export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile, onAddTasks, theme, onDeductCredits, onLogout }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -375,7 +376,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       return (
           <div className="animate-fadeIn space-y-6">
               <div className="pb-[110px]">
-                <GlassCard className="p-5 sm:p-8 border-[var(--border-glass)] rounded-[40px] shadow-2xl">
+                <GlassCard className="p-5 sm:p-8 border-[var(--border-glass)] rounded-[40px] shadow-lg">
                     <div className="text-center mb-8">
                         <User className="w-12 h-12 text-orange-500 mx-auto mb-4" />
                         <h2 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter">{t.sportOnboardingTitle}</h2>
@@ -409,7 +410,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                             </div>
                         </div>
                     </div>
-                    <button onClick={handleFinishOnboarding} className="w-full h-16 bg-[var(--bg-active)] rounded-full mt-10 text-[var(--bg-active-text)] font-black uppercase tracking-widest text-[12px] shadow-2xl active:scale-[0.98] transition-all">
+                    <button onClick={handleFinishOnboarding} className="w-full h-16 bg-[var(--bg-active)] rounded-full mt-10 text-[var(--bg-active-text)] font-black uppercase tracking-widest text-[12px] shadow-lg active:scale-[0.98] transition-all">
                         {t.sportConfirmProfile}
                     </button>
                 </GlassCard>
@@ -423,7 +424,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       return (
           <div className="fixed inset-0 z-[950] bg-[var(--bg-main)] flex flex-col items-center justify-center p-6 animate-fadeIn">
               <div className="w-full max-w-sm space-y-8 text-center animate-fade-in-up">
-                  <div className="w-32 h-32 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto border border-orange-500/30 shadow-[0_0_50px_rgba(249,115,22,0.3)]">
+                  <div className="w-32 h-32 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto border border-orange-500/30">
                       <Trophy size={64} className="text-orange-500" />
                   </div>
                   
@@ -450,7 +451,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
 
                   <button 
                     onClick={() => setSummaryData(null)}
-                    className="w-full h-16 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[11px] shadow-2xl active:scale-95 transition-all"
+                    className="w-full h-16 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[11px] shadow-lg active:scale-95 transition-all"
                   >
                       {lang === 'ru' ? 'Закрыть' : 'Close'}
                   </button>
@@ -463,7 +464,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
     <div className="space-y-6 animate-fadeIn">
       {!activePlan ? (
           <div className="space-y-6">
-              <GlassCard className={`p-4 sm:p-6 border-[var(--border-glass)] rounded-[32px] relative overflow-hidden shadow-2xl bg-[var(--bg-card)]`}>
+              <GlassCard className={`p-4 sm:p-6 border-[var(--border-glass)] rounded-[32px] relative overflow-hidden shadow-lg bg-[var(--bg-card)]`}>
                   <div className="flex justify-between items-start mb-4">
                       <div>
                           <h2 className="text-2xl font-black text-[var(--text-primary)] tracking-tighter uppercase leading-none mb-1">{t.sportHubTitle}</h2>
@@ -538,12 +539,32 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                           <button onClick={handleAddMuscle} disabled={!muscleInput.trim()} className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-90 border transition-all bg-white/5 border-white/10 text-[var(--text-primary)] disabled:opacity-30`}><Plus size={18}/></button>
                       </div>
                   </div>
+
+                  {/* Profile & Account */}
+                  <div className="pt-6 mt-6 border-t border-[var(--border-glass)] flex flex-wrap gap-3">
+                      <button
+                          onClick={() => { if (confirm(t.sportChangeProfileConfirm)) onUpdateProfile({ ...user, fitnessOnboarded: false }); }}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-glass)] bg-white/5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 text-[11px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                      >
+                          <UserCog size={16} />
+                          {t.sportChangeProfile}
+                      </button>
+                      {onLogout && (
+                          <button
+                              onClick={() => { if (confirm(t.logoutConfirm)) onLogout(); }}
+                              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-[11px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                          >
+                              <LogOut size={16} />
+                              {t.logout}
+                          </button>
+                      )}
+                  </div>
               </GlassCard>
               <div className="grid grid-cols-2 gap-4">
-                  <button onClick={handleGenerate} disabled={isGenerating} className={`h-24 rounded-[32px] flex flex-col items-center justify-center gap-2 font-black uppercase tracking-widest text-[11px] shadow-2xl active:scale-[0.98] transition-all disabled:opacity-50 bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)]`}>
+                  <button onClick={handleGenerate} disabled={isGenerating} className={`h-24 rounded-[32px] flex flex-col items-center justify-center gap-2 font-black uppercase tracking-widest text-[11px] shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)]`}>
                       {isGenerating ? <Loader2 className="animate-spin" size={24}/> : <><RefreshCw size={24}/> {t.sportGenerateBtn}</>}
                   </button>
-                  <button onClick={() => { setShowCoachChat(true); if(coachMessages.length === 0) setCoachMessages([{role: 'model', text: t.sportCoachInit}])}} className={`h-24 border rounded-[32px] flex flex-col items-center justify-center gap-2 font-black uppercase tracking-widest text-[11px] shadow-2xl active:scale-[0.98] transition-all bg-[var(--bg-card)] border-[var(--border-glass)] text-[var(--text-primary)]`}>
+                  <button onClick={() => { setShowCoachChat(true); if(coachMessages.length === 0) setCoachMessages([{role: 'model', text: t.sportCoachInit}])}} className={`h-24 border rounded-[32px] flex flex-col items-center justify-center gap-2 font-black uppercase tracking-widest text-[11px] shadow-lg active:scale-[0.98] transition-all bg-[var(--bg-card)] border-[var(--border-glass)] text-[var(--text-primary)]`}>
                       <MessageCircle size={24} className="text-orange-500" />
                       {t.sportCoachChat}
                   </button>
@@ -552,7 +573,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       ) : (
           <div className="space-y-6 animate-fadeIn pb-32">
               {/* UPDATED TIMER CARD */}
-              <div className="w-full p-4 sm:p-6 rounded-[36px] bg-[#E85C1C] shadow-2xl shadow-orange-600/30 flex flex-col gap-4">
+              <div className="w-full p-4 sm:p-6 rounded-[36px] bg-[#E85C1C] shadow-lg flex flex-col gap-4">
                   {/* Top Row: Main Timer Control */}
                   <div className="flex items-center justify-between">
                       <button onClick={() => setIsPaused(!isPaused)} className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white transition-all active:scale-90 hover:bg-white/30">
@@ -568,7 +589,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                           </span>
                       </div>
 
-                      <button onClick={handleFinishWorkout} className="px-4 h-12 rounded-2xl bg-white text-orange-600 font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all">
+                      <button onClick={handleFinishWorkout} className="px-4 h-12 rounded-2xl bg-white text-orange-600 font-black uppercase text-[10px] tracking-widest shadow-md active:scale-95 transition-all">
                           {t.sportFinishBtn}
                       </button>
                   </div>
@@ -657,7 +678,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                    )}
                </div>
                <div className="p-6 border-t border-[var(--border-glass)] bg-white/5 shrink-0">
-                   <button onClick={() => setActiveExercise(null)} className="w-full h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase text-[11px] tracking-widest active:scale-95 transition-all shadow-lg">{t.sportTechniqueClose}</button>
+                   <button onClick={() => setActiveExercise(null)} className="w-full h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase text-[11px] tracking-widest active:scale-95 transition-all shadow-md">{t.sportTechniqueClose}</button>
                </div>
           </div>
       )}
@@ -698,7 +719,7 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
             </div>
             
             <div className="p-6 bg-[var(--bg-main)] border-t border-[var(--border-glass)] shrink-0">
-                <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-2xl focus-within:border-white/20 transition-all w-full">
+                <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-lg focus-within:border-white/20 transition-all w-full">
                     <input 
                         value={coachInput} 
                         onChange={e => setCoachInput(e.target.value)} 
