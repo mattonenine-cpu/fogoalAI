@@ -223,7 +223,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* Telegram reminder settings modal */}
        {showTelegramReminderModal && telegramUser && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-             <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl">
+             <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-xl">
                 <div className="flex justify-between items-center mb-6">
                    <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">
                       {lang === 'ru' ? 'Напоминания в Telegram' : 'Telegram reminders'}
@@ -345,7 +345,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* LEVEL MODAL */}
        {showLevelModal && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-              <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-8 text-center relative shadow-2xl pb-10">
+              <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-8 text-center relative shadow-xl pb-10">
                   <button onClick={() => setShowLevelModal(false)} className="absolute top-6 right-6 text-slate-500 hover:text-[var(--text-primary)] transition-colors">
                       <X size={20} />
                   </button>
@@ -372,7 +372,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* GOALS LIST MODAL */}
        {showGoalsList && (
            <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-               <div className="w-full max-w-sm h-[70vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-2xl flex flex-col overflow-hidden">
+               <div className="w-full max-w-sm h-[70vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-xl flex flex-col overflow-hidden">
                    <header className="p-6 border-b border-white/5 flex justify-between items-center bg-[var(--bg-main)] z-10">
                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Все цели' : 'All Goals'}</h3>
                        <button onClick={() => setShowGoalsList(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
@@ -405,7 +405,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* ADD/EDIT GOAL MODAL */}
        {showAddGoalModal && (
            <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-               <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl">
+               <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-xl">
                    <div className="flex justify-between items-center mb-6">
                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{editingGoalId ? (lang === 'ru' ? 'Редактировать' : 'Edit Goal') : (lang === 'ru' ? 'Новая цель' : 'New Goal')}</h3>
                        <button onClick={() => setShowAddGoalModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
@@ -462,7 +462,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* PROGRESS MODAL */}
        {showProgressModal && activeGoalId && (
             <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 animate-fadeIn">
-                <div className="w-full max-w-[300px] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[36px] p-6 shadow-2xl transform transition-all">
+                <div className="w-full max-w-[300px] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[36px] p-6 shadow-xl transform transition-all">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Прогресс' : 'Add Progress'}</h3>
                         <button onClick={() => setShowProgressModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-[var(--text-primary)]"><X size={18}/></button>
@@ -499,7 +499,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* SLEEP MODAL */}
        {showSleepModal && (
            <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-               <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl text-center">
+               <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-xl text-center">
                    <div className="flex justify-between items-center mb-8">
                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Сон' : 'Sleep'}</h3>
                        <button onClick={() => setShowSleepModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
