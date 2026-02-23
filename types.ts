@@ -447,6 +447,8 @@ export const TRANSLATIONS: any = {
     sportFinishBtn: "Finish Workout",
     sportTechniqueClose: "Close",
     sportWorkoutCompleted: "Workout '{title}' finished!",
+    sportChangeProfile: "Change fitness profile",
+    sportChangeProfileConfirm: "Reset fitness data and enter new preferences?",
     riskLow: "Low",
     riskMedium: "Medium",
     riskHigh: "High",
@@ -627,6 +629,8 @@ export const TRANSLATIONS: any = {
     sportFinishBtn: "Закончить",
     sportTechniqueClose: "Закрыть",
     sportWorkoutCompleted: "Тренировка '{title}' окончена!",
+    sportChangeProfile: "Изменить фитнес-профиль",
+    sportChangeProfileConfirm: "Сбросить данные и ввести новые предпочтения?",
     riskLow: "Низкий",
     riskMedium: "Средний",
     riskHigh: "Высокий",
@@ -645,4 +649,3 @@ export const TRANSLATIONS: any = {
     backlog: "Задачи"
   }
 };
-
