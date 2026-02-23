@@ -28,7 +28,7 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, onSe
         </button>
         
         {isOpen && (
-            <div className="absolute top-12 right-0 glass-liquid border border-white/10 rounded-3xl p-3 flex flex-col gap-2 shadow-2xl min-w={140px} animate-fade-in-up z-[9999]">
+            <div className="absolute top-12 right-0 glass-liquid border border-[var(--border-glass)] rounded-3xl p-3 flex flex-col gap-2 shadow-xl min-w-[140px] animate-fade-in-up z-[9999]">
                 <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest px-2 mb-1">Theme Palette</p>
                 {THEMES.map(theme => (
                     <button
