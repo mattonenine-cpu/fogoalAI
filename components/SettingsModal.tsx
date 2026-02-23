@@ -62,8 +62,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
   ];
 
   return (
-    <div className="fixed inset-0 z-[700] bg-black/70 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8 animate-fadeIn">
-      <div className="w-full max-w-4xl h-[85vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[44px] shadow-xl flex flex-col overflow-hidden animate-fade-in-up">
+    <div className="fixed inset-0 z-[700] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8 animate-fadeIn">
+      <div className="w-full max-w-4xl h-[85vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[44px] shadow-2xl flex flex-col overflow-hidden animate-fade-in-up">
         
         {/* Header */}
         <header className="p-8 border-b border-[var(--border-glass)] flex justify-between items-center bg-white/5">
@@ -83,7 +83,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                     <button 
                         key={item.id}
                         onClick={() => setActiveTab(item.id as any)}
-                        className={`p-4 rounded-2xl flex items-center gap-4 transition-all group ${activeTab === item.id ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-md scale-105' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                        className={`p-4 rounded-2xl flex items-center gap-4 transition-all group ${activeTab === item.id ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-xl scale-105' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
                     >
                         <span className="text-xl shrink-0">{item.icon}</span>
                         <span className="text-tiny font-black uppercase tracking-widest hidden sm:block truncate">{item.label}</span>
@@ -254,7 +254,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
 
         {/* Save Button */}
         <footer className="p-8 border-t border-[var(--border-glass)] bg-white/5 flex justify-center shrink-0">
-            <button onClick={onClose} className="px-16 py-5 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[12px] shadow-lg hover:scale-105 active:scale-95 transition-all">
+            <button onClick={onClose} className="px-16 py-5 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[12px] shadow-2xl hover:scale-105 active:scale-95 transition-all">
                 {lang === 'ru' ? 'СОХРАНИТЬ' : 'SAVE CHANGES'}
             </button>
         </footer>
