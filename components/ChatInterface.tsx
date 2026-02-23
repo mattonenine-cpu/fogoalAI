@@ -197,7 +197,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
                     </div>
                  )}
                  {msg.imageData && (
-                     <div className="rounded-[24px] overflow-hidden border border-[var(--border-glass)] bg-[var(--bg-card)] shadow-2xl animate-fade-in-up mt-1">
+                     <div className="rounded-[24px] overflow-hidden border border-[var(--border-glass)] bg-[var(--bg-card)] shadow-lg animate-fade-in-up mt-1">
                          <img src={msg.imageData} className="w-full h-auto object-cover" alt="AI Generated" />
                      </div>
                  )}
@@ -221,7 +221,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
        </div>
 
        <div className="fixed bottom-[100px] left-0 right-0 z-50 px-4 w-full flex justify-center pointer-events-none">
-         <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-2xl focus-within:border-white/20 transition-all max-w-[340px] w-full pointer-events-auto backdrop-blur-xl">
+         <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-lg focus-within:border-white/20 transition-all max-w-[340px] w-full pointer-events-auto backdrop-blur-xl">
            <textarea 
              ref={textareaRef} 
              value={inputValue} 
