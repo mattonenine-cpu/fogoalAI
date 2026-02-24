@@ -91,6 +91,12 @@
         font-family: inherit;
       }
 
+      /* Поля ввода всегда кликабельны (исключая disabled), чтобы не блокировались оверлеями/Telegram Web App */
+      input:not([disabled]), textarea:not([disabled]), select:not([disabled]) {
+        pointer-events: auto;
+        touch-action: manipulation;
+      }
+
       .font-serif { font-family: 'Playfair Display', serif; }
 
       ::-webkit-scrollbar { width: 0px; background: transparent; }
