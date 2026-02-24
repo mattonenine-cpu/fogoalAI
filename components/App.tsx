@@ -16,11 +16,8 @@ import { ContextHelpOverlay } from './ContextHelpOverlay';
 import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound, User } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
-import { CreditsService } from '../services/creditsService';
 import { parseTelegramCallbackFromUrl, getTelegramUserFromWebApp } from '../services/telegramAuth';
 import { TelegramAuthWidget } from './TelegramAuthWidget';
-import { EcosystemSelectionModal } from './EcosystemSelectionModal';
-import { CreditsDisplay } from './CreditsDisplay';
 import type { UserDataPayload } from '../services/authService';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
@@ -63,16 +60,6 @@ export default function App() {
               // Ensure smart_planner is enabled for existing users
               if (parsed.settings.visibleViews && !parsed.settings.visibleViews.includes('smart_planner')) {
                   parsed.settings.visibleViews.push('smart_planner');
-              }
-          }
-
-          // Initialize credits system if not exists
-          if (!parsed.credits) {
-              parsed.credits = CreditsService.initializeCredits();
-          } else {
-              // Check if monthly reset is needed
-              if (CreditsService.needsMonthlyReset(parsed.credits)) {
-                  parsed.credits = CreditsService.resetCredits(parsed.credits);
               }
           }
           return parsed;
@@ -149,6 +136,21 @@ export default function App() {
       if (!user && profile) setProfile(null);
   }, []);
 
+  // Auto-login / auto-register when app runs inside Telegram Web App (mini app)
+  useEffect(() => {
+    // When running inside Telegram WebApp, detect candidate Telegram user
+    // but DO NOT auto-login or auto-register. We will show a prompt to the user
+    // so they can opt-in to using their Telegram account.
+    if (typeof window === 'undefined') return;
+    try {
+      const tgUser = getTelegramUserFromWebApp();
+      if (!tgUser) return;
+      setTgCandidate(tgUser as any);
+    } catch (e) {
+      console.warn('Telegram WebApp detection failed', e);
+    }
+  }, []);
+
   // Обработка callback от Telegram Login Widget (привязка или вход)
   const [handlingTelegram, setHandlingTelegram] = useState(false);
   useEffect(() => {
@@ -184,8 +186,10 @@ export default function App() {
 
   // Регистрация по Telegram (после редиректа с needRegister)
   const [completingTelegramRegister, setCompletingTelegramRegister] = useState(false);
+  // Candidate WebApp user (presented as prompt, not auto-registered)
+  const [tgCandidate, setTgCandidate] = useState<any | null>(null);
+  // Show registration success confirmation before moving to onboarding
   const [registrationSuccess, setRegistrationSuccess] = useState<any | null>(null);
-  const [showEcosystemSelection, setShowEcosystemSelection] = useState(false);
   useEffect(() => {
     const raw = sessionStorage.getItem('telegram_register_payload');
     if (!raw || completingTelegramRegister) return;
@@ -207,12 +211,9 @@ export default function App() {
           wakeTime: '07:00',
           activityHistory: [today],
           energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
+          // Keep user as not onboarded so the onboarding flow runs after confirmation
           isOnboarded: false,
-          enabledEcosystems: [
-            { type: 'sport' as const, label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
-            { type: 'study' as const, label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
-            { type: 'health' as const, label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
-          ],
+          enabledEcosystems: [],
           statsHistory: [],
           telegramId: payload.id,
           telegramUsername: payload.username,
@@ -227,6 +228,8 @@ export default function App() {
       const res = await authService.registerWithTelegram(payload, initialData);
       setCompletingTelegramRegister(false);
       if (res.success) {
+        // Show confirmation modal (avatar + success). Do not immediately start onboarding —
+        // we will show the success confirmation first and then allow the user to continue.
         setRegistrationSuccess({ id: payload.id, name: payload.first_name || payload.username || String(payload.id), photo: payload.photo_url });
       }
     };
@@ -274,6 +277,16 @@ export default function App() {
       root.style.setProperty('--bg-active', c.bgActive);
       root.style.setProperty('--bg-active-text', c.bgActiveText);
       root.style.setProperty('--theme-accent', c.accent);
+      const hex = (c.accent || '#6366f1').replace('#', '');
+      const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+      root.style.setProperty('--theme-accent-5', `rgba(${r}, ${g}, ${b}, 0.05)`);
+      root.style.setProperty('--theme-accent-10', `rgba(${r}, ${g}, ${b}, 0.1)`);
+      root.style.setProperty('--theme-accent-20', `rgba(${r}, ${g}, ${b}, 0.2)`);
+      root.style.setProperty('--theme-accent-30', `rgba(${r}, ${g}, ${b}, 0.3)`);
+      root.style.setProperty('--theme-accent-40', `rgba(${r}, ${g}, ${b}, 0.4)`);
+      root.style.setProperty('--theme-accent-50', `rgba(${r}, ${g}, ${b}, 0.5)`);
+      root.style.setProperty('--theme-accent-glow', `rgba(${r}, ${g}, ${b}, 0.4)`);
+      root.style.setProperty('--theme-accent-glow-strong', `rgba(${r}, ${g}, ${b}, 0.6)`);
       root.style.setProperty('--text-primary', c.textPrimary);
       root.style.setProperty('--text-secondary', c.textSecondary);
       root.style.setProperty('--border-glass', c.border);
@@ -300,36 +313,6 @@ export default function App() {
       }
   };
 
-  const handleDeductCredits = (cost: number) => {
-    if (profile && profile.credits && !profile.credits.hasUnlimitedAccess) {
-      const updatedCredits = CreditsService.deductCredits(profile.credits, cost);
-      const updatedProfile = CreditsService.updateProfileCredits(profile, updatedCredits);
-      setProfile(updatedProfile);
-    }
-  };
-
-  const handleEcosystemUpdate = (updatedEcosystems: EcosystemConfig[]) => {
-    if (profile) {
-      const currentSettings = profile.settings || {
-        aiPersona: 'balanced' as const,
-        aiDetailLevel: 'medium' as const,
-        visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes'],
-        fontSize: 'normal' as const
-      };
-      
-      const updatedProfile: UserProfile = {
-        ...profile,
-        enabledEcosystems: updatedEcosystems,
-        settings: {
-          ...currentSettings,
-          visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', ...updatedEcosystems.filter(e => e.enabled).map(e => e.type)]
-        }
-      };
-      setProfile(updatedProfile);
-      setShowEcosystemSelection(false);
-    }
-  };
-
   const handleLanguageCycle = () => {
       const languages: Language[] = ['en', 'ru'];
       const currentIndex = languages.indexOf(language || 'en');
@@ -352,6 +335,54 @@ export default function App() {
     return profile.settings.visibleViews;
   }, [profile?.settings?.visibleViews]);
 
+  // Handler: user chooses to continue with detected Telegram account (WebApp)
+  const handleUseTelegram = async () => {
+    if (!tgCandidate) return;
+    try {
+      const res = await authService.loginWithTelegram(tgCandidate);
+      if (res.success) {
+        const saved = localStorage.getItem('focu_profile');
+        if (saved) setProfile(JSON.parse(saved));
+        setTgCandidate(null);
+        return;
+      }
+      if (res.needRegister) {
+        const today = new Date().toISOString().split('T')[0];
+        const initialData: UserDataPayload = {
+          profile: {
+            name: tgCandidate.first_name || tgCandidate.username || String(tgCandidate.id),
+            occupation: '',
+            level: 1,
+            totalExperience: 0,
+            goals: [],
+            bedtime: '23:00',
+            wakeTime: '07:00',
+            activityHistory: [today],
+            energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
+            isOnboarded: false,
+            enabledEcosystems: [],
+            statsHistory: [],
+            telegramId: tgCandidate.id,
+            telegramUsername: tgCandidate.username,
+            telegramPhotoUrl: tgCandidate.photo_url,
+            settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard','scheduler','smart_planner','chat','notes','sport','study','health'], fontSize: 'normal' }
+          },
+          tasks: [],
+          notes: [],
+          folders: [],
+          stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral' as const, sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: today }
+        };
+        const r = await authService.registerWithTelegram(tgCandidate, initialData);
+        if (r.success) {
+          setRegistrationSuccess({ id: tgCandidate.id, name: tgCandidate.first_name || tgCandidate.username || String(tgCandidate.id), photo: tgCandidate.photo_url });
+          setTgCandidate(null);
+        }
+      }
+    } catch (e) {
+      console.warn('Telegram continue flow failed', e);
+    }
+  };
+
   const renderView = () => {
     if (!profile) return null;
     switch (currentView) {
@@ -369,88 +400,17 @@ export default function App() {
           onOpenSmartPlanner={() => setCurrentView(AppView.SMART_PLANNER)}
         />;
       case AppView.SMART_PLANNER:
-        return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} onOpenScheduler={() => setCurrentView(AppView.SCHEDULER)} onDeductCredits={handleDeductCredits} />;
+        return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} onOpenScheduler={() => setCurrentView(AppView.SCHEDULER)} />;
       case AppView.CHAT:
-        return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} onDeductCredits={handleDeductCredits} />;
+        return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} />;
       case AppView.ECOSYSTEM:
         return activeEcosystem ? <EcosystemView 
             type={activeEcosystem} user={profile} tasks={tasks} lang={language!} 
             onUpdateTasks={setTasks} onUpdateProfile={handleUpdateProfile} onNavigate={setCurrentView} theme={theme}
-            onDeductCredits={handleDeductCredits}
         /> : null;
       case AppView.NOTES:
         return <NotesView notes={notes} folders={folders} onUpdateNotes={setNotes} onUpdateFolders={setFolders} lang={language!} />;
       default: return null;
-    }
-  };
-
-  // Handler: Try to read Telegram profile from Web App and perform login/register automatically.
-  const handleTelegramAuto = async () => {
-    try {
-      const payload = getTelegramUserFromWebApp();
-      if (!payload) {
-        // Fallback: open the widget flow
-        window.location.href = `${window.location.origin + (window.location.pathname || '')}?show_telegram_widget=login`;
-        return;
-      }
-
-      // Try login first
-      setHandlingTelegram(true);
-      const res = await authService.loginWithTelegram(payload);
-      if (res.success) {
-        // Load profile from storage and show ecosystem selection
-        const saved = localStorage.getItem('focu_profile');
-        if (saved) {
-          const loadedProfile = JSON.parse(saved);
-          // Set isOnboarded to true to skip onboarding for existing users
-          loadedProfile.isOnboarded = true;
-          setProfile(loadedProfile);
-          setShowEcosystemSelection(true);
-        }
-        return;
-      }
-
-      if (res.needRegister) {
-        // Create initial data similar to existing flow
-        const today = new Date().toISOString().split('T')[0];
-        const initialData: UserDataPayload = {
-          profile: {
-            name: payload.first_name || payload.username || String(payload.id),
-            occupation: '',
-            level: 1,
-            totalExperience: 0,
-            goals: [],
-            bedtime: '23:00',
-            wakeTime: '07:00',
-            activityHistory: [today],
-            energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average' as const, resistanceTriggers: [] },
-            isOnboarded: false,
-            enabledEcosystems: [
-            { type: 'sport' as const, label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
-            { type: 'study' as const, label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
-            { type: 'health' as const, label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
-          ],
-            statsHistory: [],
-            telegramId: payload.id,
-            telegramUsername: payload.username,
-            telegramPhotoUrl: payload.photo_url,
-            settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'], fontSize: 'normal' }
-          },
-          tasks: [],
-          notes: [],
-          folders: [],
-          stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral' as const, sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: today }
-        };
-
-        setCompletingTelegramRegister(true);
-        const r = await authService.registerWithTelegram(payload, initialData);
-        setCompletingTelegramRegister(false);
-        if (r.success) {
-          setRegistrationSuccess({ id: payload.id, name: payload.first_name || payload.username || String(payload.id), photo: payload.photo_url });
-        }
-      }
-    } finally {
-      setHandlingTelegram(false);
     }
   };
 
@@ -507,8 +467,31 @@ export default function App() {
     );
   }
 
+  // If we detected a Telegram WebApp user, show an opt-in prompt (do not auto-register)
+  if (tgCandidate && !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-main)] text-[var(--text-primary)] p-4">
+        <div className="w-full max-w-md glass-liquid rounded-xl p-6 flex flex-col items-center gap-4">
+          {tgCandidate.photo_url ? (
+            <img src={tgCandidate.photo_url} className="w-20 h-20 rounded-full object-cover ring-2 ring-[var(--theme-accent)]/30" />
+          ) : (
+            <div className="w-20 h-20 rounded-full glass-liquid flex items-center justify-center text-[var(--text-secondary)]">
+              <User size={28} />
+            </div>
+          )}
+          <div className="text-lg font-bold">Войти через Telegram</div>
+          <div className="text-sm text-[var(--text-secondary)]">Использовать аккаунт {tgCandidate.first_name || tgCandidate.username}?</div>
+          <div className="w-full flex gap-3 mt-4">
+            <button onClick={handleUseTelegram} className="flex-1 py-2 rounded-md bg-[var(--theme-accent)] text-white">Продолжить</button>
+            <button onClick={() => setTgCandidate(null)} className="flex-1 py-2 rounded-md bg-transparent border border-[var(--border-glass)] text-[var(--text-primary)]">Отмена</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!language) return <LanguageSelector onSelect={setLanguage} />;
-  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} initialProfile={profile || undefined} onTelegramAuto={handleTelegramAuto} />;
+  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} initialProfile={profile || undefined} />;
 
   const getNavEmoji = (type: string) => {
     switch(type) {
@@ -531,7 +514,6 @@ export default function App() {
         <header className="p-3 sm:p-5 pb-2 flex justify-between items-center z-40 relative">
            <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
            <div className="flex items-center gap-2">
-             <CreditsDisplay credits={profile.credits} lang={language || 'ru'} />
              <ThemeSelector currentTheme={theme} onSelect={setTheme} />
              {profile.telegramPhotoUrl ? (
                <img src={profile.telegramPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-[var(--theme-accent)]/30 shrink-0" />
@@ -574,15 +556,6 @@ export default function App() {
         user={profile} lang={language} onUpdate={handleUpdateProfile} 
         onLanguageChange={setLanguage} onClose={() => setShowSettings(false)} 
       />}
-
-      {showEcosystemSelection && profile && (
-        <EcosystemSelectionModal
-          currentEcosystems={profile.enabledEcosystems || []}
-          onConfirm={handleEcosystemUpdate}
-          onClose={() => setShowEcosystemSelection(false)}
-          lang={language || 'ru'}
-        />
-      )}
 
       {helpContext && profile && (
         <ContextHelpOverlay
