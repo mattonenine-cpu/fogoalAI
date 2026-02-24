@@ -62,15 +62,15 @@ async function fetchCount(url: string, key: string): Promise<{ count: number; er
   }
 }
 
-/** GET пользователя по username (один объект или null). */
+/** GET пользователя по username (password_hash, user_data для логина и загрузки данных). */
 async function getUserByUsername(
   url: string,
   key: string,
   username: string
-): Promise<{ user: { password_hash?: string | null } | null; error?: string }> {
+): Promise<{ user: { password_hash?: string | null; user_data?: unknown } | null; error?: string }> {
   try {
     const enc = encodeURIComponent(username);
-    const res = await fetch(`${url}/rest/v1/app_users?username=eq.${enc}&select=password_hash`, {
+    const res = await fetch(`${url}/rest/v1/app_users?username=eq.${enc}&select=password_hash,user_data`, {
       method: 'GET',
       headers: { ...restHeaders(key) },
     });
@@ -83,6 +83,30 @@ async function getUserByUsername(
     return { user };
   } catch (e: any) {
     return { user: null, error: e?.message || String(e) };
+  }
+}
+
+/** PATCH user_data и updated_at по username. */
+async function patchUserData(
+  url: string,
+  key: string,
+  username: string,
+  userData: unknown
+): Promise<{ error?: string }> {
+  try {
+    const enc = encodeURIComponent(username);
+    const res = await fetch(`${url}/rest/v1/app_users?username=eq.${enc}`, {
+      method: 'PATCH',
+      headers: { ...restHeaders(key) },
+      body: JSON.stringify({ user_data: userData, updated_at: new Date().toISOString() }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: text || res.statusText };
+    }
+    return {};
+  } catch (e: any) {
+    return { error: e?.message || String(e) };
   }
 }
 
@@ -154,7 +178,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // POST
-    let body: { action?: string; username?: string; passwordHash?: string; telegramId?: number } = {};
+    let body: { action?: string; username?: string; passwordHash?: string; telegramId?: number; payload?: unknown } = {};
     try {
       body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     } catch {
@@ -183,7 +207,38 @@ export default async function handler(req: any, res: any) {
         return;
       }
       const valid = user.password_hash === passwordHash;
-      sendJson(res, 200, { ok: valid });
+      const userData = user.user_data ?? null;
+      sendJson(res, 200, { ok: valid, userData: valid ? userData : undefined });
+      return;
+    }
+
+    // Сохранение данных аккаунта: action=saveData, body: username, passwordHash, payload
+    if (body.action === 'saveData') {
+      const passwordHash = typeof body.passwordHash === 'string' ? body.passwordHash : '';
+      const payload = body.payload;
+      if (!passwordHash) {
+        sendJson(res, 400, { ok: false, error: 'passwordHash required' });
+        return;
+      }
+      if (payload == null || typeof payload !== 'object') {
+        sendJson(res, 400, { ok: false, error: 'payload required (object)' });
+        return;
+      }
+      const { user, error: fetchErr } = await getUserByUsername(url, key, username);
+      if (fetchErr) {
+        sendJson(res, 500, { ok: false, error: fetchErr });
+        return;
+      }
+      if (!user || !user.password_hash || user.password_hash !== passwordHash) {
+        sendJson(res, 200, { ok: false, error: 'invalid credentials' });
+        return;
+      }
+      const { error: patchErr } = await patchUserData(url, key, username, payload);
+      if (patchErr) {
+        sendJson(res, 500, { ok: false, error: patchErr });
+        return;
+      }
+      sendJson(res, 200, { ok: true, saved: true });
       return;
     }
 
