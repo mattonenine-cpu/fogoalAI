@@ -4,7 +4,7 @@ import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, Ecosyst
 import { Onboarding } from './Onboarding';
 import { Dashboard } from './Dashboard';
 import { Scheduler } from './Scheduler';
-import { SmartPlanner } from './SmartPlanner';
+import SmartPlanner from './SmartPlanner';
 import { ChatInterface } from './ChatInterface';
 import { EcosystemView } from './EcosystemView';
 import { NotesView } from './NotesView';
