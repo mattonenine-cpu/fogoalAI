@@ -243,7 +243,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                     if (res.success) {
                         onComplete(finalProfile);
                     } else {
-                        setAuthError(res.message === 'exists' ? t.authExists : 'Setup failed');
+                        setAuthError(res.message === 'exists' ? t.authExists : (res.message || 'Setup failed'));
                     }
                 }
             }
@@ -260,7 +260,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
             if (res.success) {
                 onComplete(finalProfile);
             } else {
-                setAuthError(res.message === 'exists' ? t.authExists : 'Registration failed');
+                setAuthError(res.message === 'exists' ? t.authExists : (res.message || 'Registration failed'));
                 setAuthMode('signup');
                 setStep(1);
             }
