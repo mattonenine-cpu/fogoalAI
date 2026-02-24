@@ -1,7 +1,7 @@
 /**
- * Крон: каждый час проверяет сохранённые напоминания и отправляет в Telegram тем,
- * у кого текущий локальный час совпадает с reminderHour (одно напоминание в день на пользователя).
- * Vercel Cron: "0 * * * *" (каждый час на :00).
+ * Крон: раз в сутки отправляет напоминания в Telegram всем, у кого включены ежедневные напоминания.
+ * Подходит для бесплатного плана Vercel (1 запуск в день).
+ * Vercel Cron: "0 9 * * *" (ежедневно в 09:00 UTC).
  * Env: TELEGRAM_BOT_TOKEN, BLOB_READ_WRITE_TOKEN, CRON_SECRET (опционально).
  */
 import { list, put } from '@vercel/blob';
@@ -169,13 +169,10 @@ export default async function handler(req: any, res: any) {
       if ((data as { reminderFrequency?: string }).reminderFrequency === 'off') continue;
 
       const tzOffset = data.timezoneOffset ?? 0;
-      const userNow = new Date(now.getTime() + tzOffset * 60 * 1000);
       const todayLocal = getLocalISODate(tzOffset);
 
       if (data.reminderFrequency === 'daily') {
-        const wantedHour = typeof data.reminderHour === 'number' && data.reminderHour >= 0 && data.reminderHour <= 23 ? data.reminderHour : 12;
-        const isUserReminderHour = userNow.getHours() === wantedHour;
-        if (isUserReminderHour && data.lastDailySentDate !== todayLocal) {
+        if (data.lastDailySentDate !== todayLocal) {
           const text = buildDailySummary(data);
           const sendRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
