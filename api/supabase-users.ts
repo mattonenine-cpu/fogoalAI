@@ -4,9 +4,8 @@
  * POST — upsert (body: username, password?, telegramId?). Пароль хешируется и сохраняется.
  * POST action=login — проверка входа (body: username, password) → { ok: true/false }.
  */
-declare const process: { env: { [key: string]: string | undefined } };
-
-const crypto = require('crypto') as typeof import('crypto');
+import crypto from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 const SALT_LEN = 16;
 const KEY_LEN = 64;
