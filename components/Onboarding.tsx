@@ -106,20 +106,24 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
     };
   });
 
-  /** С любой вкладки: сначала пробуем войти. Удалось — пускаем в аккаунт. Не удалось и вкладка «Регистрация» — переход в онбординг. */
+  /** С любой вкладки: сначала пробуем войти по логину и паролю. Удалось — пускаем в аккаунт. Не удалось и вкладка «Регистрация» — переход в онбординг. */
   const handleSubmitAuth = async () => {
-      if (!username || !password) return;
+      const u = (username ?? '').trim();
+      const p = (password ?? '').trim();
+      if (!u || !p) return;
       setIsAuthenticating(true);
       setAuthError(null);
+      setUsername(u);
+      setPassword(p);
 
-      const res = await authService.login(username, password);
+      const res = await authService.login(u, p);
 
       if (res.success) {
           const loadedProfileStr = localStorage.getItem('focu_profile');
           if (loadedProfileStr) {
               onComplete(JSON.parse(loadedProfileStr));
           } else {
-              setProfile(prev => ({ ...prev, name: username }));
+              setProfile(prev => ({ ...prev, name: u }));
               setAuthMode('setup');
           }
           setIsAuthenticating(false);
@@ -128,7 +132,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
 
       if (authMode === 'signup') {
           setAuthError(null);
-          setProfile(prev => ({ ...prev, name: username, occupation: 'Explorer' }));
+          setProfile(prev => ({ ...prev, name: u, occupation: 'Explorer' }));
           setAuthMode('setup');
           setStep(1);
       } else {
@@ -252,7 +256,12 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                     if (res.success) {
                         onComplete(finalProfile);
                     } else {
-                        setAuthError(res.message === 'exists' ? t.authExists : (res.message || 'Setup failed'));
+                        if (res.message === 'exists') {
+                            setAuthMode('login');
+                            setAuthError(null);
+                        } else {
+                            setAuthError(res.message || 'Setup failed');
+                        }
                     }
                 }
             }
@@ -271,7 +280,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
             } else {
                 if (res.message === 'exists') {
                     setAuthMode('login');
-                    setAuthError(t.authExistsSwitchToLogin ?? t.authExists);
+                    setAuthError(null);
                 } else {
                     setAuthError(res.message || 'Registration failed');
                     setAuthMode('signup');
