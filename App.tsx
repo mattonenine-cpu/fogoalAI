@@ -3,7 +3,7 @@ import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, Ecosyst
 import { Onboarding } from './components/Onboarding';
 import { Dashboard } from './components/Dashboard';
 import { Scheduler } from './components/Scheduler';
-import { SmartPlanner } from './components/SmartPlanner';
+import SmartPlanner from './components/SmartPlanner';
 import { ChatInterface } from './components/ChatInterface';
 import { EcosystemView } from './components/EcosystemView';
 import { NotesView } from './components/NotesView';
