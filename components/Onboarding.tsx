@@ -260,9 +260,14 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
             if (res.success) {
                 onComplete(finalProfile);
             } else {
-                setAuthError(res.message === 'exists' ? t.authExists : (res.message || 'Registration failed'));
-                setAuthMode('signup');
-                setStep(1);
+                if (res.message === 'exists') {
+                    setAuthMode('login');
+                    setAuthError(t.authExistsSwitchToLogin ?? t.authExists);
+                } else {
+                    setAuthError(res.message || 'Registration failed');
+                    setAuthMode('signup');
+                    setStep(1);
+                }
             }
         }
         setIsAuthenticating(false);
