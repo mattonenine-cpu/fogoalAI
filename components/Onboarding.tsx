@@ -4,6 +4,7 @@ import { UserProfile, Language, TRANSLATIONS, EnergyProfile, Goal, EcosystemConf
 import { GlassCard, GlassInput, GlassButton } from './GlassCard';
 import { analyzeEcosystemSignals } from '../services/geminiService';
 import { authService, type UserDataPayload } from '../services/authService';
+import { CreditsService } from '../services/creditsService';
 import { ThemeSelector } from './ThemeSelector';
 import { Mascot } from './Mascot';
 import { Logo } from './Logo';
@@ -119,13 +120,46 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
       const res = await authService.login(u, p);
 
       if (res.success) {
-          const loadedProfileStr = localStorage.getItem('focu_profile');
-          if (loadedProfileStr) {
-              onComplete(JSON.parse(loadedProfileStr));
-          } else {
-              setProfile(prev => ({ ...prev, name: u }));
-              setAuthMode('setup');
+          let profileToApply: UserProfile | null = null;
+          try {
+              const loadedProfileStr = localStorage.getItem('focu_profile');
+              if (loadedProfileStr) {
+                  profileToApply = JSON.parse(loadedProfileStr);
+                  if (profileToApply && typeof profileToApply === 'object') {
+                      profileToApply.isOnboarded = true;
+                  }
+              }
+          } catch { /* ignore */ }
+
+          if (!profileToApply || !profileToApply.name) {
+              const today = new Date().toISOString().split('T')[0];
+              profileToApply = {
+                  name: u,
+                  username: u,
+                  occupation: '',
+                  level: 1,
+                  totalExperience: 0,
+                  goals: [],
+                  bedtime: '23:00',
+                  wakeTime: '07:00',
+                  activityHistory: [today],
+                  energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average', resistanceTriggers: [] },
+                  isOnboarded: true,
+                  enabledEcosystems: [
+                      { type: 'sport', label: 'Sport', icon: '⚽', enabled: true, justification: '' },
+                      { type: 'study', label: 'Study', icon: '📚', enabled: true, justification: '' },
+                      { type: 'health', label: 'Health', icon: '❤️', enabled: true, justification: '' },
+                  ],
+                  statsHistory: [],
+                  settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'], fontSize: 'normal' },
+                  credits: CreditsService.initializeCredits(),
+              } as UserProfile;
           }
+          if (profileToApply && !profileToApply.credits) {
+              profileToApply.credits = CreditsService.initializeCredits();
+          }
+
+          onComplete(profileToApply);
           setIsAuthenticating(false);
           return;
       }
