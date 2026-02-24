@@ -1,9 +1,29 @@
 /**
- * API для сохранения аккаунтов в Supabase и получения количества пользователей.
- * GET — { totalCount }. GET ?debug=1 — диагностика. POST — upsert в app_users.
- * Использует только fetch() к Supabase REST API — без пакета @supabase/supabase-js (чтобы работало на Vercel).
+ * API: учёт пользователей в Supabase (username, password_hash, telegram_id), подсчёт, проверка логина.
+ * GET — { totalCount }. GET ?debug=1 — диагностика.
+ * POST — upsert (body: username, password?, telegramId?). Пароль хешируется и сохраняется.
+ * POST action=login — проверка входа (body: username, password) → { ok: true/false }.
  */
 declare const process: { env: { [key: string]: string | undefined } };
+
+const crypto = require('crypto') as typeof import('crypto');
+
+const SALT_LEN = 16;
+const KEY_LEN = 64;
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(SALT_LEN);
+  const hash = crypto.scryptSync(password, salt, KEY_LEN);
+  return `${salt.toString('base64')}:${hash.toString('base64')}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [saltB64, hashB64] = stored.split(':');
+  if (!saltB64 || !hashB64) return false;
+  const salt = Buffer.from(saltB64, 'base64');
+  const hash = crypto.scryptSync(password, salt, KEY_LEN);
+  return hash.toString('base64') === hashB64;
+}
 
 const sendJson = (res: any, status: number, data: object) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -60,11 +80,35 @@ async function fetchCount(url: string, key: string): Promise<{ count: number; er
   }
 }
 
+/** GET пользователя по username (один объект или null). */
+async function getUserByUsername(
+  url: string,
+  key: string,
+  username: string
+): Promise<{ user: { password_hash?: string | null } | null; error?: string }> {
+  try {
+    const enc = encodeURIComponent(username);
+    const res = await fetch(`${url}/rest/v1/app_users?username=eq.${enc}&select=password_hash`, {
+      method: 'GET',
+      headers: { ...restHeaders(key) },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { user: null, error: text || res.statusText };
+    }
+    const data = await res.json();
+    const user = Array.isArray(data) && data.length > 0 ? data[0] : null;
+    return { user };
+  } catch (e: any) {
+    return { user: null, error: e?.message || String(e) };
+  }
+}
+
 /** POST upsert через Supabase REST API (Prefer: resolution=merge-duplicates, on_conflict=username). */
 async function upsertUser(
   url: string,
   key: string,
-  row: { username: string; telegram_id: number | null; updated_at: string }
+  row: { username: string; telegram_id: number | null; updated_at: string; password_hash?: string | null }
 ): Promise<{ error?: string }> {
   try {
     const res = await fetch(`${url}/rest/v1/app_users?on_conflict=username`, {
@@ -128,7 +172,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // POST
-    let body: { username?: string; telegramId?: number } = {};
+    let body: { action?: string; username?: string; password?: string; telegramId?: number } = {};
     try {
       body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     } catch {
@@ -139,9 +183,37 @@ export default async function handler(req: any, res: any) {
       sendJson(res, 400, { ok: false, error: 'username required' });
       return;
     }
-    const telegramId = body.telegramId != null && Number.isFinite(Number(body.telegramId)) ? Number(body.telegramId) : null;
 
-    const row = { username, telegram_id: telegramId, updated_at: new Date().toISOString() };
+    // Проверка логина: action=login, body: username, password
+    if (body.action === 'login') {
+      const password = typeof body.password === 'string' ? body.password : '';
+      if (!password) {
+        sendJson(res, 200, { ok: false, error: 'password required' });
+        return;
+      }
+      const { user, error: fetchErr } = await getUserByUsername(url, key, username);
+      if (fetchErr) {
+        sendJson(res, 500, { ok: false, error: fetchErr });
+        return;
+      }
+      if (!user || !user.password_hash) {
+        sendJson(res, 200, { ok: false, error: 'user not found or no password set' });
+        return;
+      }
+      const valid = verifyPassword(password, user.password_hash);
+      sendJson(res, 200, { ok: valid });
+      return;
+    }
+
+    const telegramId = body.telegramId != null && Number.isFinite(Number(body.telegramId)) ? Number(body.telegramId) : null;
+    const password = typeof body.password === 'string' ? body.password : '';
+    const row: { username: string; telegram_id: number | null; updated_at: string; password_hash?: string | null } = {
+      username,
+      telegram_id: telegramId,
+      updated_at: new Date().toISOString(),
+    };
+    if (password) row.password_hash = hashPassword(password);
+
     const { error: upsertErr } = await upsertUser(url, key, row);
 
     if (upsertErr) {
