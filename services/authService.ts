@@ -62,16 +62,21 @@ function parseJsonResponse(res: Response): Promise<Record<string, unknown> | nul
     });
 }
 
-/** Отправляет аккаунт в Supabase (учёт + хеш пароля при регистрации). Не блокирует авторизацию. */
-function syncUserToSupabase(username: string, telegramId?: number, password?: string): void {
-    const url = getSupabaseUsersApiUrl();
+/** Тело запроса в Supabase: всегда передаём username и при регистрации — пароль. */
+function buildSupabaseSyncBody(username: string, telegramId?: number, password?: string): string {
     const body: Record<string, unknown> = { username };
     if (telegramId != null) body.telegramId = telegramId;
     if (password != null && password !== '') body.password = password;
+    return JSON.stringify(body);
+}
+
+/** Отправляет аккаунт в Supabase (учёт + хеш пароля при регистрации). Не блокирует авторизацию. */
+function syncUserToSupabase(username: string, telegramId?: number, password?: string): void {
+    const url = getSupabaseUsersApiUrl();
     fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: buildSupabaseSyncBody(username, telegramId, password),
     })
         .then(async (res) => {
             if (!res.ok && typeof console !== 'undefined' && console.warn)
@@ -88,6 +93,25 @@ function syncUserToSupabase(username: string, telegramId?: number, password?: st
         });
 }
 
+/** То же, но с ожиданием ответа (для регистрации: чтобы убедиться, что пароль сохранён). */
+async function syncUserToSupabaseAndWait(username: string, telegramId?: number, password?: string): Promise<{ ok: boolean; error?: string }> {
+    const url = getSupabaseUsersApiUrl();
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: buildSupabaseSyncBody(username, telegramId, password),
+        });
+        const data = await parseJsonResponse(res);
+        if (!res.ok) return { ok: false, error: (data?.error as string) || res.statusText };
+        if (data && data.ok === false) return { ok: false, error: (data.error as string) || 'Unknown error' };
+        return { ok: true };
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { ok: false, error: msg };
+    }
+}
+
 export const authService = {
     /**
      * Checks if a user is currently logged in.
@@ -101,7 +125,7 @@ export const authService = {
      * Checks if username exists. If not, creates entry in `cloud_users` and saves initial data.
      */
     register: async (username: string, password: string, initialData: UserDataPayload): Promise<{ success: boolean, message?: string }> => {
-        await delay(800); // Simulate network request
+        await delay(400);
 
         const usersRaw = localStorage.getItem('cloud_users');
         const users = usersRaw ? JSON.parse(usersRaw) : {};
@@ -110,19 +134,20 @@ export const authService = {
             return { success: false, message: 'exists' };
         }
 
-        // Save User Creds
-        users[username] = { password, telegramId: undefined as number | undefined }; // In real app: Hash password!
+        // Сначала сохраняем пользователя и пароль в Supabase; без этого вход с другого устройства не сработает
+        const sync = await syncUserToSupabaseAndWait(username, undefined, password);
+        if (!sync.ok) {
+            return { success: false, message: sync.error || 'Не удалось сохранить пароль в облаке' };
+        }
+
+        // Save User Creds (локально)
+        users[username] = { password, telegramId: undefined as number | undefined };
         safeSave('cloud_users', JSON.stringify(users));
 
-        // Save Initial Data
         const userDataKey = `cloud_data_${username}`;
         safeSave(userDataKey, JSON.stringify(initialData));
 
-        // Set Session
         safeSave('session_user', username);
-        syncUserToSupabase(username, undefined, password);
-
-        // Populate "Active" LocalStorage keys for the App to use seamlessly
         authService.syncToActiveState(initialData);
 
         return { success: true };
@@ -396,3 +421,4 @@ export const authService = {
         return { success: true };
     }
 };
+
