@@ -174,13 +174,13 @@ export const Scheduler: React.FC<SchedulerProps> = ({
                     <button onClick={handlePrev} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 text-[var(--text-secondary)] active:scale-90 transition-all"><ChevronLeft size={20}/></button>
                     <div className="text-center">
                         <div className="flex items-center justify-center gap-3">
-                            <p className="text-mini font-medium text-[var(--theme-accent)] mb-1">{selectedDateISO}</p>
+                            <p className="text-mini font-medium text-indigo-400 mb-1">{selectedDateISO}</p>
                             {(selectedDayStats?.mood || (selectedDayStats?.sleepHours !== undefined && selectedDayStats.sleepHours > 0)) && (
                                 <div className="flex items-center gap-2 mb-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/5">
                                     {selectedDayStats.mood && <span className="text-xs leading-none">{selectedDayStats.mood === 'Happy' ? '😊' : selectedDayStats.mood === 'Sad' ? '😔' : '😐'}</span>}
                                     {selectedDayStats.sleepHours > 0 && (
                                         <div className="flex items-center gap-1">
-                                            <Moon size={8} className="text-[var(--theme-accent)]"/>
+                                            <Moon size={8} className="text-indigo-400"/>
                                             <span className="text-[9px] font-bold text-[var(--text-secondary)] leading-none">{selectedDayStats.sleepHours}h</span>
                                         </div>
                                     )}
@@ -275,7 +275,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({
                             <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'Месяц' : 'Month'}</h3>
                             <button 
                                 onClick={() => handleOpenDayModal(selectedDateISO)}
-                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[var(--theme-accent)] bg-[var(--theme-accent-10)] px-3 py-1.5 rounded-full hover:bg-[var(--theme-accent-20)] transition-all active:scale-95 border border-[var(--theme-accent-20)]"
+                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-full hover:bg-indigo-500/20 transition-all active:scale-95 border border-indigo-500/20"
                             >
                                 <Palette size={12} />
                                 {lang === 'ru' ? 'Отметить' : 'Mark'}
@@ -313,7 +313,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({
                                         }}
                                     >
                                         {d.day}
-                                        {hasTasks && !d.current && <div className="absolute bottom-1 w-1 h-1 rounded-full bg-[var(--theme-accent)]" />}
+                                        {hasTasks && !d.current && <div className="absolute bottom-1 w-1 h-1 rounded-full bg-indigo-500" />}
                                         {hasMicroNote && <div className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${d.current ? 'bg-[var(--bg-active-text)]' : 'bg-[var(--theme-accent)]'}`} />}
                                     </div>
                                 );
@@ -325,12 +325,12 @@ export const Scheduler: React.FC<SchedulerProps> = ({
                 <div className="space-y-5 pb-24">
                     {/* Micro Note Display */}
                     {selectedDayMicroNote && (
-                        <div className="p-4 rounded-[24px] bg-[var(--theme-accent-10)] border border-[var(--theme-accent-20)] flex gap-3 items-start animate-fade-in-up cursor-pointer hover:bg-[var(--theme-accent-20)] transition-all" onClick={() => handleOpenDayModal(selectedDateISO)}>
-                            <div className="w-8 h-8 rounded-full bg-[var(--theme-accent-20)] flex items-center justify-center text-[var(--theme-accent)] shrink-0 mt-0.5">
+                        <div className="p-4 rounded-[24px] bg-indigo-500/10 border border-indigo-500/20 flex gap-3 items-start animate-fade-in-up cursor-pointer hover:bg-indigo-500/15 transition-all" onClick={() => handleOpenDayModal(selectedDateISO)}>
+                            <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 mt-0.5">
                                 <Flag size={14} fill="currentColor" />
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-[var(--theme-accent)] uppercase tracking-widest mb-1">{lang === 'ru' ? 'Важное' : 'Important'}</p>
+                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">{lang === 'ru' ? 'Важное' : 'Important'}</p>
                                 <p className="text-sm font-medium text-[var(--text-primary)] leading-relaxed">{selectedDayMicroNote}</p>
                             </div>
                         </div>
@@ -452,7 +452,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({
                                 <input 
                                     value={editingTask.title}
                                     onChange={e => setEditingTask({...editingTask, title: e.target.value})}
-                                    className="w-full h-12 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 text-[var(--text-primary)] text-sm font-bold focus:outline-none focus:border-[var(--theme-accent-50)]"
+                                    className="w-full h-12 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 text-[var(--text-primary)] text-sm font-bold focus:outline-none focus:border-indigo-500/50"
                                 />
                             </div>
                             
