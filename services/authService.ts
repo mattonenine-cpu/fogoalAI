@@ -226,8 +226,7 @@ export const authService = {
     },
 
     /**
-     * Logs in a user.
-     * Verifies credentials and loads their data into the active application state.
+     * Вход только по Supabase: проверка логина и пароля в БД, подгрузка всех данных (профиль, задачи, заметки, здоровье, настроение, экзамены) из Supabase в приложение.
      */
     login: async (username: string, password: string): Promise<{ success: boolean, message?: string }> => {
         const u = (username ?? '').trim();
@@ -235,39 +234,32 @@ export const authService = {
         if (!u || !p) return { success: false, message: 'invalid' };
 
         const apiUrl = getSupabaseUsersApiUrl();
-        let verified = false;
         let loginResponse: Record<string, unknown> | null = null;
-        let usedHash = '';
 
+        let usedHash = '';
         try {
-            const passwordHash = await hashPasswordClient(p, u);
-            usedHash = passwordHash;
+            usedHash = await hashPasswordClient(p, u);
             const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'login', username: u, passwordHash }),
+                body: JSON.stringify({ action: 'login', username: u, passwordHash: usedHash }),
             });
             loginResponse = await parseJsonResponse(res);
-            verified = loginResponse?.ok === true;
         } catch {
-            const usersRaw = localStorage.getItem('cloud_users');
-            const users = usersRaw ? JSON.parse(usersRaw) : {};
-            verified = !!(users[u] && (users[u] as { password?: string }).password === p);
+            return { success: false, message: 'invalid' };
         }
 
-        if (!verified) return { success: false, message: 'invalid' };
+        if (loginResponse?.ok !== true) return { success: false, message: 'invalid' };
 
         safeSave('session_user', u);
         const usersRaw = localStorage.getItem('cloud_users');
         const users = usersRaw ? JSON.parse(usersRaw) : {};
         const telegramId = (users[u] as { telegramId?: number } | undefined)?.telegramId;
         syncUserToSupabase(u, telegramId);
-
         if (!users[u]) {
             users[u] = { password: '', telegramId: undefined };
             safeSave('cloud_users', JSON.stringify(users));
         }
-
         if (usedHash) setSyncHash(usedHash);
 
         const userDataKey = `cloud_data_${u}`;
@@ -291,14 +283,14 @@ export const authService = {
             }
         }
 
-        const savedDataRaw = localStorage.getItem(userDataKey);
-        if (savedDataRaw) {
-            try {
-                const data: UserDataPayload = JSON.parse(savedDataRaw);
-                authService.syncToActiveState(data);
-            } catch { /* ignore */ }
-        }
-
+        try {
+            localStorage.removeItem('focu_profile');
+            localStorage.removeItem('focu_tasks');
+            localStorage.removeItem('focu_notes');
+            localStorage.removeItem('focu_folders');
+            localStorage.removeItem('focu_stats');
+            localStorage.removeItem(userDataKey);
+        } catch { /* ignore */ }
         return { success: true };
     },
 
