@@ -62,13 +62,16 @@ function parseJsonResponse(res: Response): Promise<Record<string, unknown> | nul
     });
 }
 
-/** Отправляет аккаунт в Supabase (для учёта пользователей). Не блокирует авторизацию. */
-function syncUserToSupabase(username: string, telegramId?: number): void {
+/** Отправляет аккаунт в Supabase (учёт + хеш пароля при регистрации). Не блокирует авторизацию. */
+function syncUserToSupabase(username: string, telegramId?: number, password?: string): void {
     const url = getSupabaseUsersApiUrl();
+    const body: Record<string, unknown> = { username };
+    if (telegramId != null) body.telegramId = telegramId;
+    if (password != null && password !== '') body.password = password;
     fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, telegramId }),
+        body: JSON.stringify(body),
     })
         .then(async (res) => {
             if (!res.ok && typeof console !== 'undefined' && console.warn)
@@ -117,7 +120,7 @@ export const authService = {
 
         // Set Session
         safeSave('session_user', username);
-        syncUserToSupabase(username);
+        syncUserToSupabase(username, undefined, password);
 
         // Populate "Active" LocalStorage keys for the App to use seamlessly
         authService.syncToActiveState(initialData);
@@ -130,26 +133,50 @@ export const authService = {
      * Verifies credentials and loads their data into the active application state.
      */
     login: async (username: string, password: string): Promise<{ success: boolean, message?: string }> => {
-        await delay(800); // Simulate network request
+        const apiUrl = getSupabaseUsersApiUrl();
+        let verified = false;
+        try {
+            const res = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'login', username, password }),
+            });
+            const data = await parseJsonResponse(res);
+            verified = data?.ok === true;
+        } catch {
+            // Fallback: проверка по localStorage (офлайн или API недоступен)
+            const usersRaw = localStorage.getItem('cloud_users');
+            const users = usersRaw ? JSON.parse(usersRaw) : {};
+            verified = !!(users[username] && (users[username] as { password?: string }).password === password);
+        }
 
-        const usersRaw = localStorage.getItem('cloud_users');
-        const users = usersRaw ? JSON.parse(usersRaw) : {};
-
-        if (!users[username] || users[username].password !== password) {
+        if (!verified) {
             return { success: false, message: 'invalid' };
         }
 
         // Set Session
         safeSave('session_user', username);
-        syncUserToSupabase(username, users[username]?.telegramId);
+        const usersRaw = localStorage.getItem('cloud_users');
+        const users = usersRaw ? JSON.parse(usersRaw) : {};
+        const telegramId = (users[username] as { telegramId?: number } | undefined)?.telegramId;
+        syncUserToSupabase(username, telegramId);
 
-        // Load Data from "Cloud"
+        // Локальный индекс для существующих аккаунтов (чтобы не ломать текущее устройство)
+        if (!users[username]) {
+            users[username] = { password: '', telegramId: undefined };
+            safeSave('cloud_users', JSON.stringify(users));
+        }
+
+        // Load Data from "Cloud" (localStorage; на новом устройстве будет пусто)
         const userDataKey = `cloud_data_${username}`;
         const savedDataRaw = localStorage.getItem(userDataKey);
-        
         if (savedDataRaw) {
-            const data: UserDataPayload = JSON.parse(savedDataRaw);
-            authService.syncToActiveState(data);
+            try {
+                const data: UserDataPayload = JSON.parse(savedDataRaw);
+                authService.syncToActiveState(data);
+            } catch {
+                // ignore
+            }
         }
 
         return { success: true };
