@@ -51,6 +51,17 @@ function getSupabaseUsersApiUrl(): string {
     return '/api/supabase-users';
 }
 
+/** Парсит ответ как JSON; при ошибке (например HTML от 500) не бросает. */
+function parseJsonResponse(res: Response): Promise<Record<string, unknown> | null> {
+    return res.text().then((text) => {
+        try {
+            return text ? (JSON.parse(text) as Record<string, unknown>) : null;
+        } catch {
+            return null;
+        }
+    });
+}
+
 /** Отправляет аккаунт в Supabase (для учёта пользователей). Не блокирует авторизацию. */
 function syncUserToSupabase(username: string, telegramId?: number): void {
     const url = getSupabaseUsersApiUrl();
@@ -59,10 +70,10 @@ function syncUserToSupabase(username: string, telegramId?: number): void {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, telegramId }),
     })
-        .then((res) => {
+        .then(async (res) => {
             if (!res.ok && typeof console !== 'undefined' && console.warn)
                 console.warn('[Supabase] sync user failed:', res.status, url);
-            return res.json();
+            return parseJsonResponse(res);
         })
         .then((data) => {
             if (data && !data.ok && typeof console !== 'undefined' && console.warn)
