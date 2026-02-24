@@ -19,23 +19,25 @@ function getEnv(name: string): string | undefined {
   }
 }
 
-/** Динамически загружает Supabase и создаёт клиент. При любой ошибке возвращает null. */
-async function getSupabase(): Promise<any> {
+/** Результат: клиент или ошибка (для диагностики). */
+async function getSupabase(): Promise<{ client: any; error?: string }> {
+  const url =
+    getEnv('supabase_SUPABASE_URL') ||
+    getEnv('SUPABASE_SUPABASE_URL') ||
+    getEnv('SUPABASE_URL');
+  const key =
+    getEnv('supabase_SUPABASE_SERVICE_ROLE_KEY') ||
+    getEnv('SUPABASE_SUPABASE_SERVICE_ROLE_KEY') ||
+    getEnv('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return { client: null, error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set in Vercel' };
   try {
-    const url =
-      getEnv('supabase_SUPABASE_URL') ||
-      getEnv('SUPABASE_SUPABASE_URL') ||
-      getEnv('SUPABASE_URL');
-    const key =
-      getEnv('supabase_SUPABASE_SERVICE_ROLE_KEY') ||
-      getEnv('SUPABASE_SUPABASE_SERVICE_ROLE_KEY') ||
-      getEnv('SUPABASE_SERVICE_ROLE_KEY');
-    if (!url || !key) return null;
     const { createClient } = await import('@supabase/supabase-js');
-    return createClient(url, key);
-  } catch (e) {
-    console.error('[supabase-users] getSupabase failed:', e);
-    return null;
+    const client = createClient(url, key);
+    return { client };
+  } catch (e: any) {
+    const msg = e?.message || String(e);
+    console.error('[supabase-users] getSupabase failed:', msg);
+    return { client: null, error: msg };
   }
 }
 
@@ -50,17 +52,23 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const supabase = await getSupabase();
+    const { client: supabase, error: supabaseError } = await getSupabase();
 
     if (req.method === 'GET' && req.query?.debug === '1') {
       const hasUrl = !!(getEnv('supabase_SUPABASE_URL') || getEnv('SUPABASE_SUPABASE_URL') || getEnv('SUPABASE_URL'));
       const hasKey = !!(getEnv('supabase_SUPABASE_SERVICE_ROLE_KEY') || getEnv('SUPABASE_SUPABASE_SERVICE_ROLE_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY'));
-      sendJson(res, 200, { ok: !!supabase, hasUrl, hasKey, message: supabase ? 'OK' : 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel' });
+      sendJson(res, 200, {
+        ok: !!supabase,
+        hasUrl,
+        hasKey,
+        message: supabase ? 'OK' : (supabaseError || 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel'),
+        ...(supabaseError && { error: supabaseError }),
+      });
       return;
     }
 
     if (!supabase) {
-      sendJson(res, 200, { ok: false, totalCount: 0, error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set or Supabase module failed to load.' });
+      sendJson(res, 200, { ok: false, totalCount: 0, error: supabaseError || 'Supabase client failed.' });
       return;
     }
 
