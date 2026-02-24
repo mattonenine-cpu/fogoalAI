@@ -464,7 +464,14 @@ export const TRANSLATIONS: any = {
     authCreate: "Create Account",
     smartPlannerTitle: "Smart Planner",
     autoPlan: "Auto-Plan",
-    backlog: "Backlog"
+    backlog: "Backlog",
+    viewList: "List",
+    viewGrid: "Grid",
+    viewInGrid: "View in grid",
+    viewInList: "Back to list",
+    noDateSection: "No date",
+    onGridSection: "Scheduled",
+    addTask: "Add task"
   },
   ru: {
     navHome: "Главная",
@@ -646,6 +653,13 @@ export const TRANSLATIONS: any = {
     authCreate: "Создать аккаунт",
     smartPlannerTitle: "Умный Планер",
     autoPlan: "Авто-план",
-    backlog: "Задачи"
+    backlog: "Задачи",
+    viewList: "Список",
+    viewGrid: "Сетка",
+    viewInGrid: "Посмотреть в сетке",
+    viewInList: "К списку",
+    noDateSection: "Без даты",
+    onGridSection: "На сетке",
+    addTask: "Добавить задачу"
   }
 };
