@@ -1,11 +1,13 @@
 
-import React, { useState } from 'react';
-import { UserProfile, DailyStats, Language, TRANSLATIONS, Task, AppView, Goal } from '../types';
+import React, { useState, useEffect } from 'react';
+import { UserProfile, DailyStats, Language, TRANSLATIONS, Task, AppView, Goal, TelegramReminderFrequency } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { Mascot } from './Mascot';
 import { 
-  Sparkles, List, Trophy, X, Edit3, Check, Plus, Star, Trash2, Edit, CalendarDays
+  Sparkles, List, Trophy, X, Edit3, Check, Plus, Star, Trash2, Edit, CalendarDays, Send
 } from 'lucide-react';
+import { getTelegramUserFromWebApp } from '../services/telegramAuth';
+import { buildDailySummary, sendToTelegram, syncReminderSettingsToServer } from '../services/telegramSend';
 
 interface DashboardProps {
   user: UserProfile;
@@ -41,6 +43,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
   const [progressInput, setProgressInput] = useState('');
+  const [telegramSending, setTelegramSending] = useState(false);
+  const [showTelegramReminderModal, setShowTelegramReminderModal] = useState(false);
+  const telegramUser = getTelegramUserFromWebApp();
+  const reminderSettings = user.telegramReminderSettings ?? { frequency: 'daily' as TelegramReminderFrequency, reminderHour: 12 };
+  const [reminderFrequency, setReminderFrequency] = useState<TelegramReminderFrequency>(reminderSettings.frequency);
+  const [totalUsersCount, setTotalUsersCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('/api/supabase-users')
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data.totalCount === 'number') setTotalUsersCount(data.totalCount);
+      })
+      .catch(() => {});
+  }, []);
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { 
@@ -129,12 +146,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
       setProgressInput('');
   };
 
+  const openTelegramModal = () => {
+    setReminderFrequency(reminderSettings.frequency);
+    setShowTelegramReminderModal(true);
+  };
+
+  const handleSaveRemindersAndSend = async () => {
+    if (!telegramUser || telegramSending) return;
+    const newSettings = { frequency: reminderFrequency, reminderHour: 12 };
+    onUpdateProfile({ ...user, telegramReminderSettings: newSettings });
+    setShowTelegramReminderModal(false);
+    setTelegramSending(true);
+    if (newSettings.frequency !== 'off') {
+      await syncReminderSettingsToServer(telegramUser.id, newSettings, tasks, user, lang);
+    }
+    const text = buildDailySummary(user, tasks, lang);
+    const result = await sendToTelegram(telegramUser.id, text);
+    setTelegramSending(false);
+    if (result.ok) {
+      alert(lang === 'ru' ? 'Настройки сохранены. Отправлено в Telegram.' : 'Settings saved. Sent to Telegram.');
+    } else {
+      alert((lang === 'ru' ? 'Ошибка: ' : 'Error: ') + (result.error || ''));
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in-up pb-24 px-1">
        {/* 1. Date & Level Row */}
        <div className="flex gap-3">
           <GlassCard className="flex-[2] py-4 px-5 flex items-center gap-3 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[32px]">
-              <CalendarDays size={18} className="text-[var(--theme-accent)]" />
+              <CalendarDays size={18} className="text-indigo-400" />
               <div className="flex flex-col justify-center">
                   <span className="text-sm font-black text-[var(--text-primary)] capitalize">
                       {formattedDate}
@@ -148,7 +189,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
           >
              <span className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">Lvl {user.level}</span>
              <div className="h-1 w-10 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-[var(--theme-accent)] transition-all" style={{ width: `${progressPercent}%` }} />
+                <div className="h-full bg-indigo-500 transition-all" style={{ width: `${progressPercent}%` }} />
              </div>
           </GlassCard>
        </div>
@@ -175,6 +216,56 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
              )}
           </GlassCard>
        </div>
+
+       {telegramUser && (
+          <div className="flex justify-end">
+             <button
+                onClick={openTelegramModal}
+                disabled={telegramSending}
+                className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-all disabled:opacity-50 text-sm font-medium"
+             >
+                <Send size={16} />
+                {telegramSending ? (lang === 'ru' ? 'Отправка…' : 'Sending…') : (lang === 'ru' ? 'В Telegram' : 'Send to Telegram')}
+             </button>
+          </div>
+       )}
+
+       {/* Telegram reminder settings modal */}
+       {showTelegramReminderModal && telegramUser && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
+             <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-xl">
+                <div className="flex justify-between items-center mb-6">
+                   <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">
+                      {lang === 'ru' ? 'Напоминания в Telegram' : 'Telegram reminders'}
+                   </h3>
+                   <button onClick={() => setShowTelegramReminderModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
+                </div>
+                <p className="text-xs text-[var(--text-secondary)] mb-4">
+                   {lang === 'ru' ? 'Отправлять сводку по кнопке или каждый день в 12:00 по вашему времени.' : 'Send summary by button or every day at 12:00 your time.'}
+                </p>
+                <div>
+                   <label className="text-xxs font-black text-slate-500 uppercase tracking-widest mb-2 block">{lang === 'ru' ? 'Напоминания' : 'Reminders'}</label>
+                   <select
+                      value={reminderFrequency}
+                      onChange={e => setReminderFrequency(e.target.value as TelegramReminderFrequency)}
+                      className="w-full h-12 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 text-[var(--text-primary)] text-sm font-bold focus:outline-none focus:border-indigo-500/50"
+                   >
+                      <option value="off">{lang === 'ru' ? 'Только по кнопке' : 'Only when I send'}</option>
+                      <option value="daily">{lang === 'ru' ? 'Каждый день в 12:00' : 'Every day at 12:00'}</option>
+                   </select>
+                </div>
+                <div className="flex gap-3 mt-6">
+                   <button onClick={() => setShowTelegramReminderModal(false)} className="flex-1 h-12 rounded-2xl border border-[var(--border-glass)] text-[var(--text-secondary)] font-bold text-sm hover:bg-white/5 transition-all">
+                      {lang === 'ru' ? 'Отмена' : 'Cancel'}
+                   </button>
+                   <button onClick={handleSaveRemindersAndSend} disabled={telegramSending} className="flex-1 h-12 bg-indigo-500 text-white rounded-2xl font-black text-sm shadow-lg disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center gap-2">
+                      <Send size={16} />
+                      {lang === 'ru' ? 'Сохранить и отправить' : 'Save & send'}
+                   </button>
+                </div>
+             </div>
+          </div>
+       )}
 
        {/* 3. Goals */}
        <div className="space-y-3">
@@ -260,11 +351,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
              </div>
           </div>
        </div>
-       
+
+       {totalUsersCount != null && (
+         <p className="text-center text-[10px] font-medium text-[var(--text-secondary)] opacity-60 mt-4">
+           {lang === 'ru' ? `Всего пользователей: ${totalUsersCount}` : `Total users: ${totalUsersCount}`}
+         </p>
+       )}
+
        {/* LEVEL MODAL */}
        {showLevelModal && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-              <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-8 text-center relative shadow-2xl pb-10">
+              <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-8 text-center relative shadow-xl pb-10">
                   <button onClick={() => setShowLevelModal(false)} className="absolute top-6 right-6 text-slate-500 hover:text-[var(--text-primary)] transition-colors">
                       <X size={20} />
                   </button>
@@ -291,7 +388,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* GOALS LIST MODAL */}
        {showGoalsList && (
            <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-               <div className="w-full max-w-sm h-[70vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-2xl flex flex-col overflow-hidden">
+               <div className="w-full max-w-sm h-[70vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-xl flex flex-col overflow-hidden">
                    <header className="p-6 border-b border-white/5 flex justify-between items-center bg-[var(--bg-main)] z-10">
                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Все цели' : 'All Goals'}</h3>
                        <button onClick={() => setShowGoalsList(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
@@ -324,7 +421,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* ADD/EDIT GOAL MODAL */}
        {showAddGoalModal && (
            <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-               <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl">
+               <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-xl">
                    <div className="flex justify-between items-center mb-6">
                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{editingGoalId ? (lang === 'ru' ? 'Редактировать' : 'Edit Goal') : (lang === 'ru' ? 'Новая цель' : 'New Goal')}</h3>
                        <button onClick={() => setShowAddGoalModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
@@ -381,7 +478,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* PROGRESS MODAL */}
        {showProgressModal && activeGoalId && (
             <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 animate-fadeIn">
-                <div className="w-full max-w-[300px] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[36px] p-6 shadow-2xl transform transition-all">
+                <div className="w-full max-w-[300px] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[36px] p-6 shadow-xl transform transition-all">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Прогресс' : 'Add Progress'}</h3>
                         <button onClick={() => setShowProgressModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-[var(--text-primary)]"><X size={18}/></button>
@@ -418,7 +515,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* SLEEP MODAL */}
        {showSleepModal && (
            <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-fadeIn">
-               <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-2xl text-center">
+               <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] p-6 shadow-xl text-center">
                    <div className="flex justify-between items-center mb-8">
                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Сон' : 'Sleep'}</h3>
                        <button onClick={() => setShowSleepModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18}/></button>
