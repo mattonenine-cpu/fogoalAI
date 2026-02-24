@@ -1,5 +1,6 @@
--- Добавить колонку для хеша пароля (логин по username+password).
--- Выполни в Supabase: SQL Editor → New query → вставь и Run.
+-- ОБЯЗАТЕЛЬНО для сохранения паролей и входа с другого устройства.
+-- Добавляет колонку для хеша пароля. Без неё регистрация вернёт ошибку.
+-- Выполни в Supabase: SQL Editor → New query → вставь этот код → Run.
 
 alter table public.app_users
   add column if not exists password_hash text;
