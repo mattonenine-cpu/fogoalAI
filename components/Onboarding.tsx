@@ -106,23 +106,33 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
     };
   });
 
-  const handleLogin = async () => {
+  /** С любой вкладки: сначала пробуем войти. Удалось — пускаем в аккаунт. Не удалось и вкладка «Регистрация» — переход в онбординг. */
+  const handleSubmitAuth = async () => {
       if (!username || !password) return;
       setIsAuthenticating(true);
       setAuthError(null);
-      
+
       const res = await authService.login(username, password);
-      
+
       if (res.success) {
           const loadedProfileStr = localStorage.getItem('focu_profile');
           if (loadedProfileStr) {
               onComplete(JSON.parse(loadedProfileStr));
           } else {
               setProfile(prev => ({ ...prev, name: username }));
-              setAuthMode('setup'); 
+              setAuthMode('setup');
           }
+          setIsAuthenticating(false);
+          return;
+      }
+
+      if (authMode === 'signup') {
+          setAuthError(null);
+          setProfile(prev => ({ ...prev, name: username, occupation: 'Explorer' }));
+          setAuthMode('setup');
+          setStep(1);
       } else {
-          setAuthError(res.message && res.message !== 'exists' ? res.message : t.authError);
+          setAuthError(t.authError);
       }
       setIsAuthenticating(false);
   };
@@ -132,10 +142,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
           setAuthError('Enter credentials');
           return;
       }
-      // Initialize profile with username as name
       setProfile(prev => ({ ...prev, name: username, occupation: 'Explorer' }));
       setAuthMode('setup');
-      setStep(1); // Start directly at goals (skipped old step 1)
+      setStep(1);
       setAuthError(null);
   };
 
@@ -320,7 +329,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                         </button>
                     </div>
 
-                    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); authMode === 'login' ? handleLogin() : handleStartSignup(); }}>
+                    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleSubmitAuth(); }}>
                         <div className="space-y-1">
                             <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase px-2" htmlFor="onboarding-username">{t.authUsername}</label>
                             <div className="relative">
@@ -358,7 +367,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
 
                         {authError && (
                             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold text-center animate-fade-in-up">
-                                {authMode === 'login' && authError === t.authExists ? t.authError : authError}
+                                {authError}
                             </div>
                         )}
 
