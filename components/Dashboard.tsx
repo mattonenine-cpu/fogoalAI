@@ -52,8 +52,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
 
   useEffect(() => {
     fetch('/api/supabase-users')
-      .then((r) => r.json())
-      .then((data) => {
+      .then((r) => r.text().then((t) => { try { return t ? JSON.parse(t) : {}; } catch { return {}; } }))
+      .then((data: { totalCount?: number }) => {
         if (typeof data.totalCount === 'number') setTotalUsersCount(data.totalCount);
       })
       .catch(() => {});
