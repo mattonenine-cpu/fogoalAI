@@ -44,6 +44,19 @@ const setTelegramIndex = (index: Record<string, string>) => {
     safeSave(TELEGRAM_INDEX_KEY, JSON.stringify(index));
 };
 
+/** Отправляет аккаунт в Supabase (для учёта пользователей). Не блокирует авторизацию. */
+function syncUserToSupabase(username: string, telegramId?: number): void {
+    try {
+        fetch('/api/supabase-users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, telegramId }),
+        }).catch(() => {});
+    } catch {
+        // ignore
+    }
+}
+
 export const authService = {
     /**
      * Checks if a user is currently logged in.
@@ -76,7 +89,8 @@ export const authService = {
 
         // Set Session
         safeSave('session_user', username);
-        
+        syncUserToSupabase(username);
+
         // Populate "Active" LocalStorage keys for the App to use seamlessly
         authService.syncToActiveState(initialData);
 
@@ -175,6 +189,7 @@ export const authService = {
         telegramIndex[String(payload.id)] = currentUser;
         safeSave('cloud_users', JSON.stringify(users));
         setTelegramIndex(telegramIndex);
+        syncUserToSupabase(currentUser, payload.id);
 
         const userDataKey = `cloud_data_${currentUser}`;
         const savedRaw = localStorage.getItem(userDataKey);
@@ -319,6 +334,7 @@ export const authService = {
         const userDataKey = `cloud_data_${username}`;
         safeSave(userDataKey, JSON.stringify(dataToSave));
         safeSave('session_user', username);
+        syncUserToSupabase(username, payload.id);
         authService.syncToActiveState(dataToSave);
         return { success: true };
     }
