@@ -223,7 +223,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const { count } = await fetchCount(url, key);
-    sendJson(res, 200, { ok: true, totalCount: count, saved: true });
+    sendJson(res, 200, { ok: true, totalCount: count, saved: true, passwordSaved: !!password });
   } catch (e: any) {
     console.error('[supabase-users] handler error:', e?.message || e);
     sendJson(res, 500, { ok: false, totalCount: 0, error: String(e?.message || 'Internal error') });
