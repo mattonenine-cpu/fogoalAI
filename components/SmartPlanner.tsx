@@ -19,7 +19,7 @@ interface SmartPlannerProps {
 export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lang, onOpenScheduler, onDeductCredits }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [taskHistory, setTaskHistory] = useState<Task[][]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -149,14 +149,7 @@ export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lan
       <main className="flex-1 flex flex-col overflow-hidden relative px-2 pb-0 min-h-0">
         {viewMode === 'list' ? (
           <div className="h-full flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between mb-3">
-              <button
-                onClick={() => setViewMode('grid')}
-                className="px-4 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 transition-all flex items-center gap-2"
-              >
-                <LayoutGrid size={16} />
-                {t.viewInGrid}
-              </button>
+            <div className="shrink-0 flex justify-end mb-3">
               <button
                 onClick={openAddTask}
                 className="w-10 h-10 rounded-full bg-[var(--bg-active)] text-[var(--bg-active-text)] flex items-center justify-center shadow-lg active:scale-95 transition-all"
@@ -245,15 +238,6 @@ export const SmartPlanner: React.FC<SmartPlannerProps> = ({ tasks, setTasks, lan
           </div>
         ) : (
           <div className="h-full flex flex-col min-h-0">
-            <div className="shrink-0 flex items-center justify-between mb-2">
-              <button
-                onClick={() => setViewMode('list')}
-                className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/5 border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-all flex items-center gap-2"
-              >
-                <List size={14} />
-                {t.viewInList}
-              </button>
-            </div>
             <div className="flex-1 min-h-0 overflow-hidden">
               <SmartPlannerGrid
                 currentDate={currentDate}
