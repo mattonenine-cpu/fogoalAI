@@ -21,6 +21,25 @@ export interface TelegramAuthPayload {
 }
 
 const TELEGRAM_INDEX_KEY = 'focu_telegram_index'; // telegramId -> app username
+const SYNC_HASH_KEY = 'focu_sync_hash'; // sessionStorage: хеш пароля для сохранения данных в Supabase (только на время сессии)
+
+function getSyncHash(): string | null {
+    try {
+        return typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(SYNC_HASH_KEY) : null;
+    } catch { return null; }
+}
+
+function setSyncHash(hash: string): void {
+    try {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(SYNC_HASH_KEY, hash);
+    } catch { /* ignore */ }
+}
+
+function clearSyncHash(): void {
+    try {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(SYNC_HASH_KEY);
+    } catch { /* ignore */ }
+}
 
 // SIMULATED DATABASE DELAY
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -128,6 +147,41 @@ async function syncUserToSupabaseAndWait(username: string, telegramId?: number, 
     }
 }
 
+let saveDataTimeoutId: ReturnType<typeof setTimeout> | null = null;
+const SAVE_DATA_DEBOUNCE_MS = 2000;
+
+/** Отправить данные аккаунта в Supabase (цели, задачи, здоровье, настроение, экзамены и т.д.). Вызывается с задержкой после изменений. */
+function pushUserDataToSupabase(data: UserDataPayload): void {
+    const currentUser = typeof localStorage !== 'undefined' ? localStorage.getItem('session_user') : null;
+    const syncHash = getSyncHash();
+    if (!currentUser || !syncHash) return;
+
+    const url = getSupabaseUsersApiUrl();
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'saveData', username: currentUser, passwordHash: syncHash, payload: data }),
+    })
+        .then((res) => parseJsonResponse(res))
+        .then((json) => {
+            if (json && json.ok !== true && typeof console !== 'undefined' && console.warn)
+                console.warn('[Supabase] save data:', json.error);
+        })
+        .catch((err) => {
+            if (typeof console !== 'undefined' && console.warn)
+                console.warn('[Supabase] save data request failed:', err?.message ?? err);
+        });
+}
+
+/** Запланировать сохранение данных в Supabase через SAVE_DATA_DEBOUNCE_MS (дебаунс). */
+function debouncedSaveDataToSupabase(data: UserDataPayload): void {
+    if (saveDataTimeoutId != null) clearTimeout(saveDataTimeoutId);
+    saveDataTimeoutId = setTimeout(() => {
+        saveDataTimeoutId = null;
+        pushUserDataToSupabase(data);
+    }, SAVE_DATA_DEBOUNCE_MS);
+}
+
 export const authService = {
     /**
      * Checks if a user is currently logged in.
@@ -150,14 +204,13 @@ export const authService = {
             return { success: false, message: 'exists' };
         }
 
-        // Сначала сохраняем пользователя и хеш пароля в Supabase (хеш считаем на клиенте)
         const passwordHash = await hashPasswordClient(password, username);
         const sync = await syncUserToSupabaseAndWait(username, undefined, passwordHash);
         if (!sync.ok) {
             return { success: false, message: sync.error || 'Не удалось сохранить пароль в облаке' };
         }
 
-        // Save User Creds (локально)
+        setSyncHash(passwordHash);
         users[username] = { password, telegramId: undefined as number | undefined };
         safeSave('cloud_users', JSON.stringify(users));
 
@@ -166,6 +219,8 @@ export const authService = {
 
         safeSave('session_user', username);
         authService.syncToActiveState(initialData);
+
+        pushUserDataToSupabase(initialData);
 
         return { success: true };
     },
@@ -177,49 +232,67 @@ export const authService = {
     login: async (username: string, password: string): Promise<{ success: boolean, message?: string }> => {
         const apiUrl = getSupabaseUsersApiUrl();
         let verified = false;
+        let loginResponse: Record<string, unknown> | null = null;
+        let usedHash = '';
+
         try {
             const passwordHash = await hashPasswordClient(password, username);
+            usedHash = passwordHash;
             const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'login', username, passwordHash }),
             });
-            const data = await parseJsonResponse(res);
-            verified = data?.ok === true;
+            loginResponse = await parseJsonResponse(res);
+            verified = loginResponse?.ok === true;
         } catch {
-            // Fallback: проверка по localStorage (офлайн или API недоступен)
             const usersRaw = localStorage.getItem('cloud_users');
             const users = usersRaw ? JSON.parse(usersRaw) : {};
             verified = !!(users[username] && (users[username] as { password?: string }).password === password);
         }
 
-        if (!verified) {
-            return { success: false, message: 'invalid' };
-        }
+        if (!verified) return { success: false, message: 'invalid' };
 
-        // Set Session
         safeSave('session_user', username);
         const usersRaw = localStorage.getItem('cloud_users');
         const users = usersRaw ? JSON.parse(usersRaw) : {};
         const telegramId = (users[username] as { telegramId?: number } | undefined)?.telegramId;
         syncUserToSupabase(username, telegramId);
 
-        // Локальный индекс для существующих аккаунтов (чтобы не ломать текущее устройство)
         if (!users[username]) {
             users[username] = { password: '', telegramId: undefined };
             safeSave('cloud_users', JSON.stringify(users));
         }
 
-        // Load Data from "Cloud" (localStorage; на новом устройстве будет пусто)
+        if (usedHash) setSyncHash(usedHash);
+
         const userDataKey = `cloud_data_${username}`;
+        const serverData = loginResponse?.userData;
+        if (serverData != null && typeof serverData === 'object' && !Array.isArray(serverData)) {
+            const raw = serverData as Record<string, unknown>;
+            if (raw.profile != null && typeof raw.profile === 'object' && Array.isArray(raw.tasks)) {
+                const payload: UserDataPayload = {
+                    profile: raw.profile as UserDataPayload['profile'],
+                    tasks: raw.tasks as Task[],
+                    notes: Array.isArray(raw.notes) ? (raw.notes as UserDataPayload['notes']) : [],
+                    folders: Array.isArray(raw.folders) ? (raw.folders as UserDataPayload['folders']) : [],
+                    stats: (raw.stats != null && typeof raw.stats === 'object') ? (raw.stats as DailyStats) : {
+                        focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral', sleepHours: 7.5,
+                        activityHistory: [], apiRequestsCount: 0, lastRequestDate: new Date().toISOString().split('T')[0]
+                    },
+                };
+                authService.syncToActiveState(payload);
+                safeSave(userDataKey, JSON.stringify(payload));
+                return { success: true };
+            }
+        }
+
         const savedDataRaw = localStorage.getItem(userDataKey);
         if (savedDataRaw) {
             try {
                 const data: UserDataPayload = JSON.parse(savedDataRaw);
                 authService.syncToActiveState(data);
-            } catch {
-                // ignore
-            }
+            } catch { /* ignore */ }
         }
 
         return { success: true };
@@ -231,8 +304,8 @@ export const authService = {
      */
     logout: async () => {
         await delay(300);
+        clearSyncHash();
         localStorage.removeItem('session_user');
-        // Clear active state to prevent data leaking to next user
         localStorage.removeItem('focu_profile');
         localStorage.removeItem('focu_tasks');
         localStorage.removeItem('focu_notes');
@@ -254,15 +327,15 @@ export const authService = {
     },
 
     /**
-     * Helper: Takes current active state and saves it to the "Cloud" (namespaced key).
-     * Call this whenever data changes in the app.
+     * Сохраняет текущее состояние в localStorage и ставит в очередь отправку в Supabase (цели, задачи, здоровье, настроение, экзамены и т.д.).
      */
     syncToCloud: (data: UserDataPayload) => {
         const currentUser = authService.getCurrentUser();
-        if (!currentUser) return; // Don't save if no user logged in (guest mode?)
+        if (!currentUser) return;
 
         const userDataKey = `cloud_data_${currentUser}`;
         safeSave(userDataKey, JSON.stringify(data));
+        debouncedSaveDataToSupabase(data);
     },
 
     /**
