@@ -1,28 +1,11 @@
 /**
  * API: учёт пользователей в Supabase (username, password_hash, telegram_id), подсчёт, проверка логина.
+ * Хеш пароля считается на клиенте (Web Crypto), API только сохраняет и сравнивает строку — без Node/crypto, билд на Vercel проходит.
  * GET — { totalCount }. GET ?debug=1 — диагностика.
- * POST — upsert (body: username, password?, telegramId?). Пароль хешируется и сохраняется.
- * POST action=login — проверка входа (body: username, password) → { ok: true/false }.
+ * POST — upsert (body: username, passwordHash?, telegramId?). passwordHash сохраняется в password_hash.
+ * POST action=login — (body: username, passwordHash) → { ok: true/false }.
  */
-import crypto from 'node:crypto';
-import { Buffer } from 'node:buffer';
-
-const SALT_LEN = 16;
-const KEY_LEN = 64;
-
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(SALT_LEN);
-  const hash = crypto.scryptSync(password, salt, KEY_LEN);
-  return `${salt.toString('base64')}:${hash.toString('base64')}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [saltB64, hashB64] = stored.split(':');
-  if (!saltB64 || !hashB64) return false;
-  const salt = Buffer.from(saltB64, 'base64');
-  const hash = crypto.scryptSync(password, salt, KEY_LEN);
-  return hash.toString('base64') === hashB64;
-}
+declare const process: { env: Record<string, string | undefined> };
 
 const sendJson = (res: any, status: number, data: object) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -171,7 +154,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // POST
-    let body: { action?: string; username?: string; password?: string; telegramId?: number } = {};
+    let body: { action?: string; username?: string; passwordHash?: string; telegramId?: number } = {};
     try {
       body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     } catch {
@@ -183,11 +166,11 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Проверка логина: action=login, body: username, password
+    // Проверка логина: action=login, body: username, passwordHash (хеш с клиента)
     if (body.action === 'login') {
-      const password = typeof body.password === 'string' ? body.password : '';
-      if (!password) {
-        sendJson(res, 200, { ok: false, error: 'password required' });
+      const passwordHash = typeof body.passwordHash === 'string' ? body.passwordHash : '';
+      if (!passwordHash) {
+        sendJson(res, 200, { ok: false, error: 'passwordHash required' });
         return;
       }
       const { user, error: fetchErr } = await getUserByUsername(url, key, username);
@@ -199,19 +182,19 @@ export default async function handler(req: any, res: any) {
         sendJson(res, 200, { ok: false, error: 'user not found or no password set' });
         return;
       }
-      const valid = verifyPassword(password, user.password_hash);
+      const valid = user.password_hash === passwordHash;
       sendJson(res, 200, { ok: valid });
       return;
     }
 
     const telegramId = body.telegramId != null && Number.isFinite(Number(body.telegramId)) ? Number(body.telegramId) : null;
-    const password = typeof body.password === 'string' ? body.password : '';
+    const passwordHash = typeof body.passwordHash === 'string' ? body.passwordHash : '';
     const row: { username: string; telegram_id: number | null; updated_at: string; password_hash?: string | null } = {
       username,
       telegram_id: telegramId,
       updated_at: new Date().toISOString(),
     };
-    if (password) row.password_hash = hashPassword(password);
+    if (passwordHash) row.password_hash = passwordHash;
 
     const { error: upsertErr } = await upsertUser(url, key, row);
 
@@ -222,7 +205,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const { count } = await fetchCount(url, key);
-    sendJson(res, 200, { ok: true, totalCount: count, saved: true, passwordSaved: !!password });
+    sendJson(res, 200, { ok: true, totalCount: count, saved: true, passwordSaved: !!passwordHash });
   } catch (e: any) {
     console.error('[supabase-users] handler error:', e?.message || e);
     sendJson(res, 500, { ok: false, totalCount: 0, error: String(e?.message || 'Internal error') });
