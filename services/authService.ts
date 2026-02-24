@@ -230,43 +230,47 @@ export const authService = {
      * Verifies credentials and loads their data into the active application state.
      */
     login: async (username: string, password: string): Promise<{ success: boolean, message?: string }> => {
+        const u = (username ?? '').trim();
+        const p = (password ?? '').trim();
+        if (!u || !p) return { success: false, message: 'invalid' };
+
         const apiUrl = getSupabaseUsersApiUrl();
         let verified = false;
         let loginResponse: Record<string, unknown> | null = null;
         let usedHash = '';
 
         try {
-            const passwordHash = await hashPasswordClient(password, username);
+            const passwordHash = await hashPasswordClient(p, u);
             usedHash = passwordHash;
             const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'login', username, passwordHash }),
+                body: JSON.stringify({ action: 'login', username: u, passwordHash }),
             });
             loginResponse = await parseJsonResponse(res);
             verified = loginResponse?.ok === true;
         } catch {
             const usersRaw = localStorage.getItem('cloud_users');
             const users = usersRaw ? JSON.parse(usersRaw) : {};
-            verified = !!(users[username] && (users[username] as { password?: string }).password === password);
+            verified = !!(users[u] && (users[u] as { password?: string }).password === p);
         }
 
         if (!verified) return { success: false, message: 'invalid' };
 
-        safeSave('session_user', username);
+        safeSave('session_user', u);
         const usersRaw = localStorage.getItem('cloud_users');
         const users = usersRaw ? JSON.parse(usersRaw) : {};
-        const telegramId = (users[username] as { telegramId?: number } | undefined)?.telegramId;
-        syncUserToSupabase(username, telegramId);
+        const telegramId = (users[u] as { telegramId?: number } | undefined)?.telegramId;
+        syncUserToSupabase(u, telegramId);
 
-        if (!users[username]) {
-            users[username] = { password: '', telegramId: undefined };
+        if (!users[u]) {
+            users[u] = { password: '', telegramId: undefined };
             safeSave('cloud_users', JSON.stringify(users));
         }
 
         if (usedHash) setSyncHash(usedHash);
 
-        const userDataKey = `cloud_data_${username}`;
+        const userDataKey = `cloud_data_${u}`;
         const serverData = loginResponse?.userData;
         if (serverData != null && typeof serverData === 'object' && !Array.isArray(serverData)) {
             const raw = serverData as Record<string, unknown>;
