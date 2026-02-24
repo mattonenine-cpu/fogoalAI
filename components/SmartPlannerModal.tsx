@@ -15,16 +15,27 @@ interface TaskModalProps {
 
 const TASK_COLORS = ['transparent', '#6366f1', '#ef4444', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'];
 
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export const SmartPlannerModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, onDelete, initialTask, lang }) => {
   const [title, setTitle] = useState(initialTask?.title || '');
   const [duration, setDuration] = useState(initialTask?.durationMinutes || 60);
   const [color, setColor] = useState(initialTask?.color || 'transparent');
+  const [date, setDate] = useState(initialTask?.date || todayISO());
+  const [scheduledTime, setScheduledTime] = useState(initialTask?.scheduledTime || '09:00');
+  const [hasDate, setHasDate] = useState(!!(initialTask?.date && initialTask?.scheduledTime));
 
   React.useEffect(() => {
     if (isOpen) {
-        setTitle(initialTask?.title || '');
-        setDuration(initialTask?.durationMinutes || 60);
-        setColor(initialTask?.color || 'transparent');
+      setTitle(initialTask?.title || '');
+      setDuration(initialTask?.durationMinutes || 60);
+      setColor(initialTask?.color || 'transparent');
+      setDate(initialTask?.date || todayISO());
+      setScheduledTime(initialTask?.scheduledTime || '09:00');
+      setHasDate(!!(initialTask?.date && initialTask?.scheduledTime));
     }
   }, [isOpen, initialTask]);
 
@@ -37,13 +48,12 @@ export const SmartPlannerModal: React.FC<TaskModalProps> = ({ isOpen, onClose, o
       title,
       durationMinutes: duration,
       color,
-      // Preserve existing values or set defaults for hidden fields
       smartType: initialTask?.smartType || 'ONE_OFF',
       priority: initialTask?.priority || 'Medium',
       preferredTime: initialTask?.preferredTime || 'MORNING',
       category: initialTask?.category || 'work',
-      date: initialTask?.date,
-      scheduledTime: initialTask?.scheduledTime,
+      date: hasDate ? date : undefined,
+      scheduledTime: hasDate ? scheduledTime : undefined,
       completed: initialTask?.completed || false,
       status: 'planned'
     });
@@ -100,6 +110,32 @@ export const SmartPlannerModal: React.FC<TaskModalProps> = ({ isOpen, onClose, o
                     </button>
                 ))}
             </div>
+          </div>
+
+          <div className="space-y-3 p-3 rounded-2xl bg-white/5 border border-[var(--border-glass)]">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasDate}
+                onChange={(e) => setHasDate(e.target.checked)}
+                className="rounded border-[var(--border-glass)] bg-white/5 text-indigo-500 focus:ring-indigo-500"
+              />
+              <span className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
+                {lang === 'ru' ? 'Назначить дату и время (появится в сетке)' : 'Set date & time (show on grid)'}
+              </span>
+            </label>
+            {hasDate && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-[8px] font-black text-[var(--text-secondary)] uppercase tracking-widest block mb-1">Дата</label>
+                  <GlassInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </div>
+                <div className="w-24">
+                  <label className="text-[8px] font-black text-[var(--text-secondary)] uppercase tracking-widest block mb-1">{lang === 'ru' ? 'Время' : 'Time'}</label>
+                  <GlassInput type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-4 flex gap-3">
