@@ -1,11 +1,8 @@
 /**
  * API для сохранения аккаунтов в Supabase и получения количества пользователей.
- * GET — возвращает { totalCount }. GET ?debug=1 — диагностика.
- * POST — body { username: string, telegramId?: number }, upsert в app_users.
- * Всегда возвращает JSON (никогда HTML), чтобы клиент не падал на parse.
+ * GET — { totalCount }. GET ?debug=1 — диагностика. POST — upsert в app_users.
+ * Динамический импорт Supabase, чтобы при ошибке загрузки модуля функция не падала.
  */
-import { createClient } from '@supabase/supabase-js';
-
 declare const process: { env: { [key: string]: string | undefined } };
 
 const sendJson = (res: any, status: number, data: object) => {
@@ -22,7 +19,8 @@ function getEnv(name: string): string | undefined {
   }
 }
 
-function getSupabase(): ReturnType<typeof createClient> | null {
+/** Динамически загружает Supabase и создаёт клиент. При любой ошибке возвращает null. */
+async function getSupabase(): Promise<any> {
   try {
     const url =
       getEnv('supabase_SUPABASE_URL') ||
@@ -33,9 +31,10 @@ function getSupabase(): ReturnType<typeof createClient> | null {
       getEnv('SUPABASE_SUPABASE_SERVICE_ROLE_KEY') ||
       getEnv('SUPABASE_SERVICE_ROLE_KEY');
     if (!url || !key) return null;
+    const { createClient } = await import('@supabase/supabase-js');
     return createClient(url, key);
   } catch (e) {
-    console.error('[supabase-users] createClient failed:', e);
+    console.error('[supabase-users] getSupabase failed:', e);
     return null;
   }
 }
@@ -51,7 +50,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const supabase = getSupabase();
+    const supabase = await getSupabase();
 
     if (req.method === 'GET' && req.query?.debug === '1') {
       const hasUrl = !!(getEnv('supabase_SUPABASE_URL') || getEnv('SUPABASE_SUPABASE_URL') || getEnv('SUPABASE_URL'));
@@ -61,7 +60,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!supabase) {
-      sendJson(res, 200, { ok: false, totalCount: 0, error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set.' });
+      sendJson(res, 200, { ok: false, totalCount: 0, error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set or Supabase module failed to load.' });
       return;
     }
 
