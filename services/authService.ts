@@ -44,17 +44,34 @@ const setTelegramIndex = (index: Record<string, string>) => {
     safeSave(TELEGRAM_INDEX_KEY, JSON.stringify(index));
 };
 
+/** URL API для Supabase (тот же хост, чтобы в проде запрос шёл на Vercel). */
+function getSupabaseUsersApiUrl(): string {
+    if (typeof window !== 'undefined' && window.location?.origin)
+        return `${window.location.origin}/api/supabase-users`;
+    return '/api/supabase-users';
+}
+
 /** Отправляет аккаунт в Supabase (для учёта пользователей). Не блокирует авторизацию. */
 function syncUserToSupabase(username: string, telegramId?: number): void {
-    try {
-        fetch('/api/supabase-users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, telegramId }),
-        }).catch(() => {});
-    } catch {
-        // ignore
-    }
+    const url = getSupabaseUsersApiUrl();
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, telegramId }),
+    })
+        .then((res) => {
+            if (!res.ok && typeof console !== 'undefined' && console.warn)
+                console.warn('[Supabase] sync user failed:', res.status, url);
+            return res.json();
+        })
+        .then((data) => {
+            if (data && !data.ok && typeof console !== 'undefined' && console.warn)
+                console.warn('[Supabase] sync user error:', data.error);
+        })
+        .catch((err) => {
+            if (typeof console !== 'undefined' && console.warn)
+                console.warn('[Supabase] sync user request failed:', err?.message || err);
+        });
 }
 
 export const authService = {
@@ -113,6 +130,7 @@ export const authService = {
 
         // Set Session
         safeSave('session_user', username);
+        syncUserToSupabase(username, users[username]?.telegramId);
 
         // Load Data from "Cloud"
         const userDataKey = `cloud_data_${username}`;
@@ -253,6 +271,7 @@ export const authService = {
         if (!users[username]) return { success: false, needRegister: true };
 
         safeSave('session_user', username);
+        syncUserToSupabase(username, payload.id);
         const userDataKey = `cloud_data_${username}`;
         const savedDataRaw = localStorage.getItem(userDataKey);
         if (savedDataRaw) {
