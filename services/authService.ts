@@ -62,21 +62,37 @@ function parseJsonResponse(res: Response): Promise<Record<string, unknown> | nul
     });
 }
 
-/** Тело запроса в Supabase: всегда передаём username и при регистрации — пароль. */
-function buildSupabaseSyncBody(username: string, telegramId?: number, password?: string): string {
+const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_LENGTH = 32;
+
+/** Хеш пароля на клиенте (Web Crypto), чтобы API не использовал Node — тогда билд на Vercel проходит. */
+async function hashPasswordClient(password: string, username: string): Promise<string> {
+    const enc = new TextEncoder();
+    const salt = enc.encode(username + ':fogoal');
+    const key = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+        key,
+        PBKDF2_LENGTH * 8
+    );
+    return btoa(String.fromCharCode(...new Uint8Array(bits)));
+}
+
+/** Тело запроса: username, опционально telegramId и passwordHash (хеш пароля с клиента). */
+function buildSupabaseSyncBody(username: string, telegramId?: number, passwordHash?: string): string {
     const body: Record<string, unknown> = { username };
     if (telegramId != null) body.telegramId = telegramId;
-    if (password != null && password !== '') body.password = password;
+    if (passwordHash != null && passwordHash !== '') body.passwordHash = passwordHash;
     return JSON.stringify(body);
 }
 
 /** Отправляет аккаунт в Supabase (учёт + хеш пароля при регистрации). Не блокирует авторизацию. */
-function syncUserToSupabase(username: string, telegramId?: number, password?: string): void {
+function syncUserToSupabase(username: string, telegramId?: number, passwordHash?: string): void {
     const url = getSupabaseUsersApiUrl();
     fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: buildSupabaseSyncBody(username, telegramId, password),
+        body: buildSupabaseSyncBody(username, telegramId, passwordHash),
     })
         .then(async (res) => {
             if (!res.ok && typeof console !== 'undefined' && console.warn)
@@ -94,13 +110,13 @@ function syncUserToSupabase(username: string, telegramId?: number, password?: st
 }
 
 /** То же, но с ожиданием ответа (для регистрации: чтобы убедиться, что пароль сохранён). */
-async function syncUserToSupabaseAndWait(username: string, telegramId?: number, password?: string): Promise<{ ok: boolean; error?: string }> {
+async function syncUserToSupabaseAndWait(username: string, telegramId?: number, passwordHash?: string): Promise<{ ok: boolean; error?: string }> {
     const url = getSupabaseUsersApiUrl();
     try {
         const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: buildSupabaseSyncBody(username, telegramId, password),
+            body: buildSupabaseSyncBody(username, telegramId, passwordHash),
         });
         const data = await parseJsonResponse(res);
         if (!res.ok) return { ok: false, error: (data?.error as string) || res.statusText };
@@ -134,8 +150,9 @@ export const authService = {
             return { success: false, message: 'exists' };
         }
 
-        // Сначала сохраняем пользователя и пароль в Supabase; без этого вход с другого устройства не сработает
-        const sync = await syncUserToSupabaseAndWait(username, undefined, password);
+        // Сначала сохраняем пользователя и хеш пароля в Supabase (хеш считаем на клиенте)
+        const passwordHash = await hashPasswordClient(password, username);
+        const sync = await syncUserToSupabaseAndWait(username, undefined, passwordHash);
         if (!sync.ok) {
             return { success: false, message: sync.error || 'Не удалось сохранить пароль в облаке' };
         }
@@ -161,10 +178,11 @@ export const authService = {
         const apiUrl = getSupabaseUsersApiUrl();
         let verified = false;
         try {
+            const passwordHash = await hashPasswordClient(password, username);
             const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'login', username, password }),
+                body: JSON.stringify({ action: 'login', username, passwordHash }),
             });
             const data = await parseJsonResponse(res);
             verified = data?.ok === true;
