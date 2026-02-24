@@ -122,7 +122,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
               setAuthMode('setup'); 
           }
       } else {
-          setAuthError(t.authError);
+          setAuthError(res.message && res.message !== 'exists' ? res.message : t.authError);
       }
       setIsAuthenticating(false);
   };
@@ -358,7 +358,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
 
                         {authError && (
                             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold text-center animate-fade-in-up">
-                                {authError}
+                                {authMode === 'login' && authError === t.authExists ? t.authError : authError}
                             </div>
                         )}
 
