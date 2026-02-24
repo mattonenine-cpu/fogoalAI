@@ -560,7 +560,7 @@ export default function App() {
           <div className="glass-liquid rounded-[32px] px-2 py-2 flex items-center justify-between shadow-2xl w-full max-w-md pointer-events-auto bg-[var(--bg-card)]">
             <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
             {(visibleNavItems.includes('scheduler') || visibleNavItems.includes('smart_planner')) && (
-              <NavBtn active={currentView === AppView.SMART_PLANNER || currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SMART_PLANNER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
+              <NavBtn active={currentView === AppView.SMART_PLANNER || currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
             )}
             {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map((eco: EcosystemConfig) => (
                 <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
