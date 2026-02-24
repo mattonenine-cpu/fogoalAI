@@ -289,7 +289,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
       return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-main)] transition-colors duration-500">
             <div className="absolute top-6 right-6"><ThemeSelector currentTheme={currentTheme} onSelect={onSetTheme} /></div>
-            <div className="w-full max-w-sm">
+            <div className="w-full max-w-sm pointer-events-auto">
                 <div className="text-center mb-10">
                     <div className="flex justify-center mb-2">
                         <Logo height={56} />
@@ -300,12 +300,14 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                 <GlassCard className="p-8 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[40px] shadow-2xl relative overflow-hidden backdrop-blur-xl">
                     <div className="flex bg-[var(--bg-main)]/50 rounded-full p-1 mb-8 border border-[var(--border-glass)]">
                         <button 
+                            type="button"
                             onClick={() => { setAuthMode('login'); setAuthError(null); }}
                             className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${authMode === 'login' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                         >
                             {t.authLogin}
                         </button>
                         <button 
+                            type="button"
                             onClick={() => { setAuthMode('signup'); setAuthError(null); }}
                             className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${authMode === 'signup' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                         >
@@ -313,29 +315,38 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                         </button>
                     </div>
 
-                    <div className="space-y-4">
+                    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); authMode === 'login' ? handleLogin() : handleStartSignup(); }}>
                         <div className="space-y-1">
-                            <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase px-2">{t.authUsername}</label>
+                            <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase px-2" htmlFor="onboarding-username">{t.authUsername}</label>
                             <div className="relative">
-                                <User className="absolute left-4 top-3.5 text-[var(--text-secondary)]" size={16} />
+                                <User className="absolute left-4 top-3.5 text-[var(--text-secondary)] pointer-events-none" size={16} />
                                 <input 
+                                    id="onboarding-username"
+                                    type="text"
+                                    autoComplete="username"
                                     value={username}
                                     onChange={e => setUsername(e.target.value)}
-                                    className="w-full bg-black/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-[13px] text-[var(--text-primary)] focus:outline-none focus:bg-black/10 focus:border-[var(--theme-accent)] transition-all duration-300 backdrop-blur-3xl placeholder-slate-400 hover:bg-black/10"
+                                    className="w-full bg-black/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-[13px] text-[var(--text-primary)] focus:outline-none focus:bg-black/10 focus:border-[var(--theme-accent)] transition-all duration-300 backdrop-blur-3xl placeholder-slate-400 hover:bg-black/10 pointer-events-auto"
                                     placeholder="Username"
+                                    readOnly={false}
+                                    disabled={false}
                                 />
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase px-2">{t.authPassword}</label>
+                            <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase px-2" htmlFor="onboarding-password">{t.authPassword}</label>
                             <div className="relative">
-                                <Lock className="absolute left-4 top-3.5 text-[var(--text-secondary)]" size={16} />
+                                <Lock className="absolute left-4 top-3.5 text-[var(--text-secondary)] pointer-events-none" size={16} />
                                 <input 
+                                    id="onboarding-password"
                                     type="password"
+                                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
-                                    className="w-full bg-black/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-[13px] text-[var(--text-primary)] focus:outline-none focus:bg-black/10 focus:border-[var(--theme-accent)] transition-all duration-300 backdrop-blur-3xl placeholder-slate-400 hover:bg-black/10"
+                                    className="w-full bg-black/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-[13px] text-[var(--text-primary)] focus:outline-none focus:bg-black/10 focus:border-[var(--theme-accent)] transition-all duration-300 backdrop-blur-3xl placeholder-slate-400 hover:bg-black/10 pointer-events-auto"
                                     placeholder="••••••••"
+                                    readOnly={false}
+                                    disabled={false}
                                 />
                             </div>
                         </div>
@@ -347,7 +358,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                         )}
 
                         <button 
-                            onClick={authMode === 'login' ? handleLogin : handleStartSignup}
+                            type="submit"
                             disabled={!username || !password || isAuthenticating}
                             className="w-full h-14 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[11px] shadow-lg shadow-[var(--theme-glow)] active:scale-95 transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
@@ -358,6 +369,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                         {authMode === 'login' && (
                             <>
                                 <button
+                                    type="button"
                                     onClick={() => onTelegramAuto && onTelegramAuto()}
                                     className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-full border border-[var(--theme-accent)]/40 text-[var(--theme-accent)] text-[11px] font-bold hover:bg-[var(--theme-accent)]/10 transition-all"
                                 >
@@ -373,7 +385,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                                 </a>
                             </>
                         )}
-                    </div>
+                    </form>
                 </GlassCard>
                 
                 <p className="text-center text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-8 opacity-50">
@@ -398,6 +410,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                                 onChange={e => setGoalText(e.target.value)}
                                 placeholder={t.goalPlaceholder} 
                                 onKeyDown={e => e.key === 'Enter' && handleAddGoal()}
+                                readOnly={false}
+                                disabled={false}
+                                className="pointer-events-auto"
                             />
                             <button onClick={handleAddGoal} className="w-12 h-12 rounded-2xl bg-white/5 border border-[var(--border-glass)] flex items-center justify-center text-[var(--text-primary)] hover:bg-white/10 active:scale-90 transition-all"><Plus size={20}/></button>
                           </div>
@@ -562,7 +577,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-main)] transition-colors duration-500">
       <div className="absolute top-6 right-6"><ThemeSelector currentTheme={currentTheme} onSelect={onSetTheme} /></div>
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm pointer-events-auto">
         <div className="text-center mb-8">
           <div className="mb-4 flex justify-center">
              <Logo height={48} level={1} />
@@ -571,7 +586,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
           <p className="text-[var(--text-secondary)] text-[9px] font-black uppercase tracking-[0.3em]">{step === 4 ? 'FINAL REVIEW' : `${step}/4`}</p>
         </div>
         <GlassCard className="p-7 min-h-[320px] flex flex-col relative overflow-hidden bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[44px] shadow-2xl transition-all duration-500">
-            <div className={`flex-1 flex flex-col items-center pt-2 ${step >= 3 ? 'justify-start' : 'justify-center'}`}>{renderStep()}</div>
+            <div className={`flex-1 flex flex-col items-center pt-2 ${step >= 3 ? 'justify-start' : 'justify-center'}`} style={{ pointerEvents: 'auto' }}>{renderStep()}</div>
             <div className="flex justify-between items-center mt-6 pt-5 border-t border-[var(--border-glass)]">
                 <button onClick={handleBack} className="w-12 h-12 rounded-full bg-white/5 border border-[var(--border-glass)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-90">{step > 1 ? <ArrowLeft size={20}/> : <X size={20}/>}</button>
                 <button onClick={handleNext} className="px-8 py-4 rounded-full bg-[var(--bg-active)] text-[var(--bg-active-text)] font-black text-[11px] uppercase tracking-widest flex items-center gap-3 hover:opacity-90 transition-all shadow-xl active:scale-95">{step === 4 ? t.confirmEcosystems : t.next} <ArrowRight size={14} strokeWidth={3} /></button>
