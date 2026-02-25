@@ -2,7 +2,7 @@
  * Крон: раз в сутки отправляет напоминания в Telegram всем, у кого включены ежедневные напоминания.
  * Подходит для бесплатного плана Vercel (1 запуск в день).
  * Vercel Cron: "0 9 * * *" (ежедневно в 09:00 UTC).
- * Env: TELEGRAM_BOT_TOKEN, BLOB_READ_WRITE_TOKEN, CRON_SECRET (опционально).
+ * Env: TELEGRAM_BOT_TOKEN, REMINDERS_READ_WRITE_TOKEN, CRON_SECRET (опционально).
  */
 import { list, put } from '@vercel/blob';
 declare const process: { env: { [key: string]: string | undefined } };
@@ -137,12 +137,12 @@ export default async function handler(req: any, res: any) {
   }
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  const blobToken = process.env.REMINDERS_READ_WRITE_TOKEN;
   if (!token) {
     return res.status(200).json({ ok: true, message: 'TELEGRAM_BOT_TOKEN not set' });
   }
   if (!blobToken) {
-    return res.status(200).json({ ok: true, message: 'BLOB_READ_WRITE_TOKEN not set; no reminders stored' });
+    return res.status(200).json({ ok: true, message: 'REMINDERS_READ_WRITE_TOKEN not set; no reminders stored' });
   }
 
   try {
