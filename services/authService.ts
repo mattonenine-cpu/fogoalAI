@@ -343,6 +343,61 @@ export const authService = {
     },
 
     /**
+     * Обновить данные аккаунта из Supabase для уже залогиненного пользователя (без повторного логина).
+     * Используется при старте приложения, чтобы мини-апп сразу подтягивал последнее состояние из облака.
+     */
+    refreshFromCloud: async (): Promise<UserDataPayload | null> => {
+        const currentUser = typeof localStorage !== 'undefined' ? localStorage.getItem('session_user') : null;
+        const syncHash = getSyncHash();
+        if (!currentUser || !syncHash) return null;
+
+        const apiUrl = getSupabaseUsersApiUrl();
+        let loginResponse: Record<string, unknown> | null = null;
+        try {
+            const res = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'login', username: currentUser, passwordHash: syncHash }),
+            });
+            loginResponse = await parseJsonResponse(res);
+        } catch {
+            return null;
+        }
+
+        if (loginResponse?.ok !== true || !loginResponse.userData || typeof loginResponse.userData !== 'object' || Array.isArray(loginResponse.userData)) {
+            return null;
+        }
+
+        const raw = loginResponse.userData as Record<string, unknown>;
+        if (raw.profile == null || typeof raw.profile !== 'object') return null;
+
+        const today = new Date().toISOString().split('T')[0];
+        const payload: UserDataPayload = {
+            profile: raw.profile as UserDataPayload['profile'],
+            tasks: Array.isArray(raw.tasks) ? (raw.tasks as Task[]) : [],
+            notes: Array.isArray(raw.notes) ? (raw.notes as Note[]) : [],
+            folders: Array.isArray(raw.folders) ? (raw.folders as NoteFolder[]) : [],
+            stats: (raw.stats != null && typeof raw.stats === 'object')
+                ? (raw.stats as DailyStats)
+                : {
+                    focusScore: 0,
+                    tasksCompleted: 0,
+                    streakDays: 0,
+                    mood: 'Neutral',
+                    sleepHours: 7.5,
+                    activityHistory: [],
+                    apiRequestsCount: 0,
+                    lastRequestDate: today,
+                },
+        };
+
+        const userDataKey = `cloud_data_${currentUser}`;
+        safeSave(userDataKey, JSON.stringify(payload));
+        authService.syncToActiveState(payload);
+        return payload;
+    },
+
+    /**
      * Привязать Telegram к текущему аккаунту. Сохраняет telegramId в профиле и в индексе для входа с других устройств.
      */
     linkTelegram: (payload: TelegramAuthPayload): { success: boolean; updatedProfile?: UserProfile } => {
