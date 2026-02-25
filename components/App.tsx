@@ -149,6 +149,32 @@ export default function App() {
       if (!user && profile) setProfile(null);
   }, []);
 
+  // При старте приложения пробуем подтянуть последнее состояние аккаунта из Supabase,
+  // если пользователь уже залогинен (например, открыл мини-апп на другом устройстве).
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const updated = await authService.refreshFromCloud?.();
+        if (!cancelled && updated) {
+          setProfile(updated.profile);
+          setTasks(updated.tasks);
+          setNotes(updated.notes);
+          setFolders(updated.folders);
+          setDailyStats(updated.stats);
+        }
+      } catch {
+        // тихо игнорируем ошибки сети/сервера, остаёмся на локальном состоянии
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  // намеренно только при первом монтировании, чтобы не гонять лишние запросы
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Обработка callback от Telegram Login Widget (привязка или вход)
   const [handlingTelegram, setHandlingTelegram] = useState(false);
   useEffect(() => {
