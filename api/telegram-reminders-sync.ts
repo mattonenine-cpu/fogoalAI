@@ -1,7 +1,7 @@
 /**
  * Сохраняет настройки напоминаний и снимок задач/целей для крон-напоминаний.
  * POST body: { telegramId, reminderFrequency, reminderHour, tasks, goals, lang, timezoneOffset }
- * Хранилище: Vercel Blob (reminders/<telegramId>.json). Если BLOB_READ_WRITE_TOKEN не задан — возвращаем ok, но данные не сохраняются.
+ * Хранилище: Vercel Blob (reminders/<telegramId>.json). Если REMINDERS_READ_WRITE_TOKEN не задан — возвращаем ok, но данные не сохраняются.
  */
 import { put, del } from '@vercel/blob';
 declare const process: { env: { [key: string]: string | undefined } };
@@ -50,9 +50,9 @@ export default async function handler(req: any, res: any) {
       lastDailySentDate: null as string | null,
     };
 
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    const token = process.env.REMINDERS_READ_WRITE_TOKEN;
     if (!token) {
-      return res.status(200).json({ ok: true, hint: 'BLOB_READ_WRITE_TOKEN not set; reminders will not run until Blob is configured.' });
+      return res.status(200).json({ ok: true, hint: 'REMINDERS_READ_WRITE_TOKEN not set; reminders will not run until Blob is configured.' });
     }
 
     await put(`reminders/${id}.json`, JSON.stringify(payload), { access: 'public' });
