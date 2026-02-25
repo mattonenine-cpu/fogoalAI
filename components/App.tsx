@@ -13,7 +13,7 @@ import { Logo } from './Logo';
 import { ThemeSelector } from './ThemeSelector';
 import { SettingsModal } from './SettingsModal';
 import { ContextHelpOverlay } from './ContextHelpOverlay';
-import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound, User } from 'lucide-react';
+import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound, User, Loader2 } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
 import { CreditsService } from '../services/creditsService';
@@ -144,16 +144,19 @@ export default function App() {
     return { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral', sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: today };
   });
 
+  const [isSyncingOnOpen, setIsSyncingOnOpen] = useState(false);
+
   useEffect(() => {
       const user = authService.getCurrentUser();
       if (!user && profile) setProfile(null);
   }, []);
 
-  // При старте приложения пробуем подтянуть последнее состояние аккаунта из Supabase,
-  // если пользователь уже залогинен (например, открыл мини-апп на другом устройстве).
+  // При открытии приложения подтягиваем данные из облака и показываем загрузку не менее 1 секунды.
   useEffect(() => {
     if (!profile) return;
     let cancelled = false;
+    setIsSyncingOnOpen(true);
+    const start = Date.now();
     (async () => {
       try {
         const updated = await authService.refreshFromCloud?.();
@@ -165,13 +168,16 @@ export default function App() {
           setDailyStats(updated.stats);
         }
       } catch {
-        // тихо игнорируем ошибки сети/сервера, остаёмся на локальном состоянии
+        // тихо игнорируем ошибки сети/сервера
       }
+      const elapsed = Date.now() - start;
+      const remain = Math.max(0, 1000 - elapsed);
+      await new Promise(r => setTimeout(r, remain));
+      if (!cancelled) setIsSyncingOnOpen(false);
     })();
     return () => {
       cancelled = true;
     };
-  // намеренно только при первом монтировании, чтобы не гонять лишние запросы
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -609,6 +615,15 @@ export default function App() {
           onClose={() => setShowEcosystemSelection(false)}
           lang={language || 'ru'}
         />
+      )}
+
+      {isSyncingOnOpen && profile && language && (
+        <div className="fixed inset-0 z-[750] bg-[var(--bg-main)]/95 flex flex-col items-center justify-center" aria-hidden="false">
+          <Loader2 className="animate-spin text-[var(--theme-accent)]" size={48} strokeWidth={2.5} />
+          <p className="mt-4 text-sm font-bold text-[var(--text-secondary)] uppercase tracking-widest">
+            {language === 'ru' ? 'Подтягиваем данные...' : 'Syncing...'}
+          </p>
+        </div>
       )}
 
       {helpContext && profile && (
