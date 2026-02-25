@@ -215,7 +215,7 @@ export default async function handler(req: any, res: any) {
     // Сохранение данных аккаунта: action=saveData, body: username, passwordHash, payload
     if (body.action === 'saveData') {
       const passwordHash = typeof body.passwordHash === 'string' ? body.passwordHash : '';
-      const payload = body.payload;
+      let payload = body.payload;
       if (!passwordHash) {
         sendJson(res, 400, { ok: false, error: 'passwordHash required' });
         return;
@@ -224,6 +224,14 @@ export default async function handler(req: any, res: any) {
         sendJson(res, 400, { ok: false, error: 'payload required (object)' });
         return;
       }
+      // Нормализуем payload: гарантируем наличие profile, tasks, notes, folders, stats для корректной синхронизации
+      const normalized = {
+        profile: payload.profile != null && typeof payload.profile === 'object' ? payload.profile : {},
+        tasks: Array.isArray(payload.tasks) ? payload.tasks : [],
+        notes: Array.isArray(payload.notes) ? payload.notes : [],
+        folders: Array.isArray(payload.folders) ? payload.folders : [],
+        stats: payload.stats != null && typeof payload.stats === 'object' ? payload.stats : {},
+      };
       const { user, error: fetchErr } = await getUserByUsername(url, key, username);
       if (fetchErr) {
         sendJson(res, 500, { ok: false, error: fetchErr });
@@ -233,7 +241,7 @@ export default async function handler(req: any, res: any) {
         sendJson(res, 200, { ok: false, error: 'invalid credentials' });
         return;
       }
-      const { error: patchErr } = await patchUserData(url, key, username, payload);
+      const { error: patchErr } = await patchUserData(url, key, username, normalized);
       if (patchErr) {
         sendJson(res, 500, { ok: false, error: patchErr });
         return;
