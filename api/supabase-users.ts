@@ -215,15 +215,17 @@ export default async function handler(req: any, res: any) {
     // Сохранение данных аккаунта: action=saveData, body: username, passwordHash, payload
     if (body.action === 'saveData') {
       const passwordHash = typeof body.passwordHash === 'string' ? body.passwordHash : '';
-      let payload = body.payload;
+      const payloadRaw = body.payload;
       if (!passwordHash) {
         sendJson(res, 400, { ok: false, error: 'passwordHash required' });
         return;
       }
-      if (payload == null || typeof payload !== 'object') {
+      if (payloadRaw == null || typeof payloadRaw !== 'object') {
         sendJson(res, 400, { ok: false, error: 'payload required (object)' });
         return;
       }
+      // Для удобства типизации работаем через any: структура payload контролируется клиентом (UserDataPayload)
+      const payload: any = payloadRaw as any;
       // Нормализуем payload: гарантируем наличие profile, tasks, notes, folders, stats для корректной синхронизации
       const normalized = {
         profile: payload.profile != null && typeof payload.profile === 'object' ? payload.profile : {},
