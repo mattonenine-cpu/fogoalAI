@@ -618,10 +618,10 @@ export default function App() {
       )}
 
       {isSyncingOnOpen && profile && language && (
-        <div className="fixed inset-0 z-[750] bg-[var(--bg-main)]/95 flex flex-col items-center justify-center" aria-hidden="false">
+        <div className="fixed inset-0 z-[750] bg-[var(--bg-main)] flex flex-col items-center justify-center" aria-hidden="false">
           <Loader2 className="animate-spin text-[var(--theme-accent)]" size={48} strokeWidth={2.5} />
-          <p className="mt-4 text-sm font-bold text-[var(--text-secondary)] uppercase tracking-widest">
-            {language === 'ru' ? 'Подтягиваем данные...' : 'Syncing...'}
+          <p className="mt-4 text-sm font-bold text-[var(--text-primary)] uppercase tracking-widest">
+            {language === 'ru' ? 'Загрузка FoGoal' : 'Loading FoGoal'}
           </p>
         </div>
       )}
