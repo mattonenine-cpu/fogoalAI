@@ -273,10 +273,11 @@ export const authService = {
         const serverData = loginResponse?.userData;
         if (serverData != null && typeof serverData === 'object' && !Array.isArray(serverData)) {
             const raw = serverData as Record<string, unknown>;
-            if (raw.profile != null && typeof raw.profile === 'object' && Array.isArray(raw.tasks)) {
+            // Принимаем данные с сервера, даже если tasks/notes/folders отсутствуют или не массивы (нормализуем к массивам)
+            if (raw.profile != null && typeof raw.profile === 'object') {
                 const payload: UserDataPayload = {
                     profile: raw.profile as UserDataPayload['profile'],
-                    tasks: raw.tasks as Task[],
+                    tasks: Array.isArray(raw.tasks) ? (raw.tasks as Task[]) : [],
                     notes: Array.isArray(raw.notes) ? (raw.notes as UserDataPayload['notes']) : [],
                     folders: Array.isArray(raw.folders) ? (raw.folders as UserDataPayload['folders']) : [],
                     stats: (raw.stats != null && typeof raw.stats === 'object') ? (raw.stats as DailyStats) : {
@@ -457,10 +458,11 @@ export const authService = {
                 const loginResponse = await parseJsonResponse(res);
                 if (loginResponse?.ok === true && loginResponse.userData && typeof loginResponse.userData === 'object') {
                     const raw = loginResponse.userData as Record<string, unknown>;
-                    if (raw.profile != null && typeof raw.profile === 'object' && Array.isArray(raw.tasks)) {
+                    // Принимаем данные с сервера даже при отсутствующих tasks/notes/folders (нормализуем к массивам)
+                    if (raw.profile != null && typeof raw.profile === 'object') {
                         payloadFromServer = {
                             profile: raw.profile as UserDataPayload['profile'],
-                            tasks: raw.tasks as Task[],
+                            tasks: Array.isArray(raw.tasks) ? (raw.tasks as Task[]) : [],
                             notes: Array.isArray(raw.notes) ? (raw.notes as UserDataPayload['notes']) : [],
                             folders: Array.isArray(raw.folders) ? (raw.folders as UserDataPayload['folders']) : [],
                             stats: (raw.stats != null && typeof raw.stats === 'object')
