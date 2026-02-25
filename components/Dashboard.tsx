@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { UserProfile, DailyStats, Language, TRANSLATIONS, Task, AppView, Goal, TelegramReminderFrequency } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { Mascot } from './Mascot';
@@ -48,16 +48,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
   const telegramUser = getTelegramUserFromWebApp();
   const reminderSettings = user.telegramReminderSettings ?? { frequency: 'daily' as TelegramReminderFrequency, reminderHour: 12 };
   const [reminderFrequency, setReminderFrequency] = useState<TelegramReminderFrequency>(reminderSettings.frequency);
-  const [totalUsersCount, setTotalUsersCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetch('/api/supabase-users')
-      .then((r) => r.text().then((t) => { try { return t ? JSON.parse(t) : {}; } catch { return {}; } }))
-      .then((data: { totalCount?: number }) => {
-        if (typeof data.totalCount === 'number') setTotalUsersCount(data.totalCount);
-      })
-      .catch(() => {});
-  }, []);
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { 
@@ -351,12 +341,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
              </div>
           </div>
        </div>
-
-       {totalUsersCount != null && (
-         <p className="text-center text-[10px] font-medium text-[var(--text-secondary)] opacity-60 mt-4">
-           {lang === 'ru' ? `Всего пользователей: ${totalUsersCount}` : `Total users: ${totalUsersCount}`}
-         </p>
-       )}
 
        {/* LEVEL MODAL */}
        {showLevelModal && (
