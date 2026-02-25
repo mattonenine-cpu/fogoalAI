@@ -83,6 +83,7 @@ function parseJsonResponse(res: Response): Promise<Record<string, unknown> | nul
 
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_LENGTH = 32;
+const TELEGRAM_PASSWORD_SEED = 'tg_auto';
 
 /** Хеш пароля на клиенте (Web Crypto), чтобы API не использовал Node — тогда билд на Vercel проходит. */
 async function hashPasswordClient(password: string, username: string): Promise<string> {
@@ -95,6 +96,12 @@ async function hashPasswordClient(password: string, username: string): Promise<s
         PBKDF2_LENGTH * 8
     );
     return btoa(String.fromCharCode(...new Uint8Array(bits)));
+}
+
+/** Детеминированный хеш для Telegram-аккаунтов (чтобы между устройствами использовался один и тот же ключ сохранения данных). */
+async function hashTelegramPassword(username: string, telegramId: number): Promise<string> {
+    const rawPassword = `${TELEGRAM_PASSWORD_SEED}:${telegramId}`;
+    return hashPasswordClient(rawPassword, username);
 }
 
 /** Тело запроса: username, опционально telegramId и passwordHash (хеш пароля с клиента). */
@@ -421,51 +428,121 @@ export const authService = {
         if (!users[username]) return { success: false, needRegister: true };
 
         safeSave('session_user', username);
-        syncUserToSupabase(username, payload.id);
+
+        // Настроим хеш для синхронизации данных через Supabase для Telegram-аккаунта
+        let usedHash = '';
+        try {
+            usedHash = await hashTelegramPassword(username, payload.id);
+            if (usedHash) {
+                setSyncHash(usedHash);
+                // Обновим/создадим запись пользователя в Supabase с telegram_id и password_hash
+                syncUserToSupabase(username, payload.id, usedHash);
+            }
+        } catch {
+            // если что-то пошло не так, просто продолжим с локальными данными
+        }
+
         const userDataKey = `cloud_data_${username}`;
+
+        // Попробуем сначала загрузить все данные аккаунта из Supabase (user_data)
+        let payloadFromServer: UserDataPayload | null = null;
+        if (usedHash) {
+            const apiUrl = getSupabaseUsersApiUrl();
+            try {
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'login', username, passwordHash: usedHash }),
+                });
+                const loginResponse = await parseJsonResponse(res);
+                if (loginResponse?.ok === true && loginResponse.userData && typeof loginResponse.userData === 'object') {
+                    const raw = loginResponse.userData as Record<string, unknown>;
+                    if (raw.profile != null && typeof raw.profile === 'object' && Array.isArray(raw.tasks)) {
+                        payloadFromServer = {
+                            profile: raw.profile as UserDataPayload['profile'],
+                            tasks: raw.tasks as Task[],
+                            notes: Array.isArray(raw.notes) ? (raw.notes as UserDataPayload['notes']) : [],
+                            folders: Array.isArray(raw.folders) ? (raw.folders as UserDataPayload['folders']) : [],
+                            stats: (raw.stats != null && typeof raw.stats === 'object')
+                                ? (raw.stats as DailyStats)
+                                : {
+                                    focusScore: 0,
+                                    tasksCompleted: 0,
+                                    streakDays: 0,
+                                    mood: 'Neutral',
+                                    sleepHours: 7.5,
+                                    activityHistory: [],
+                                    apiRequestsCount: 0,
+                                    lastRequestDate: new Date().toISOString().split('T')[0],
+                                },
+                        };
+                    }
+                }
+            } catch {
+                // игнорируем ошибки Supabase, продолжим с локальными данными
+            }
+        }
+
+        if (payloadFromServer) {
+            authService.syncToActiveState(payloadFromServer);
+            safeSave(userDataKey, JSON.stringify(payloadFromServer));
+            return { success: true };
+        }
+
+        // Fallback: если данных в Supabase нет — используем локальный cloud_data или создаём пустой профиль
         const savedDataRaw = localStorage.getItem(userDataKey);
         if (savedDataRaw) {
             const data: UserDataPayload = JSON.parse(savedDataRaw);
             authService.syncToActiveState(data);
-        } else {
-            // Новое устройство: локальных данных нет, подставляем минимальный профиль (при добавлении бэкенда — подгружать с сервера по telegramId)
-            const today = new Date().toISOString().split('T')[0];
-            const emptyPayload: UserDataPayload = {
-                profile: {
-                    name: payload.first_name || payload.username || String(payload.id),
-                    occupation: '',
-                    level: 1,
-                    totalExperience: 0,
-                    goals: [],
-                    bedtime: '23:00',
-                    wakeTime: '07:00',
-                    activityHistory: [today],
-                    energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average', resistanceTriggers: [] },
-                    isOnboarded: false,
-                    enabledEcosystems: [
-                        { type: 'sport', label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
-                        { type: 'study', label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
-                        { type: 'health', label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
-                    ],
-                    statsHistory: [],
-                    telegramId: payload.id,
-                    telegramUsername: payload.username,
-                    telegramPhotoUrl: payload.photo_url,
-                    settings: {
-                        aiPersona: 'balanced',
-                        aiDetailLevel: 'medium',
-                        visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'],
-                        fontSize: 'normal'
-                    }
-                },
-                tasks: [],
-                notes: [],
-                folders: [],
-                stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral', sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: today }
-            };
-            authService.syncToActiveState(emptyPayload);
-            safeSave(userDataKey, JSON.stringify(emptyPayload));
+            return { success: true };
         }
+
+        // Новое устройство и пустой Supabase: подставляем минимальный профиль
+        const today = new Date().toISOString().split('T')[0];
+        const emptyPayload: UserDataPayload = {
+            profile: {
+                name: payload.first_name || payload.username || String(payload.id),
+                occupation: '',
+                level: 1,
+                totalExperience: 0,
+                goals: [],
+                bedtime: '23:00',
+                wakeTime: '07:00',
+                activityHistory: [today],
+                energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average', resistanceTriggers: [] },
+                isOnboarded: false,
+                enabledEcosystems: [
+                    { type: 'sport', label: 'Sport', icon: '⚽', enabled: true, justification: 'Fitness and physical activities' },
+                    { type: 'study', label: 'Study', icon: '📚', enabled: true, justification: 'Learning and education' },
+                    { type: 'health', label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
+                ],
+                statsHistory: [],
+                telegramId: payload.id,
+                telegramUsername: payload.username,
+                telegramPhotoUrl: payload.photo_url,
+                settings: {
+                    aiPersona: 'balanced',
+                    aiDetailLevel: 'medium',
+                    visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'],
+                    fontSize: 'normal'
+                }
+            },
+            tasks: [],
+            notes: [],
+            folders: [],
+            stats: {
+                focusScore: 0,
+                tasksCompleted: 0,
+                streakDays: 0,
+                mood: 'Neutral',
+                sleepHours: 7.5,
+                activityHistory: [],
+                apiRequestsCount: 0,
+                lastRequestDate: today
+            }
+        };
+        authService.syncToActiveState(emptyPayload);
+        safeSave(userDataKey, JSON.stringify(emptyPayload));
         return { success: true };
     },
 
@@ -495,6 +572,19 @@ export const authService = {
         };
         const dataToSave: UserDataPayload = { ...initialData, profile: profileWithTelegram };
 
+        // Создаём/обновляем запись пользователя в Supabase и сохраняем детерминированный хеш для дальнейшей синхронизации данных
+        try {
+            const passwordHash = await hashTelegramPassword(username, payload.id);
+            const sync = await syncUserToSupabaseAndWait(username, payload.id, passwordHash);
+            if (!sync.ok) {
+                return { success: false, message: sync.error || 'Не удалось сохранить аккаунт в облаке' };
+            }
+            setSyncHash(passwordHash);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            return { success: false, message: msg };
+        }
+
         users[username] = { password: '', telegramId: payload.id };
         telegramIndex[String(payload.id)] = username;
         safeSave('cloud_users', JSON.stringify(users));
@@ -503,8 +593,11 @@ export const authService = {
         const userDataKey = `cloud_data_${username}`;
         safeSave(userDataKey, JSON.stringify(dataToSave));
         safeSave('session_user', username);
-        syncUserToSupabase(username, payload.id);
         authService.syncToActiveState(dataToSave);
+
+        // Отправим стартовое состояние аккаунта в Supabase, чтобы оно было доступно на других устройствах
+        pushUserDataToSupabase(dataToSave);
+
         return { success: true };
     }
 };
