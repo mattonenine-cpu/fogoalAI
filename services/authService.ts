@@ -345,11 +345,40 @@ export const authService = {
     /**
      * Обновить данные аккаунта из Supabase для уже залогиненного пользователя (без повторного логина).
      * Используется при старте приложения, чтобы мини-апп сразу подтягивал последнее состояние из облака.
+     * Для Telegram-аккаунтов восстанавливает syncHash из username (tg_<id>) или из cloud_users/focu_profile, если sessionStorage пуст.
      */
     refreshFromCloud: async (): Promise<UserDataPayload | null> => {
         const currentUser = typeof localStorage !== 'undefined' ? localStorage.getItem('session_user') : null;
-        const syncHash = getSyncHash();
-        if (!currentUser || !syncHash) return null;
+        if (!currentUser) return null;
+
+        let passwordHash = getSyncHash();
+        if (!passwordHash) {
+            // У Telegram-аккаунтов sessionStorage часто очищается при закрытии мини-аппа — восстанавливаем хеш по username или telegramId
+            const usersRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cloud_users') : null;
+            const users = usersRaw ? (() => { try { return JSON.parse(usersRaw); } catch { return {}; } })() : {};
+            const telegramId = (users[currentUser] && typeof users[currentUser] === 'object' && users[currentUser].telegramId != null)
+                ? Number(users[currentUser].telegramId)
+                : null;
+            if (telegramId != null && Number.isFinite(telegramId)) {
+                try {
+                    passwordHash = await hashTelegramPassword(currentUser, telegramId);
+                    setSyncHash(passwordHash);
+                } catch {
+                    return null;
+                }
+            } else if (currentUser.startsWith('tg_')) {
+                const id = parseInt(currentUser.replace(/^tg_/, ''), 10);
+                if (Number.isFinite(id)) {
+                    try {
+                        passwordHash = await hashTelegramPassword(currentUser, id);
+                        setSyncHash(passwordHash);
+                    } catch {
+                        return null;
+                    }
+                }
+            }
+        }
+        if (!passwordHash) return null;
 
         const apiUrl = getSupabaseUsersApiUrl();
         let loginResponse: Record<string, unknown> | null = null;
@@ -357,7 +386,7 @@ export const authService = {
             const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'login', username: currentUser, passwordHash: syncHash }),
+                body: JSON.stringify({ action: 'login', username: currentUser, passwordHash }),
             });
             loginResponse = await parseJsonResponse(res);
         } catch {
