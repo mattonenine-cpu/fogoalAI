@@ -240,13 +240,11 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
   const handleGenerate = async () => {
     // Check and deduct credits
     const workoutCost = CreditsService.getActionCost('workoutGeneration', user.settings?.aiDetailLevel);
-    if (user.credits && !user.credits.hasUnlimitedAccess) {
-      if (!CreditsService.canAfford(user.credits, workoutCost)) {
-        alert(lang === 'ru' ? '❌ Недостаточно кредитов для генерации тренировки. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to generate workout. Enter promo code in settings for unlimited access.');
-        return;
-      }
-      onDeductCredits?.(workoutCost);
+    if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), workoutCost)) {
+      alert(lang === 'ru' ? '❌ Недостаточно кредитов для генерации тренировки. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to generate workout. Enter promo code in settings for unlimited access.');
+      return;
     }
+    if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(workoutCost);
 
     setIsGenerating(true);
     try {
@@ -338,13 +336,11 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       
       // Check and deduct credits for coach chat
       const coachCost = CreditsService.getActionCost('chatMessage', user.settings?.aiDetailLevel);
-      if (user.credits && !user.credits.hasUnlimitedAccess) {
-        if (!CreditsService.canAfford(user.credits, coachCost)) {
-          setCoachMessages(prev => [...prev, {role: 'model', text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения тренеру. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message to coach. Enter promo code in settings for unlimited access.'}]);
-          return;
-        }
-        onDeductCredits?.(coachCost);
+      if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), coachCost)) {
+        setCoachMessages(prev => [...prev, {role: 'model', text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения тренеру. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message to coach. Enter promo code in settings for unlimited access.'}]);
+        return;
       }
+      if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(coachCost);
       
       setCoachMessages(prev => [...prev, {role: 'user', text: textToSend}]);
       setCoachInput('');
