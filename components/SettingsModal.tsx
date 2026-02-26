@@ -18,6 +18,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
   const [activeTab, setActiveTab] = useState<'interface' | 'ecosystems' | 'account'>('interface');
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
 
   const settings: UserSettings = user.settings || {
     aiPersona: 'balanced',
@@ -37,21 +38,67 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
       }
   };
 
-  const handleApplyPromoCode = () => {
+  const handleApplyPromoCode = async () => {
     if (!promoCode.trim()) {
       setPromoMessage(lang === 'ru' ? 'Введите промокод' : 'Enter promo code');
       return;
     }
 
+    const username = authService.getCurrentUser();
+    if (!username) {
+      setPromoMessage(lang === 'ru' ? 'Войдите в аккаунт' : 'Log in first');
+      return;
+    }
+
     const currentCredits = user.credits || CreditsService.initializeCredits();
-    const updatedCredits = CreditsService.applyPromoCode(currentCredits, promoCode.trim());
-    
-    if (updatedCredits.hasUnlimitedAccess) {
+    const code = promoCode.trim();
+
+    // Локальный fallback для старого безлимитного кода
+    const legacyApplied = CreditsService.applyPromoCode(currentCredits, code);
+    if (legacyApplied.hasUnlimitedAccess) {
       setPromoMessage(lang === 'ru' ? '🎉 Безлимитный доступ активирован!' : '🎉 Unlimited access activated!');
-      onUpdate({ ...user, credits: updatedCredits });
+      onUpdate({ ...user, credits: legacyApplied });
       setPromoCode('');
-    } else {
-      setPromoMessage(lang === 'ru' ? '❌ Неверный промокод' : '❌ Invalid promo code');
+      return;
+    }
+
+    setPromoLoading(true);
+    setPromoMessage('');
+    try {
+      const res = await fetch('/api/promo-redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, username }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (data.ok && data.subscriptionType) {
+        const updatedCredits = CreditsService.applyPromoResult(currentCredits, {
+          subscriptionType: data.subscriptionType,
+          subscriptionExpiresAt: data.subscriptionExpiresAt,
+        });
+        onUpdate({ ...user, credits: updatedCredits });
+        setPromoCode('');
+        const subLabel =
+          data.subscriptionType === 'unlimited'
+            ? lang === 'ru' ? 'Безлимит' : 'Unlimited'
+            : data.subscriptionType === 'month'
+            ? lang === 'ru' ? 'На месяц' : '1 month'
+            : lang === 'ru' ? 'На неделю' : '1 week';
+        setPromoMessage(lang === 'ru' ? `🎉 Подписка активирована: ${subLabel}!` : `🎉 Subscription activated: ${subLabel}!`);
+      } else {
+        const msg =
+          data.error === 'code_already_used'
+            ? (data.message || (lang === 'ru' ? 'Этот промокод уже использован' : 'This code was already used'))
+            : data.error === 'invalid_code'
+            ? (lang === 'ru' ? '❌ Неверный промокод' : '❌ Invalid promo code')
+            : data.error || (lang === 'ru' ? '❌ Ошибка активации' : '❌ Activation failed');
+        setPromoMessage(msg);
+      }
+    } catch {
+      setPromoMessage(lang === 'ru' ? '❌ Ошибка сети' : '❌ Network error');
+    } finally {
+      setPromoLoading(false);
     }
   };
 
@@ -187,13 +234,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                                 {lang === 'ru' ? 'Доступно:' : 'Available:'}
                                             </span>
                                             <span className="text-lg font-bold text-[var(--text-primary)] break-words sm:text-right">
-                                                {user.credits.hasUnlimitedAccess 
+                                                {CreditsService.isSubscriptionActive(user.credits)
                                                     ? (lang === 'ru' ? 'Безлимитно' : 'Unlimited')
-                                                    : `${user.credits.availableCredits} / ${user.credits.totalCredits}`
-                                                }
+                                                    : `${user.credits.availableCredits} / ${user.credits.totalCredits}`}
                                             </span>
                                         </div>
-                                        {!user.credits.hasUnlimitedAccess && (
+                                        {CreditsService.isSubscriptionActive(user.credits) && user.credits.subscriptionType && (
+                                            <div className="text-xs text-[var(--text-secondary)] mt-1">
+                                                {lang === 'ru' ? 'Активна подписка: ' : 'Active subscription: '}
+                                                {user.credits.subscriptionType === 'unlimited'
+                                                    ? (lang === 'ru' ? 'Безлимит' : 'Unlimited')
+                                                    : user.credits.subscriptionExpiresAt
+                                                    ? (lang === 'ru' ? `${user.credits.subscriptionType === 'month' ? 'На месяц' : 'На неделю'} до ${new Date(user.credits.subscriptionExpiresAt).toLocaleDateString('ru-RU')}` : `${user.credits.subscriptionType === 'month' ? '1 month' : '1 week'} until ${new Date(user.credits.subscriptionExpiresAt).toLocaleDateString()}`)
+                                                    : (user.credits.subscriptionType === 'month' ? (lang === 'ru' ? 'На месяц' : '1 month') : (lang === 'ru' ? 'На неделю' : '1 week'))}
+                                            </div>
+                                        )}
+                                        {!CreditsService.isSubscriptionActive(user.credits) && (
                                             <div className="text-xs text-[var(--text-secondary)]">
                                                 {lang === 'ru' ? 'Использовано:' : 'Used:'} {user.credits.usedCredits}
                                             </div>
@@ -217,9 +273,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                     />
                                     <button
                                         onClick={handleApplyPromoCode}
-                                        className="px-6 py-3 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors whitespace-nowrap shrink-0"
+                                        disabled={promoLoading}
+                                        className="px-6 py-3 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
                                     >
-                                        {lang === 'ru' ? 'Применить' : 'Apply'}
+                                        {promoLoading ? (lang === 'ru' ? 'Проверка...' : 'Checking...') : (lang === 'ru' ? 'Применить' : 'Apply')}
                                     </button>
                                 </div>
                                 {promoMessage && (
