@@ -30,7 +30,7 @@ export default async function handler(req: any, res: any) {
 
     if (reminderFrequency === 'off') {
       try {
-        await del(`reminders/${id}.json`);
+        await del(`reminders/${id}.json`, { token: process.env.REMINDERS_READ_WRITE_TOKEN });
       } catch {
         // ignore
       }
@@ -55,7 +55,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, hint: 'REMINDERS_READ_WRITE_TOKEN not set; reminders will not run until Blob is configured.' });
     }
 
-    await put(`reminders/${id}.json`, JSON.stringify(payload), { access: 'public' });
+    await put(`reminders/${id}.json`, JSON.stringify(payload), { access: 'public', token: process.env.REMINDERS_READ_WRITE_TOKEN });
     return res.status(200).json({ ok: true });
   } catch (e: any) {
     console.error('telegram-reminders-sync error:', e);
