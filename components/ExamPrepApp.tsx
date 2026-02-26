@@ -171,13 +171,11 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   const handleQuickParse = async () => {
     // Check and deduct credits
     const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
-    if (user.credits && !user.credits.hasUnlimitedAccess) {
-      if (!CreditsService.canAfford(user.credits, examCost)) {
-        alert(lang === 'ru' ? '❌ Недостаточно кредитов для генерации экзамена. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to generate exam. Enter promo code in settings for unlimited access.');
-        return;
-      }
-      onDeductCredits?.(examCost);
+    if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+      alert(lang === 'ru' ? '❌ Недостаточно кредитов для генерации экзамена. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to generate exam. Enter promo code in settings for unlimited access.');
+      return;
     }
+    if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
 
     setWizardStep(3);
     setIsWizardProcessing(true);
