@@ -168,7 +168,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
         
         // Check and deduct credits for practice chat
         const practiceCost = CreditsService.getActionCost('chatMessage', user.settings?.aiDetailLevel);
-        if (user.credits && !user.credits.hasUnlimitedAccess) {
+        if (user.credits && !CreditsService.canAfford(user.credits, CreditsService.getActionCost('ecosystemAnalysis', user.settings?.aiDetailLevel))) {
           if (!CreditsService.canAfford(user.credits, practiceCost)) {
             setMessages(prev => [...prev, {role: 'model', text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.'}]);
             return;
@@ -194,7 +194,7 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
     
     // Check and deduct credits for domain chat
     const domainCost = CreditsService.getActionCost('chatMessage', user.settings?.aiDetailLevel);
-    if (user.credits && !user.credits.hasUnlimitedAccess) {
+    if (user.credits && !CreditsService.canAfford(user.credits, CreditsService.getActionCost('ecosystemAnalysis', user.settings?.aiDetailLevel))) {
       if (!CreditsService.canAfford(user.credits, domainCost)) {
         setDomainMessages(prev => [...prev, {role: 'model', text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.'}]);
         return;
