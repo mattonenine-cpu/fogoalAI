@@ -4,7 +4,7 @@
  * Ответ: { ok, subscriptionType?, subscriptionExpiresAt?, error? }
  * Коды: 10 безлимит, 10 на месяц, 10 на неделю. Хранение активаций: Supabase (app_users.promo_code_used, subscription_type, subscription_expires_at).
  */
-declare const process: { env: Record<string, string | undefined } };
+declare const process: { env: { [key: string]: string | undefined } };
 
 const PROMO_CODES: { code: string; type: 'unlimited' | 'month' | 'week' }[] = [
   // 10 безлимит
