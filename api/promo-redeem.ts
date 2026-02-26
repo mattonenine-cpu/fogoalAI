@@ -2,10 +2,9 @@
  * Активация промокода. Один код — одно использование одним пользователем.
  * POST body: { code: string, username: string }
  * Ответ: { ok, subscriptionType?, subscriptionExpiresAt?, error? }
- * Коды: 10 безлимит, 10 на месяц, 10 на неделю. Хранение активаций: Vercel Blob (promo-redemptions.json).
+ * Коды: 10 безлимит, 10 на месяц, 10 на неделю. Хранение активаций: Supabase (app_users.promo_code_used, subscription_type, subscription_expires_at).
  */
-import { list, put } from '@vercel/blob';
-declare const process: { env: { [key: string]: string | undefined } };
+declare const process: { env: Record<string, string | undefined } };
 
 const PROMO_CODES: { code: string; type: 'unlimited' | 'month' | 'week' }[] = [
   // 10 безлимит
@@ -45,8 +44,82 @@ const PROMO_CODES: { code: string; type: 'unlimited' | 'month' | 'week' }[] = [
 
 const CODE_MAP = new Map(PROMO_CODES.map((p) => [p.code.toUpperCase().trim(), p.type]));
 
-interface RedemptionsStore {
-  [code: string]: { usedBy: string; usedAt: string };
+function getEnv(name: string): string | undefined {
+  try {
+    const env = process.env;
+    return env[name] ?? env[name.toUpperCase()] ?? env[name.toLowerCase()];
+  } catch {
+    return undefined;
+  }
+}
+
+function getSupabaseConfig(): { url: string; key: string } | { url: null; key: null; error: string } {
+  const url =
+    getEnv('supabase_SUPABASE_URL') ||
+    getEnv('SUPABASE_SUPABASE_URL') ||
+    getEnv('SUPABASE_URL');
+  const key =
+    getEnv('supabase_SUPABASE_SERVICE_ROLE_KEY') ||
+    getEnv('SUPABASE_SUPABASE_SERVICE_ROLE_KEY') ||
+    getEnv('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) {
+    return { url: null, key: null, error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set' };
+  }
+  return { url, key };
+}
+
+const restHeaders = (key: string) => ({
+  apikey: key,
+  Authorization: `Bearer ${key}`,
+  'Content-Type': 'application/json',
+});
+
+/** Проверка: использован ли уже этот промокод кем-либо (в т.ч. этим пользователем). */
+async function isCodeAlreadyUsed(
+  url: string,
+  key: string,
+  code: string
+): Promise<{ used: boolean; error?: string }> {
+  try {
+    const enc = encodeURIComponent(code);
+    const res = await fetch(
+      `${url}/rest/v1/app_users?promo_code_used=eq.${enc}&select=username`,
+      { method: 'GET', headers: { ...restHeaders(key) } }
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      return { used: false, error: text || res.statusText };
+    }
+    const data = await res.json();
+    const rows = Array.isArray(data) ? data : [];
+    return { used: rows.length > 0 };
+  } catch (e: any) {
+    return { used: false, error: e?.message || String(e) };
+  }
+}
+
+/** Записать промокод и подписку пользователю по username. */
+async function setUserPromo(
+  url: string,
+  key: string,
+  username: string,
+  payload: { promo_code_used: string; subscription_type: string; subscription_expires_at: string | null }
+): Promise<{ error?: string }> {
+  try {
+    const enc = encodeURIComponent(username);
+    const res = await fetch(`${url}/rest/v1/app_users?username=eq.${enc}`, {
+      method: 'PATCH',
+      headers: { ...restHeaders(key) },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: text || res.statusText };
+    }
+    return {};
+  } catch (e: any) {
+    return { error: e?.message || String(e) };
+  }
 }
 
 function getExpiresAt(type: 'month' | 'week'): string {
@@ -74,26 +147,19 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: false, error: 'invalid_code' });
     }
 
-    const token = process.env.REMINDERS_READ_WRITE_TOKEN;
-    if (!token) {
-      return res.status(500).json({ ok: false, error: 'Blob not configured' });
+    const config = getSupabaseConfig();
+    if ('error' in config) {
+      return res.status(500).json({ ok: false, error: config.error });
     }
 
-    const blobPath = 'promo-redemptions.json';
-    let redemptions: RedemptionsStore = {};
+    const { url, key } = config;
 
-    try {
-      const { blobs } = await list({ prefix: 'promo-redemptions', limit: 10, token });
-      const existing = blobs?.find((b) => b.pathname === blobPath);
-      if (existing?.url) {
-        const r = await fetch(existing.url);
-        if (r.ok) redemptions = await r.json();
-      }
-    } catch {
-      // no file yet
+    const { used, error: checkErr } = await isCodeAlreadyUsed(url, key, code);
+    if (checkErr) {
+      console.error('promo-redeem check error:', checkErr);
+      return res.status(500).json({ ok: false, error: 'Database error' });
     }
-
-    if (redemptions[code]) {
+    if (used) {
       return res.status(200).json({
         ok: false,
         error: 'code_already_used',
@@ -101,17 +167,32 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    redemptions[code] = { usedBy: username, usedAt: new Date().toISOString() };
-
-    await put(blobPath, JSON.stringify(redemptions), { access: 'public', token });
-
     const subscriptionExpiresAt =
-      subscriptionType === 'unlimited' ? undefined : getExpiresAt(subscriptionType);
+      subscriptionType === 'unlimited' ? null : getExpiresAt(subscriptionType);
+
+    const { error: patchErr } = await setUserPromo(url, key, username, {
+      promo_code_used: code,
+      subscription_type: subscriptionType,
+      subscription_expires_at: subscriptionExpiresAt,
+    });
+
+    if (patchErr) {
+      // Уникальный индекс: если код уже занят другим пользователем между check и patch
+      if (patchErr.includes('duplicate') || patchErr.includes('unique')) {
+        return res.status(200).json({
+          ok: false,
+          error: 'code_already_used',
+          message: 'Этот промокод уже был использован.',
+        });
+      }
+      console.error('promo-redeem patch error:', patchErr);
+      return res.status(500).json({ ok: false, error: 'Failed to save promo' });
+    }
 
     return res.status(200).json({
       ok: true,
       subscriptionType,
-      subscriptionExpiresAt,
+      subscriptionExpiresAt: subscriptionExpiresAt ?? undefined,
     });
   } catch (e: any) {
     console.error('promo-redeem error:', e);
