@@ -62,18 +62,27 @@ async function fetchCount(url: string, key: string): Promise<{ count: number; er
   }
 }
 
-/** GET пользователя по username (password_hash, user_data для логина и загрузки данных). */
+/** GET пользователя по username (password_hash, user_data, promo-поля для логина и подписки). */
 async function getUserByUsername(
   url: string,
   key: string,
   username: string
-): Promise<{ user: { password_hash?: string | null; user_data?: unknown } | null; error?: string }> {
+): Promise<{
+  user: {
+    password_hash?: string | null;
+    user_data?: unknown;
+    promo_code_used?: string | null;
+    subscription_type?: string | null;
+    subscription_expires_at?: string | null;
+  } | null;
+  error?: string;
+}> {
   try {
     const enc = encodeURIComponent(username);
-    const res = await fetch(`${url}/rest/v1/app_users?username=eq.${enc}&select=password_hash,user_data`, {
-      method: 'GET',
-      headers: { ...restHeaders(key) },
-    });
+    const res = await fetch(
+      `${url}/rest/v1/app_users?username=eq.${enc}&select=password_hash,user_data,promo_code_used,subscription_type,subscription_expires_at`,
+      { method: 'GET', headers: { ...restHeaders(key) } }
+    );
     if (!res.ok) {
       const text = await res.text();
       return { user: null, error: text || res.statusText };
@@ -207,7 +216,22 @@ export default async function handler(req: any, res: any) {
         return;
       }
       const valid = user.password_hash === passwordHash;
-      const userData = user.user_data ?? null;
+      let userData = user.user_data ?? null;
+      // Подписка по промокоду хранится в Supabase — подмешиваем в profile.credits при логине
+      if (valid && userData != null && typeof userData === 'object' && !Array.isArray(userData) && user.promo_code_used) {
+        const raw = userData as Record<string, unknown>;
+        if (raw.profile != null && typeof raw.profile === 'object') {
+          const profile = raw.profile as Record<string, unknown>;
+          const credits = (profile.credits != null && typeof profile.credits === 'object'
+            ? { ...(profile.credits as Record<string, unknown>) }
+            : {}) as Record<string, unknown>;
+          credits.hasUnlimitedAccess = true;
+          credits.promoCode = user.promo_code_used;
+          credits.subscriptionType = user.subscription_type ?? undefined;
+          credits.subscriptionExpiresAt = user.subscription_expires_at ?? undefined;
+          profile.credits = credits;
+        }
+      }
       sendJson(res, 200, { ok: valid, userData: valid ? userData : undefined });
       return;
     }
