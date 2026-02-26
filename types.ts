@@ -66,6 +66,10 @@ export interface CreditsSystem {
   lastResetDate: string; // ISO date string of last monthly reset
   hasUnlimitedAccess: boolean; // For promo code users
   promoCode?: string;
+  /** Тип подписки по промокоду: безлимит навсегда, на месяц или на неделю */
+  subscriptionType?: 'unlimited' | 'month' | 'week';
+  /** Дата окончания подписки (ISO). Для unlimited не задаётся. */
+  subscriptionExpiresAt?: string;
 }
 
 export interface UserProfile {
