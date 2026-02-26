@@ -333,7 +333,7 @@ export default function App() {
   };
 
   const handleDeductCredits = (cost: number) => {
-    if (profile && profile.credits && !profile.credits.hasUnlimitedAccess) {
+    if (profile && profile.credits && !CreditsService.isSubscriptionActive(profile.credits)) {
       const updatedCredits = CreditsService.deductCredits(profile.credits, cost);
       const updatedProfile = CreditsService.updateProfileCredits(profile, updatedCredits);
       setProfile(updatedProfile);
