@@ -64,14 +64,40 @@ export class CreditsService {
   }
 
   /**
-   * Apply promo code for unlimited access
+   * Проверка: активна ли подписка (безлимит навсегда или не истекла по дате).
+   */
+  static isSubscriptionActive(credits: CreditsSystem): boolean {
+    if (credits.subscriptionType === 'unlimited' || (credits.hasUnlimitedAccess && !credits.subscriptionType)) return true;
+    if (credits.subscriptionType && credits.subscriptionExpiresAt) return new Date() < new Date(credits.subscriptionExpiresAt);
+    return false;
+  }
+
+  /**
+   * Apply promo code — вызывается после успешного ответа API /api/promo-redeem.
+   * Устанавливает тип подписки и дату окончания (для month/week).
+   */
+  static applyPromoResult(
+    credits: CreditsSystem,
+    result: { subscriptionType: 'unlimited' | 'month' | 'week'; subscriptionExpiresAt?: string }
+  ): CreditsSystem {
+    return {
+      ...credits,
+      hasUnlimitedAccess: true,
+      subscriptionType: result.subscriptionType,
+      subscriptionExpiresAt: result.subscriptionExpiresAt,
+    };
+  }
+
+  /**
+   * Apply promo code for unlimited access (legacy, один старый код).
    */
   static applyPromoCode(credits: CreditsSystem, promoCode: string): CreditsSystem {
     if (promoCode === UNLIMITED_PROMO_CODE) {
       return {
         ...credits,
         hasUnlimitedAccess: true,
-        promoCode
+        promoCode,
+        subscriptionType: 'unlimited',
       };
     }
     return credits;
@@ -81,16 +107,18 @@ export class CreditsService {
    * Check if user can afford an action
    */
   static canAfford(credits: CreditsSystem, cost: number): boolean {
-    return credits.hasUnlimitedAccess || credits.availableCredits >= cost;
+    if (!credits) return false;
+    if (credits.hasUnlimitedAccess && this.isSubscriptionActive(credits)) return true;
+    if (credits.subscriptionType && credits.subscriptionExpiresAt && this.isSubscriptionActive(credits)) return true;
+    return credits.availableCredits >= cost;
   }
 
   /**
    * Deduct credits for an action
    */
   static deductCredits(credits: CreditsSystem, cost: number): CreditsSystem {
-    if (credits.hasUnlimitedAccess) {
-      return credits; // No deduction for unlimited users
-    }
+    if (credits.hasUnlimitedAccess && this.isSubscriptionActive(credits)) return credits;
+    if (credits.subscriptionType && this.isSubscriptionActive(credits)) return credits;
 
     const newAvailable = Math.max(0, credits.availableCredits - cost);
     const newUsed = credits.usedCredits + cost;
@@ -138,12 +166,15 @@ export class CreditsService {
    * Get credits status for UI display
    */
   static getCreditsStatus(credits: CreditsSystem) {
+    const active = this.isSubscriptionActive(credits);
     return {
       available: credits.availableCredits,
       total: credits.totalCredits,
       used: credits.usedCredits,
-      hasUnlimited: credits.hasUnlimitedAccess,
-      percentage: credits.hasUnlimitedAccess ? 100 : (credits.availableCredits / credits.totalCredits) * 100
+      hasUnlimited: credits.hasUnlimitedAccess || active,
+      subscriptionType: credits.subscriptionType,
+      subscriptionExpiresAt: credits.subscriptionExpiresAt,
+      percentage: (credits.hasUnlimitedAccess || active) ? 100 : (credits.availableCredits / credits.totalCredits) * 100
     };
   }
 }
