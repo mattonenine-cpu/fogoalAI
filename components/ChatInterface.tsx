@@ -126,16 +126,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
 
     // Check and deduct credits
     const messageCost = CreditsService.getActionCost('chatMessage', userProfile.settings?.aiDetailLevel);
-    if (userProfile.credits && !userProfile.credits.hasUnlimitedAccess) {
-      if (!CreditsService.canAfford(userProfile.credits, messageCost)) {
-        setMessages((prev: ChatMessage[]) => [...prev, { 
-          id: Date.now().toString(), 
-          role: 'model', 
-          text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.',
-          timestamp: new Date() 
-        }]);
-        return;
-      }
+    const credits = userProfile.credits ?? CreditsService.initializeCredits();
+    if (!CreditsService.canAfford(credits, messageCost)) {
+      setMessages((prev: ChatMessage[]) => [...prev, {
+        id: Date.now().toString(),
+        role: 'model',
+        text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.',
+        timestamp: new Date()
+      }]);
+      return;
+    }
+    if (userProfile.credits && !CreditsService.isSubscriptionActive(userProfile.credits)) {
       onDeductCredits?.(messageCost);
     }
 
