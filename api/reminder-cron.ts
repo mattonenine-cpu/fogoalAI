@@ -146,7 +146,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { blobs } = await list({ prefix: 'reminders/', limit: 500 });
+    const { blobs } = await list({ prefix: 'reminders/', limit: 500, token: process.env.REMINDERS_READ_WRITE_TOKEN });
     const now = new Date();
     const results: { telegramId: number; daily?: boolean; task?: number }[] = [];
 
@@ -182,7 +182,7 @@ export default async function handler(req: any, res: any) {
           if (sendRes.ok) {
             data.lastDailySentDate = todayLocal;
             results.push({ telegramId, daily: true });
-            await put(blob.pathname!, JSON.stringify(data), { access: 'public' });
+            await put(blob.pathname!, JSON.stringify(data), { access: 'public', token: process.env.REMINDERS_READ_WRITE_TOKEN });
           }
         }
       }
