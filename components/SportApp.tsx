@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
+import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput, getLocalISODate } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
@@ -279,7 +280,21 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           ...user,
           totalExperience: newXp,
           level: newLevel,
-          activityHistory: [...(user.activityHistory || []), `SPORT: ${completionMsg} (${exercisesDone} exercises)`]
+          activityHistory: [...(user.activityHistory || []), `SPORT: ${completionMsg} (${exercisesDone} exercises)`],
+          usageStats: (() => {
+            const u = user.usageStats || getDefaultUsageStats();
+            return {
+              ...u,
+              ecosystem: {
+                ...u.ecosystem,
+                sport: {
+                  ...u.ecosystem.sport,
+                  workoutsCompleted: (u.ecosystem.sport.workoutsCompleted ?? 0) + 1,
+                  coachMessages: u.ecosystem.sport.coachMessages ?? 0,
+                },
+              },
+            };
+          })(),
       });
       
       setSummaryData({
@@ -352,6 +367,21 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
           let response = await coachSessionRef.current.sendMessage({ message: textToSend });
           if (response.text) {
               setCoachMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(response.text || "")}]);
+              const u = user.usageStats || getDefaultUsageStats();
+              onUpdateProfile({
+                ...user,
+                usageStats: {
+                  ...u,
+                  ecosystem: {
+                    ...u.ecosystem,
+                    sport: {
+                      ...u.ecosystem.sport,
+                      workoutsCompleted: u.ecosystem.sport.workoutsCompleted ?? 0,
+                      coachMessages: (u.ecosystem.sport.coachMessages ?? 0) + 1,
+                    },
+                  },
+                },
+              });
           }
       } catch (e) {
           setCoachMessages(prev => [...prev, {role: 'model', text: t.chatError}]);
