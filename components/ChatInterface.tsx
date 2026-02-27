@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, ChatMessage, Language, TRANSLATIONS, Task, Category } from '../types';
+import { getDefaultUsageStats } from '../types';
 import { getLocalISODate, createChatSession, cleanTextOutput } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
 import { Bot, User, Loader2, X, AlertTriangle, Key, ArrowUp, Trash2 } from 'lucide-react';
@@ -11,6 +12,7 @@ interface ChatInterfaceProps {
   tasks: Task[];
   onSetTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   onDeductCredits?: (cost: number) => void;
+  onUpdateProfile?: (profile: UserProfile) => void;
 }
 
 // --- Text Rendering Helpers ---
@@ -63,7 +65,7 @@ const renderMessageContent = (text: string, isUser: boolean) => {
     });
 };
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang, tasks, onSetTasks, onDeductCredits }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang, tasks, onSetTasks, onDeductCredits, onUpdateProfile }) => {
   const t = TRANSLATIONS[lang];
   const MAX_HISTORY = 50;
   
@@ -161,6 +163,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
 
         if (result.text) {
           setMessages((prev: ChatMessage[]) => [...prev, { id: Date.now().toString(), role: 'model', text: result.text, timestamp: new Date() }]);
+          if (onUpdateProfile) {
+            const u = userProfile.usageStats || getDefaultUsageStats();
+            onUpdateProfile({
+              ...userProfile,
+              usageStats: { ...u, totalChatMessages: (u.totalChatMessages ?? 0) + 1 },
+            });
+          }
         }
     } catch (error: any) {
         console.error("Chat Error:", error);
