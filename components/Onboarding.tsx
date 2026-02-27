@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { UserProfile, Language, TRANSLATIONS, EnergyProfile, Goal, EcosystemConfig, AppTheme, EcosystemType } from '../types';
+import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassButton } from './GlassCard';
 import { analyzeEcosystemSignals } from '../services/geminiService';
 import { authService, type UserDataPayload } from '../services/authService';
@@ -153,6 +154,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                   statsHistory: [],
                   settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'], fontSize: 'normal' },
                   credits: CreditsService.initializeCredits(),
+                  usageStats: getDefaultUsageStats(),
               } as UserProfile;
           }
           if (profileToApply && !profileToApply.credits) {
@@ -252,6 +254,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
             level: profile.level || 1,
             totalExperience: profile.totalExperience || 0,
             statsHistory: profile.statsHistory || [],
+            usageStats: profile.usageStats || getDefaultUsageStats(),
             settings: {
                 aiPersona: 'balanced',
                 aiDetailLevel: 'medium',
