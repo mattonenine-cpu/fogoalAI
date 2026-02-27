@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, Language, TRANSLATIONS, AppTheme } from '../types';
+import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { getLocalISODate } from '../services/geminiService';
 import { 
@@ -378,12 +379,23 @@ export const HealthApp: React.FC<HealthAppProps> = ({ user, lang, onUpdateProfil
     setLogs(newLogs);
     localStorage.setItem('focu_health_logs', JSON.stringify(newLogs));
     
-    // XP Boost if today
+    const u = user.usageStats || getDefaultUsageStats();
+    const updatedUsage = {
+      ...u,
+      ecosystem: {
+        ...u.ecosystem,
+        health: { logsSaved: (u.ecosystem.health.logsSaved ?? 0) + 1 },
+      },
+    };
     if (selectedDate === todayISO) {
         const scores = Object.values(inputValues) as number[];
         if (scores.length > 0) {
-            onUpdateProfile({ ...user, totalExperience: (user.totalExperience || 0) + 15 });
+            onUpdateProfile({ ...user, totalExperience: (user.totalExperience || 0) + 15, usageStats: updatedUsage });
+        } else {
+            onUpdateProfile({ ...user, usageStats: updatedUsage });
         }
+    } else {
+        onUpdateProfile({ ...user, usageStats: updatedUsage });
     }
   };
 
