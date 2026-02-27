@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext, EcosystemConfig } from '../types';
+import { getDefaultUsageStats } from '../types';
 import { Onboarding } from './Onboarding';
 import { Dashboard } from './Dashboard';
 import { Scheduler } from './Scheduler';
@@ -74,6 +75,25 @@ export default function App() {
               if (CreditsService.needsMonthlyReset(parsed.credits)) {
                   parsed.credits = CreditsService.resetCredits(parsed.credits);
               }
+          }
+          // Полная статистика использования — в Supabase в user_data.profile.usageStats
+          if (!parsed.usageStats || typeof parsed.usageStats.opens !== 'object') {
+              parsed.usageStats = getDefaultUsageStats();
+          } else {
+              const def = getDefaultUsageStats();
+              parsed.usageStats = {
+                  opens: { ...def.opens, ...(parsed.usageStats.opens || {}) },
+                  lastOpenedAt: parsed.usageStats.lastOpenedAt || {},
+                  ecosystem: {
+                      sport: { ...def.ecosystem.sport, ...(parsed.usageStats.ecosystem?.sport || {}) },
+                      study: { ...def.ecosystem.study, ...(parsed.usageStats.ecosystem?.study || {}) },
+                      health: { ...def.ecosystem.health, ...(parsed.usageStats.ecosystem?.health || {}) },
+                      work: { ...def.ecosystem.work, ...(parsed.usageStats.ecosystem?.work || {}) },
+                  },
+                  totalChatMessages: parsed.usageStats.totalChatMessages ?? 0,
+                  totalTasksCompleted: parsed.usageStats.totalTasksCompleted ?? 0,
+                  totalGoalsCompleted: parsed.usageStats.totalGoalsCompleted ?? 0,
+              };
           }
           return parsed;
         }
@@ -379,6 +399,30 @@ export default function App() {
       }
   };
 
+  /** Навигация с записью статистики открытий в profile.usageStats (синхронизируется в Supabase) */
+  const handleNavigate = (view: AppView, ecosystem: EcosystemType | null = null) => {
+    setCurrentView(view);
+    setActiveEcosystem(ecosystem);
+    if (!profile) return;
+    const now = new Date().toISOString();
+    const u = profile.usageStats || getDefaultUsageStats();
+    const opens = { ...u.opens };
+    const lastOpenedAt = { ...u.lastOpenedAt };
+    if (view === AppView.DASHBOARD) { opens.dashboard = (opens.dashboard || 0) + 1; lastOpenedAt.dashboard = now; }
+    else if (view === AppView.SCHEDULER) { opens.scheduler = (opens.scheduler || 0) + 1; lastOpenedAt.scheduler = now; }
+    else if (view === AppView.SMART_PLANNER) { opens.smart_planner = (opens.smart_planner || 0) + 1; lastOpenedAt.smart_planner = now; }
+    else if (view === AppView.CHAT) { opens.chat = (opens.chat || 0) + 1; lastOpenedAt.chat = now; }
+    else if (view === AppView.NOTES) { opens.notes = (opens.notes || 0) + 1; lastOpenedAt.notes = now; }
+    else if (view === AppView.ECOSYSTEM && ecosystem) {
+      opens[ecosystem] = (opens[ecosystem] ?? 0) + 1;
+      lastOpenedAt[ecosystem] = now;
+    }
+    setProfile({
+      ...profile,
+      usageStats: { ...u, opens, lastOpenedAt },
+    });
+  };
+
   const visibleNavItems = useMemo(() => {
     if (!profile?.settings?.visibleViews) return ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes'];
     return profile.settings.visibleViews;
@@ -390,7 +434,7 @@ export default function App() {
       case AppView.DASHBOARD:
         return <Dashboard 
           user={profile} stats={dailyStats} lang={language!} tasks={tasks} 
-          onUpdateProfile={handleUpdateProfile} onUpdateStats={setDailyStats} onNavigate={setCurrentView}
+          onUpdateProfile={handleUpdateProfile} onUpdateStats={setDailyStats} onNavigate={handleNavigate}
           onAddTasks={(newTasks: Task[]) => setTasks((prev: Task[]) => [...prev, ...newTasks])}
         />;
       case AppView.SCHEDULER:
@@ -398,16 +442,16 @@ export default function App() {
           tasks={tasks} setTasks={setTasks} userProfile={profile} setUserProfile={handleUpdateProfile} 
           lang={language!} onTrackRequest={handleTrackRequest} notes={notes} onUpdateNotes={setNotes}
           currentStats={dailyStats}
-          onOpenSmartPlanner={() => setCurrentView(AppView.SMART_PLANNER)}
+          onOpenSmartPlanner={() => handleNavigate(AppView.SMART_PLANNER)}
         />;
       case AppView.SMART_PLANNER:
-        return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} onOpenScheduler={() => setCurrentView(AppView.SCHEDULER)} onDeductCredits={handleDeductCredits} />;
+        return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} onOpenScheduler={() => handleNavigate(AppView.SCHEDULER)} onDeductCredits={handleDeductCredits} />;
       case AppView.CHAT:
-        return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} onDeductCredits={handleDeductCredits} />;
+        return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} onDeductCredits={handleDeductCredits} onUpdateProfile={handleUpdateProfile} />;
       case AppView.ECOSYSTEM:
         return activeEcosystem ? <EcosystemView 
             type={activeEcosystem} user={profile} tasks={tasks} lang={language!} 
-            onUpdateTasks={setTasks} onUpdateProfile={handleUpdateProfile} onNavigate={setCurrentView} theme={theme}
+            onUpdateTasks={setTasks} onUpdateProfile={handleUpdateProfile} onNavigate={handleNavigate} theme={theme}
             onDeductCredits={handleDeductCredits}
         /> : null;
       case AppView.NOTES:
@@ -463,6 +507,7 @@ export default function App() {
             { type: 'health' as const, label: 'Health', icon: '❤️', enabled: true, justification: 'Health monitoring and wellness' },
           ],
             statsHistory: [],
+            usageStats: getDefaultUsageStats(),
             telegramId: payload.id,
             telegramUsername: payload.username,
             telegramPhotoUrl: payload.photo_url,
@@ -590,15 +635,15 @@ export default function App() {
 
         <nav className="fixed bottom-6 left-0 right-0 z-[600] flex justify-center px-4 pointer-events-none">
           <div className="glass-liquid rounded-[32px] px-2 py-2 flex items-center justify-between shadow-2xl w-full max-w-md pointer-events-auto bg-[var(--bg-card)]">
-            <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
+            <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => handleNavigate(AppView.DASHBOARD)} emoji={getNavEmoji('dashboard')} />
             {(visibleNavItems.includes('scheduler') || visibleNavItems.includes('smart_planner')) && (
-              <NavBtn active={currentView === AppView.SMART_PLANNER || currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
+              <NavBtn active={currentView === AppView.SMART_PLANNER || currentView === AppView.SCHEDULER} onClick={() => handleNavigate(AppView.SCHEDULER)} emoji={getNavEmoji('smart_planner')} />
             )}
             {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map((eco: EcosystemConfig) => (
-                <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
+                <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => handleNavigate(AppView.ECOSYSTEM, eco.type)} emoji={getNavEmoji(eco.type)} />
             ))}
-            {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
-            {visibleNavItems.includes('chat') && <NavBtn active={currentView === AppView.CHAT} onClick={() => { setCurrentView(AppView.CHAT); setActiveEcosystem(null); }} emoji={getNavEmoji('chat')} />}
+            {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => handleNavigate(AppView.NOTES)} emoji={getNavEmoji('notes')} />}
+            {visibleNavItems.includes('chat') && <NavBtn active={currentView === AppView.CHAT} onClick={() => handleNavigate(AppView.CHAT)} emoji={getNavEmoji('chat')} />}
           </div>
         </nav>
       </div>
