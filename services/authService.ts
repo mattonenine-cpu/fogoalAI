@@ -1,5 +1,6 @@
 
 import { UserProfile, Task, Note, NoteFolder, DailyStats } from '../types';
+import { getDefaultUsageStats } from '../types';
 
 export interface UserDataPayload {
     profile: UserProfile;
@@ -611,7 +612,8 @@ export const authService = {
                     aiDetailLevel: 'medium',
                     visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'],
                     fontSize: 'normal'
-                }
+                },
+                usageStats: getDefaultUsageStats(),
             },
             tasks: [],
             notes: [],
