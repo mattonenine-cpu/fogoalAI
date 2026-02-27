@@ -105,6 +105,8 @@ export interface UserProfile {
   telegramPhotoUrl?: string;
   /** Настройки напоминаний в Telegram: частота и за сколько минут до задачи */
   telegramReminderSettings?: TelegramReminderSettings;
+  /** Полная статистика использования (экосистемы, открытия, действия) — сохраняется в Supabase в user_data */
+  usageStats?: UsageStats;
 }
 
 /** Частота напоминаний в Telegram */
@@ -141,6 +143,68 @@ export interface EcosystemConfig {
   icon: string;
   enabled: boolean;
   justification: string;
+}
+
+/** Полная статистика использования приложения — хранится в Supabase в user_data.profile.usageStats */
+export interface UsageStats {
+  /** Сколько раз открывали каждый раздел */
+  opens: {
+    dashboard: number;
+    scheduler: number;
+    smart_planner: number;
+    chat: number;
+    notes: number;
+    sport: number;
+    study: number;
+    health: number;
+  };
+  /** Когда последний раз открывали (ISO строка) */
+  lastOpenedAt: {
+    dashboard?: string;
+    scheduler?: string;
+    smart_planner?: string;
+    chat?: string;
+    notes?: string;
+    sport?: string;
+    study?: string;
+    health?: string;
+  };
+  /** Действия по экосистемам */
+  ecosystem: {
+    sport: { workoutsCompleted: number; coachMessages: number };
+    study: { examsCreated: number; quizzesCompleted: number; ticketsParsed: number };
+    health: { logsSaved: number };
+    work: { progressLogs: number; expertChatMessages: number };
+  };
+  /** Общие счётчики */
+  totalChatMessages: number;
+  totalTasksCompleted: number;
+  totalGoalsCompleted: number;
+}
+
+export function getDefaultUsageStats(): UsageStats {
+  return {
+    opens: {
+      dashboard: 0,
+      scheduler: 0,
+      smart_planner: 0,
+      chat: 0,
+      notes: 0,
+      sport: 0,
+      study: 0,
+      health: 0,
+    },
+    lastOpenedAt: {},
+    ecosystem: {
+      sport: { workoutsCompleted: 0, coachMessages: 0 },
+      study: { examsCreated: 0, quizzesCompleted: 0, ticketsParsed: 0 },
+      health: { logsSaved: 0 },
+      work: { progressLogs: 0, expertChatMessages: 0 },
+    },
+    totalChatMessages: 0,
+    totalTasksCompleted: 0,
+    totalGoalsCompleted: 0,
+  };
 }
 
 export interface DailyStats {
