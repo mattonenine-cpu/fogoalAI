@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UsageStats, Language, getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
-import { X, BarChart3, LayoutGrid, Zap, MessageCircle, Target, Calendar, Users, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, BarChart3, LayoutGrid, Zap, MessageCircle, Target, Calendar, Users, Loader2, ChevronDown, ChevronUp, TrendingUp, PieChart } from 'lucide-react';
 
 const DEV_STATS_PROMO_CODE = 'FOGOAL_DEV_2025';
 const SESSION_KEY = 'focu_dev_stats_unlocked';
@@ -132,11 +132,6 @@ function StatsContent({
           <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20">
             <p className="text-[10px] font-black text-pink-400 uppercase mb-1">Health</p>
             <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Дневники' : 'Logs'}: <strong>{ecosystem.health?.logsSaved ?? 0}</strong></p>
-          </div>
-          <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20">
-            <p className="text-[10px] font-black text-sky-400 uppercase mb-1">Work</p>
-            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Логи прогресса' : 'Progress logs'}: <strong>{ecosystem.work?.progressLogs ?? 0}</strong></p>
-            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Чат с экспертом' : 'Expert chat'}: <strong>{ecosystem.work?.expertChatMessages ?? 0}</strong></p>
           </div>
         </div>
       </GlassCard>
@@ -291,6 +286,52 @@ export const DevStatsModal: React.FC<DevStatsModalProps> = ({ user, lang, onClos
           {data?.ok && data.aggregated && !loading && (
             <>
               <StatsContent stats={data.aggregated} isRu={isRu} isAggregate totalUsers={data.totalUsers ?? 0} />
+
+              {/* Интересная аналитика для создателей */}
+              {data.totalUsers != null && data.totalUsers > 0 && (
+                <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
+                  <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <TrendingUp size={14} /> {isRu ? 'Для создателей' : 'Creator insights'}
+                  </h3>
+                  <div className="space-y-3">
+                    {(() => {
+                      const agg = data.aggregated!;
+                      const total = data.totalUsers;
+                      const opens = agg.opens || {};
+                      const maxOpenKey = (Object.entries(opens) as [string, number][]).reduce((a, b) => (b[1] > a[1] ? b : a), ['dashboard', 0])[0];
+                      const maxLabel = OPEN_LABELS[maxOpenKey] ? (isRu ? OPEN_LABELS[maxOpenKey].ru : OPEN_LABELS[maxOpenKey].en) : maxOpenKey;
+                      const activeCount = data.users?.filter((u: { username: string; usageStats: UsageStatsRow }) => {
+                        const s = u.usageStats;
+                        const sum = (s.totalChatMessages ?? 0) + (s.totalGoalsCompleted ?? 0) + (s.ecosystem?.sport?.workoutsCompleted ?? 0) + (s.ecosystem?.study?.quizzesCompleted ?? 0) + (s.ecosystem?.study?.examsCreated ?? 0) + (s.ecosystem?.health?.logsSaved ?? 0);
+                        return sum > 0;
+                      }).length ?? 0;
+                      const avgWorkouts = total ? ((agg.ecosystem?.sport?.workoutsCompleted ?? 0) / total).toFixed(1) : '0';
+                      const avgExams = total ? ((agg.ecosystem?.study?.examsCreated ?? 0) / total).toFixed(1) : '0';
+                      const avgChat = total ? ((agg.totalChatMessages ?? 0) / total).toFixed(1) : '0';
+                      return (
+                        <>
+                          <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5">
+                            <span className="text-sm text-[var(--text-primary)]">{isRu ? 'Самый популярный раздел' : 'Most used section'}</span>
+                            <span className="text-sm font-black text-[var(--theme-accent)]">{maxLabel}</span>
+                          </div>
+                          <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5">
+                            <span className="text-sm text-[var(--text-primary)]">{isRu ? 'Активных пользователей' : 'Active users'}</span>
+                            <span className="text-sm font-black text-emerald-500 tabular-nums">{activeCount} / {total}</span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2 pt-1">
+                            <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-wider">{isRu ? 'В среднем на пользователя' : 'Avg per user'}</p>
+                            <div className="flex flex-wrap gap-2">
+                              <span className="px-2.5 py-1 rounded-lg bg-orange-500/15 text-orange-400 text-xs font-bold">{isRu ? 'Тренировки' : 'Workouts'}: {avgWorkouts}</span>
+                              <span className="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-400 text-xs font-bold">{isRu ? 'Экзамены' : 'Exams'}: {avgExams}</span>
+                              <span className="px-2.5 py-1 rounded-lg bg-[var(--theme-accent)]/15 text-[var(--theme-accent)] text-xs font-bold">{isRu ? 'Сообщения в чат' : 'Chat'}: {avgChat}</span>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </GlassCard>
+              )}
 
               <div className="pt-2">
                 <button
