@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { UserProfile, DailyStats, Language, TRANSLATIONS, Task, AppView, Goal, TelegramReminderFrequency } from '../types';
+import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
 import { Mascot } from './Mascot';
 import { 
@@ -131,7 +132,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
           }
           return g;
       });
-      onUpdateProfile({ ...user, goals: updatedGoals });
+      const completedGoal = updatedGoals.find(g => g.id === activeGoalId && g.completed);
+      const u = user.usageStats || getDefaultUsageStats();
+      const nextUsage = completedGoal
+        ? { ...u, totalGoalsCompleted: (u.totalGoalsCompleted ?? 0) + 1 }
+        : u;
+      onUpdateProfile({ ...user, goals: updatedGoals, usageStats: nextUsage });
       setShowProgressModal(false);
       setProgressInput('');
   };
