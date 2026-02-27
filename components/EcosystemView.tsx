@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { EcosystemType, UserProfile, Task, Language, TRANSLATIONS, Practice, Goal, AppView, AppTheme } from '../types';
+import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { createChatSession, cleanTextOutput, evaluateProgress, getLocalISODate } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
@@ -208,6 +209,22 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
         }
         const res = await domainSessionRef.current.sendMessage({ message: text });
         setDomainMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(res.text || "")}]);
+        if (type === 'work' && res?.text) {
+          const u = user.usageStats || getDefaultUsageStats();
+          onUpdateProfile({
+            ...user,
+            usageStats: {
+              ...u,
+              ecosystem: {
+                ...u.ecosystem,
+                work: {
+                  progressLogs: u.ecosystem.work.progressLogs ?? 0,
+                  expertChatMessages: (u.ecosystem.work.expertChatMessages ?? 0) + 1,
+                },
+              },
+            },
+          });
+        }
     } catch (e) {
         setDomainMessages(prev => [...prev, {role: 'model', text: t.chatError}]);
     } finally {
@@ -267,7 +284,22 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
               goals: updatedGoals,
               activityHistory: [...(user.activityHistory || []), `${type.toUpperCase()}: ${logValue}`],
               totalExperience: newXp,
-              level: newLevel
+              level: newLevel,
+              ...(type === 'work' ? (() => {
+                const u = user.usageStats || getDefaultUsageStats();
+                return {
+                  usageStats: {
+                    ...u,
+                    ecosystem: {
+                      ...u.ecosystem,
+                      work: {
+                        progressLogs: (u.ecosystem.work.progressLogs ?? 0) + 1,
+                        expertChatMessages: u.ecosystem.work.expertChatMessages ?? 0,
+                      },
+                    },
+                  },
+                };
+              })() : {}),
           });
           
           setLogFeedback(evalResult?.feedback ?? '');
