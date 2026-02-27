@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile, UsageStats, Language, getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
-import { X, BarChart3, LayoutGrid, Zap, MessageCircle, Target, Calendar } from 'lucide-react';
+import { X, BarChart3, LayoutGrid, Zap, MessageCircle, Target, Calendar, Users, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 
 const DEV_STATS_PROMO_CODE = 'FOGOAL_DEV_2025';
 const SESSION_KEY = 'focu_dev_stats_unlocked';
@@ -10,6 +10,28 @@ interface DevStatsModalProps {
   user: UserProfile;
   lang: Language;
   onClose: () => void;
+}
+
+interface UsageStatsRow {
+  opens: Record<string, number>;
+  lastOpenedAt: Record<string, string>;
+  ecosystem: {
+    sport: { workoutsCompleted: number; coachMessages: number };
+    study: { examsCreated: number; quizzesCompleted: number; ticketsParsed: number };
+    health: { logsSaved: number };
+    work: { progressLogs: number; expertChatMessages: number };
+  };
+  totalChatMessages: number;
+  totalTasksCompleted: number;
+  totalGoalsCompleted: number;
+}
+
+interface AdminStatsResponse {
+  ok: boolean;
+  error?: string;
+  totalUsers?: number;
+  aggregated?: UsageStatsRow;
+  users?: { username: string; usageStats: UsageStatsRow }[];
 }
 
 const formatDate = (iso?: string) => {
@@ -33,6 +55,118 @@ const OPEN_LABELS: Record<string, { en: string; ru: string; emoji: string }> = {
   health: { en: 'Health', ru: 'Здоровье', emoji: '❤️' },
 };
 
+function StatsContent({
+  stats,
+  isRu,
+  isAggregate,
+  totalUsers,
+}: { stats: UsageStatsRow | UsageStats; isRu: boolean; isAggregate?: boolean; totalUsers?: number }) {
+  const opens = stats.opens || {};
+  const ecosystem = stats.ecosystem || { sport: { workoutsCompleted: 0, coachMessages: 0 }, study: { examsCreated: 0, quizzesCompleted: 0, ticketsParsed: 0 }, health: { logsSaved: 0 }, work: { progressLogs: 0, expertChatMessages: 0 } };
+  const lastOpenedAt = 'lastOpenedAt' in stats ? (stats as UsageStatsRow).lastOpenedAt : {};
+
+  return (
+    <>
+      {isAggregate && totalUsers != null && (
+        <div className="mb-4 flex items-center justify-between rounded-2xl bg-[var(--theme-accent)]/15 border border-[var(--theme-accent)]/30 px-4 py-3">
+          <span className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <Users size={20} className="text-[var(--theme-accent)]" />
+            {isRu ? 'Всего пользователей' : 'Total users'}
+          </span>
+          <span className="text-xl font-black text-[var(--theme-accent)] tabular-nums">{totalUsers}</span>
+        </div>
+      )}
+
+      <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
+        <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
+          <LayoutGrid size={14} /> {isRu ? 'Открытия разделов' : 'Section opens'}
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          {(Object.entries(opens) as [string, number][]).map(([key, count]) => {
+            const label = OPEN_LABELS[key] || { en: key, ru: key, emoji: '•' };
+            return (
+              <div key={key} className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5">
+                <span className="text-sm font-bold text-[var(--text-primary)]">{label.emoji} {isRu ? label.ru : label.en}</span>
+                <span className="text-sm font-black text-[var(--theme-accent)] tabular-nums">{count ?? 0}</span>
+              </div>
+            );
+          })}
+        </div>
+      </GlassCard>
+
+      {!isAggregate && Object.keys(lastOpenedAt).length > 0 && (
+        <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
+          <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Calendar size={14} /> {isRu ? 'Последнее открытие' : 'Last opened'}
+          </h3>
+          <div className="space-y-1.5">
+            {(Object.entries(lastOpenedAt) as [string, string][]).map(([key, date]) => {
+              const label = OPEN_LABELS[key] || { en: key, ru: key, emoji: '•' };
+              return (
+                <div key={key} className="flex items-center justify-between py-1.5 text-xs">
+                  <span className="text-[var(--text-secondary)]">{label.emoji} {isRu ? label.ru : label.en}</span>
+                  <span className="text-[var(--text-primary)] font-medium tabular-nums">{formatDate(date)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </GlassCard>
+      )}
+
+      <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
+        <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
+          <Zap size={14} /> {isRu ? 'Экосистемы' : 'Ecosystems'}
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
+            <p className="text-[10px] font-black text-orange-400 uppercase mb-1">Sport</p>
+            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Тренировки' : 'Workouts'}: <strong>{ecosystem.sport?.workoutsCompleted ?? 0}</strong></p>
+            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Сообщ. тренеру' : 'Coach msgs'}: <strong>{ecosystem.sport?.coachMessages ?? 0}</strong></p>
+          </div>
+          <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+            <p className="text-[10px] font-black text-indigo-400 uppercase mb-1">Study</p>
+            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Экзамены' : 'Exams'}: <strong>{ecosystem.study?.examsCreated ?? 0}</strong></p>
+            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Квизы' : 'Quizzes'}: <strong>{ecosystem.study?.quizzesCompleted ?? 0}</strong></p>
+            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Билеты' : 'Tickets'}: <strong>{ecosystem.study?.ticketsParsed ?? 0}</strong></p>
+          </div>
+          <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20">
+            <p className="text-[10px] font-black text-pink-400 uppercase mb-1">Health</p>
+            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Дневники' : 'Logs'}: <strong>{ecosystem.health?.logsSaved ?? 0}</strong></p>
+          </div>
+          <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20">
+            <p className="text-[10px] font-black text-sky-400 uppercase mb-1">Work</p>
+            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Логи прогресса' : 'Progress logs'}: <strong>{ecosystem.work?.progressLogs ?? 0}</strong></p>
+            <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Чат с экспертом' : 'Expert chat'}: <strong>{ecosystem.work?.expertChatMessages ?? 0}</strong></p>
+          </div>
+        </div>
+      </GlassCard>
+
+      <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
+        <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
+          <Target size={14} /> {isRu ? 'Общее' : 'Totals'}
+        </h3>
+        <div className="flex flex-wrap gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+            <MessageCircle size={18} className="text-[var(--theme-accent)]" />
+            <span className="text-sm text-[var(--text-primary)]">{isRu ? 'Сообщения в чат' : 'Chat messages'}</span>
+            <span className="text-sm font-black text-[var(--theme-accent)] tabular-nums">{stats.totalChatMessages ?? 0}</span>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+            <Target size={18} className="text-emerald-500" />
+            <span className="text-sm text-[var(--text-primary)]">{isRu ? 'Целей достигнуто' : 'Goals completed'}</span>
+            <span className="text-sm font-black text-emerald-500 tabular-nums">{stats.totalGoalsCompleted ?? 0}</span>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+            <BarChart3 size={18} className="text-amber-500" />
+            <span className="text-sm text-[var(--text-primary)]">{isRu ? 'Задач выполнено' : 'Tasks completed'}</span>
+            <span className="text-sm font-black text-amber-500 tabular-nums">{stats.totalTasksCompleted ?? 0}</span>
+          </div>
+        </div>
+      </GlassCard>
+    </>
+  );
+}
+
 export const DevStatsModal: React.FC<DevStatsModalProps> = ({ user, lang, onClose }) => {
   const [unlocked, setUnlocked] = useState(() => {
     if (typeof sessionStorage === 'undefined') return false;
@@ -40,9 +174,35 @@ export const DevStatsModal: React.FC<DevStatsModalProps> = ({ user, lang, onClos
   });
   const [codeInput, setCodeInput] = useState('');
   const [codeError, setCodeError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<AdminStatsResponse | null>(null);
+  const [showUserList, setShowUserList] = useState(false);
 
-  const stats: UsageStats = user.usageStats || getDefaultUsageStats();
   const isRu = lang === 'ru';
+
+  const fetchAllStats = async () => {
+    setLoading(true);
+    setError(null);
+    setData(null);
+    try {
+      const res = await fetch('/api/admin-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ promoCode: DEV_STATS_PROMO_CODE }),
+      });
+      const json: AdminStatsResponse = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        setError(json.error || res.statusText || (isRu ? 'Ошибка загрузки' : 'Load error'));
+        return;
+      }
+      setData(json);
+    } catch (e: any) {
+      setError(e?.message || (isRu ? 'Ошибка сети' : 'Network error'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleUnlock = () => {
     const trimmed = codeInput.trim();
@@ -54,6 +214,7 @@ export const DevStatsModal: React.FC<DevStatsModalProps> = ({ user, lang, onClos
     setUnlocked(true);
     setCodeError('');
     setCodeInput('');
+    fetchAllStats();
   };
 
   const handleClose = () => {
@@ -73,7 +234,7 @@ export const DevStatsModal: React.FC<DevStatsModalProps> = ({ user, lang, onClos
             </button>
           </div>
           <p className="text-xs text-[var(--text-secondary)] mb-4">
-            {isRu ? 'Введите промокод разработчика для просмотра статистики.' : 'Enter developer promo code to view statistics.'}
+            {isRu ? 'Введите промокод разработчика для просмотра статистики всех пользователей.' : 'Enter developer promo code to view all users statistics.'}
           </p>
           <GlassInput
             type="password"
@@ -99,112 +260,73 @@ export const DevStatsModal: React.FC<DevStatsModalProps> = ({ user, lang, onClos
           <div className="flex items-center gap-2">
             <BarChart3 className="text-[var(--theme-accent)]" size={24} />
             <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">
-              {isRu ? 'Полная статистика' : 'Full statistics'}
+              {isRu ? 'Статистика всех пользователей' : 'All users statistics'}
             </h2>
           </div>
-          <button onClick={handleClose} className="p-2 rounded-full hover:bg-white/10 text-[var(--text-secondary)]">
-            <X size={22} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={() => fetchAllStats()} disabled={loading} className="p-2 rounded-full hover:bg-white/10 text-[var(--text-secondary)] disabled:opacity-50" title={isRu ? 'Обновить' : 'Refresh'}>
+              <Loader2 size={20} className={loading ? 'animate-spin' : ''} />
+            </button>
+            <button onClick={handleClose} className="p-2 rounded-full hover:bg-white/10 text-[var(--text-secondary)]">
+              <X size={22} />
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-5 scrollbar-hide">
-          {/* Opens */}
-          <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
-            <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
-              <LayoutGrid size={14} /> {isRu ? 'Открытия разделов' : 'Section opens'}
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.entries(stats.opens) as [keyof typeof stats.opens, number][]).map(([key, count]) => {
-                const label = OPEN_LABELS[key] || { en: key, ru: key, emoji: '•' };
-                return (
-                  <div key={key} className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5">
-                    <span className="text-sm font-bold text-[var(--text-primary)]">{label.emoji} {isRu ? label.ru : label.en}</span>
-                    <span className="text-sm font-black text-[var(--theme-accent)] tabular-nums">{count}</span>
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="animate-spin text-[var(--theme-accent)]" size={40} />
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">{isRu ? 'Загрузка из Supabase...' : 'Loading from Supabase...'}</p>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="rounded-2xl bg-rose-500/15 border border-rose-500/30 p-4 text-rose-400 text-sm">
+              {error}
+              <button onClick={fetchAllStats} className="mt-2 block text-xs underline">{isRu ? 'Повторить' : 'Retry'}</button>
+            </div>
+          )}
+
+          {data?.ok && data.aggregated && !loading && (
+            <>
+              <StatsContent stats={data.aggregated} isRu={isRu} isAggregate totalUsers={data.totalUsers ?? 0} />
+
+              <div className="pt-2">
+                <button
+                  onClick={() => setShowUserList(!showUserList)}
+                  className="w-full flex items-center justify-between py-3 px-4 rounded-2xl bg-white/5 border border-[var(--border-glass)] text-[var(--text-primary)] font-bold text-sm"
+                >
+                  <span className="flex items-center gap-2">
+                    <Users size={18} />
+                    {isRu ? 'По пользователям' : 'Per user'} ({data.users?.length ?? 0})
+                  </span>
+                  {showUserList ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+                {showUserList && data.users && data.users.length > 0 && (
+                  <div className="mt-2 space-y-2 max-h-[280px] overflow-y-auto scrollbar-hide">
+                    {data.users.map((u) => (
+                      <details key={u.username} className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border-glass)] overflow-hidden">
+                        <summary className="px-4 py-2.5 text-sm font-bold text-[var(--text-primary)] cursor-pointer list-none flex items-center justify-between">
+                          <span className="truncate">{u.username}</span>
+                          <span className="text-xs text-[var(--text-secondary)] tabular-nums">
+                            Σ {(u.usageStats.totalChatMessages ?? 0) + (u.usageStats.totalGoalsCompleted ?? 0) + (u.usageStats.ecosystem?.sport?.workoutsCompleted ?? 0) + (u.usageStats.ecosystem?.study?.quizzesCompleted ?? 0)}
+                          </span>
+                        </summary>
+                        <div className="px-4 pb-3 pt-1 border-t border-[var(--border-glass)]">
+                          <StatsContent stats={u.usageStats} isRu={isRu} />
+                        </div>
+                      </details>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          </GlassCard>
-
-          {/* Last opened */}
-          <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
-            <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Calendar size={14} /> {isRu ? 'Последнее открытие' : 'Last opened'}
-            </h3>
-            <div className="space-y-1.5">
-              {(Object.entries(stats.lastOpenedAt) as [string, string | undefined][]).map(([key, date]) => {
-                const label = OPEN_LABELS[key] || { en: key, ru: key, emoji: '•' };
-                return (
-                  <div key={key} className="flex items-center justify-between py-1.5 text-xs">
-                    <span className="text-[var(--text-secondary)]">{label.emoji} {isRu ? label.ru : label.en}</span>
-                    <span className="text-[var(--text-primary)] font-medium tabular-nums">{formatDate(date)}</span>
-                  </div>
-                );
-              })}
-              {Object.keys(stats.lastOpenedAt).length === 0 && (
-                <p className="text-xs text-[var(--text-secondary)] py-2">{isRu ? 'Нет данных' : 'No data'}</p>
-              )}
-            </div>
-          </GlassCard>
-
-          {/* Ecosystem */}
-          <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
-            <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Zap size={14} /> {isRu ? 'Экосистемы' : 'Ecosystems'}
-            </h3>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
-                  <p className="text-[10px] font-black text-orange-400 uppercase mb-1">Sport</p>
-                  <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Тренировки' : 'Workouts'}: <strong>{stats.ecosystem.sport.workoutsCompleted ?? 0}</strong></p>
-                  <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Сообщ. тренеру' : 'Coach msgs'}: <strong>{stats.ecosystem.sport.coachMessages ?? 0}</strong></p>
-                </div>
-                <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                  <p className="text-[10px] font-black text-indigo-400 uppercase mb-1">Study</p>
-                  <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Экзамены' : 'Exams'}: <strong>{stats.ecosystem.study.examsCreated ?? 0}</strong></p>
-                  <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Квизы' : 'Quizzes'}: <strong>{stats.ecosystem.study.quizzesCompleted ?? 0}</strong></p>
-                  <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Билеты' : 'Tickets'}: <strong>{stats.ecosystem.study.ticketsParsed ?? 0}</strong></p>
-                </div>
-                <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20">
-                  <p className="text-[10px] font-black text-pink-400 uppercase mb-1">Health</p>
-                  <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Дневники' : 'Logs'}: <strong>{stats.ecosystem.health.logsSaved ?? 0}</strong></p>
-                </div>
-                <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20">
-                  <p className="text-[10px] font-black text-sky-400 uppercase mb-1">Work</p>
-                  <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Логи прогресса' : 'Progress logs'}: <strong>{stats.ecosystem.work.progressLogs ?? 0}</strong></p>
-                  <p className="text-xs text-[var(--text-primary)]">{isRu ? 'Чат с экспертом' : 'Expert chat'}: <strong>{stats.ecosystem.work.expertChatMessages ?? 0}</strong></p>
-                </div>
+                )}
               </div>
-            </div>
-          </GlassCard>
 
-          {/* Totals */}
-          <GlassCard className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl p-4">
-            <h3 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Target size={14} /> {isRu ? 'Общее' : 'Totals'}
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
-                <MessageCircle size={18} className="text-[var(--theme-accent)]" />
-                <span className="text-sm text-[var(--text-primary)]">{isRu ? 'Сообщения в чат' : 'Chat messages'}</span>
-                <span className="text-sm font-black text-[var(--theme-accent)] tabular-nums">{stats.totalChatMessages ?? 0}</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
-                <Target size={18} className="text-emerald-500" />
-                <span className="text-sm text-[var(--text-primary)]">{isRu ? 'Целей достигнуто' : 'Goals completed'}</span>
-                <span className="text-sm font-black text-emerald-500 tabular-nums">{stats.totalGoalsCompleted ?? 0}</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
-                <BarChart3 size={18} className="text-amber-500" />
-                <span className="text-sm text-[var(--text-primary)]">{isRu ? 'Задач выполнено' : 'Tasks completed'}</span>
-                <span className="text-sm font-black text-amber-500 tabular-nums">{stats.totalTasksCompleted ?? 0}</span>
-              </div>
-            </div>
-          </GlassCard>
-
-          <p className="text-[10px] text-[var(--text-secondary)] text-center pb-2">
-            {isRu ? 'Данные синхронизируются с Supabase (user_data.profile.usageStats)' : 'Data syncs to Supabase (user_data.profile.usageStats)'}
-          </p>
+              <p className="text-[10px] text-[var(--text-secondary)] text-center pb-2">
+                {isRu ? 'Данные из Supabase (user_data.profile.usageStats)' : 'Data from Supabase (user_data.profile.usageStats)'}
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
