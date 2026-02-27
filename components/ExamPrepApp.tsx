@@ -1,6 +1,7 @@
 // ... imports unchanged ...
 import React, { useState, useMemo, useEffect } from 'react';
 import { Exam, Ticket, Term, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme } from '../types';
+import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
@@ -225,9 +226,23 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
 
   const handleFinalizeExam = () => {
       if (!preparedExamData) return;
-      onUpdateProfile({ ...user, exams: [...(user.exams || []), preparedExamData] });
-      // DO NOT set active exam here, to go back to list
-      // setActiveExam(preparedExamData); 
+      const u = user.usageStats || getDefaultUsageStats();
+      const ticketCount = preparedExamData.tickets?.length ?? 1;
+      onUpdateProfile({
+        ...user,
+        exams: [...(user.exams || []), preparedExamData],
+        usageStats: {
+          ...u,
+          ecosystem: {
+            ...u.ecosystem,
+            study: {
+              examsCreated: (u.ecosystem.study.examsCreated ?? 0) + 1,
+              quizzesCompleted: u.ecosystem.study.quizzesCompleted ?? 0,
+              ticketsParsed: (u.ecosystem.study.ticketsParsed ?? 0) + ticketCount,
+            },
+          },
+        },
+      });
       setShowWizard(false);
       setWizardStep(1);
       setRawTicketsText('');
@@ -384,7 +399,23 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
           const updatedTickets = activeExam!.tickets.map(t => t.id === activeTicket!.id ? { ...t, lastScore: finalScore } : t);
           const updatedExam = { ...activeExam!, tickets: updatedTickets };
           setActiveExam(updatedExam);
-          onUpdateProfile({ ...user, exams: user.exams?.map(e => e.id === activeExam!.id ? updatedExam : e), totalExperience: (user.totalExperience || 0) + earnedXp });
+          const u = user.usageStats || getDefaultUsageStats();
+          onUpdateProfile({
+            ...user,
+            exams: user.exams?.map(e => e.id === activeExam!.id ? updatedExam : e),
+            totalExperience: (user.totalExperience || 0) + earnedXp,
+            usageStats: {
+              ...u,
+              ecosystem: {
+                ...u.ecosystem,
+                study: {
+                  examsCreated: u.ecosystem.study.examsCreated ?? 0,
+                  quizzesCompleted: (u.ecosystem.study.quizzesCompleted ?? 0) + 1,
+                  ticketsParsed: u.ecosystem.study.ticketsParsed ?? 0,
+                },
+              },
+            },
+          });
           setQuizResult({ score: finalScore, xp: earnedXp });
           setTicketMode('result');
       }
