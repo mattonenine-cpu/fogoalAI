@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext, EcosystemConfig } from '../types';
 import { getDefaultUsageStats } from '../types';
 import { Onboarding } from './Onboarding';
@@ -22,6 +22,7 @@ import { parseTelegramCallbackFromUrl, getTelegramUserFromWebApp } from '../serv
 import { TelegramAuthWidget } from './TelegramAuthWidget';
 import { EcosystemSelectionModal } from './EcosystemSelectionModal';
 import { CreditsDisplay } from './CreditsDisplay';
+import { DevStatsModal } from './DevStatsModal';
 import type { UserDataPayload } from '../services/authService';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
@@ -129,6 +130,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [activeEcosystem, setActiveEcosystem] = useState<EcosystemType | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDevStatsModal, setShowDevStatsModal] = useState(false);
   const [helpContext, setHelpContext] = useState<HelpContext | null>(null);
   
   const [tasks, setTasks] = useState<Task[]>(() => {
@@ -414,8 +416,10 @@ export default function App() {
     else if (view === AppView.CHAT) { opens.chat = (opens.chat || 0) + 1; lastOpenedAt.chat = now; }
     else if (view === AppView.NOTES) { opens.notes = (opens.notes || 0) + 1; lastOpenedAt.notes = now; }
     else if (view === AppView.ECOSYSTEM && ecosystem) {
-      opens[ecosystem] = (opens[ecosystem] ?? 0) + 1;
-      lastOpenedAt[ecosystem] = now;
+      if (ecosystem === 'sport' || ecosystem === 'study' || ecosystem === 'health') {
+        opens[ecosystem] = (opens[ecosystem] ?? 0) + 1;
+        lastOpenedAt[ecosystem] = now;
+      }
     }
     setProfile({
       ...profile,
@@ -427,6 +431,21 @@ export default function App() {
     if (!profile?.settings?.visibleViews) return ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes'];
     return profile.settings.visibleViews;
   }, [profile?.settings?.visibleViews]);
+
+  const devStatsTapRef = useRef({ count: 0, lastAt: 0 });
+  const handleLogoTap = () => {
+    const now = Date.now();
+    const { count, lastAt } = devStatsTapRef.current;
+    if (now - lastAt > 2000) {
+      devStatsTapRef.current = { count: 1, lastAt: now };
+      return;
+    }
+    devStatsTapRef.current = { count: count + 1, lastAt: now };
+    if (count + 1 >= 5) {
+      setShowDevStatsModal(true);
+      devStatsTapRef.current = { count: 0, lastAt: 0 };
+    }
+  };
 
   const renderView = () => {
     if (!profile) return null;
@@ -606,7 +625,9 @@ export default function App() {
     <div className="min-h-screen text-[var(--text-primary)] overflow-hidden transition-colors duration-500 flex flex-col">
       <div className="w-full sm:max-w-md mx-auto h-[100dvh] flex flex-col relative z-10 overflow-hidden">
         <header className="p-3 sm:p-5 pb-2 flex justify-between items-center z-40 relative">
-           <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
+           <button type="button" onClick={handleLogoTap} className="focus:outline-none focus:ring-0 touch-manipulation" aria-label="FoGoal">
+             <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
+           </button>
            <div className="flex items-center gap-2">
              <CreditsDisplay credits={profile.credits} lang={language || 'ru'} />
              <ThemeSelector currentTheme={theme} onSelect={setTheme} />
@@ -678,6 +699,10 @@ export default function App() {
             lang={language || 'en'}
             onClose={() => setHelpContext(null)}
         />
+      )}
+
+      {showDevStatsModal && profile && language && (
+        <DevStatsModal user={profile} lang={language} onClose={() => setShowDevStatsModal(false)} />
       )}
     </div>
   );
