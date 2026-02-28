@@ -21,7 +21,7 @@ import { CreditsService } from '../services/creditsService';
 import { parseTelegramCallbackFromUrl, getTelegramUserFromWebApp } from '../services/telegramAuth';
 import { TelegramAuthWidget } from './TelegramAuthWidget';
 import { EcosystemSelectionModal } from './EcosystemSelectionModal';
-import { CreditsDisplay } from './CreditsDisplay';
+import CreditsDisplay from './CreditsDisplay';
 import { DevStatsModal } from './DevStatsModal';
 import type { UserDataPayload } from '../services/authService';
 
