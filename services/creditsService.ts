@@ -39,14 +39,14 @@ export class CreditsService {
   }
 
   /**
-   * Check if credits need monthly reset (first day of month)
+   * Check if credits need monthly reset (exactly 1 month after last reset / registration)
    */
   static needsMonthlyReset(credits: CreditsSystem): boolean {
     const lastReset = new Date(credits.lastResetDate);
     const now = new Date();
-    
-    // Reset on first day of month if last reset was in previous month
-    return now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear();
+    const nextRefill = new Date(lastReset);
+    nextRefill.setMonth(nextRefill.getMonth() + 1);
+    return now >= nextRefill;
   }
 
   /**
@@ -179,11 +179,13 @@ export class CreditsService {
   }
 
   /**
-   * Дата следующей выдачи 1000 кредитов (первый день следующего месяца по lastResetDate).
+   * Дата следующей выдачи 1000 кредитов (ровно через месяц после lastResetDate).
    */
   static getNextResetDate(credits: CreditsSystem): Date {
     const last = new Date(credits.lastResetDate);
-    return new Date(last.getFullYear(), last.getMonth() + 1, 1, 0, 0, 0, 0);
+    const next = new Date(last);
+    next.setMonth(next.getMonth() + 1);
+    return next;
   }
 
   /**
