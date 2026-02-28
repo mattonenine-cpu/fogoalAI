@@ -34,12 +34,15 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({ credits, lang })
     return () => document.removeEventListener('click', close);
   }, [showPopover]);
 
-  const isUnlimited = credits && CreditsService.isSubscriptionActive(credits);
+  // Всегда показывать блок: если credits нет или поля некорректны — используем дефолт (на некоторых устройствах после синка профиль приходит без credits)
+  const safeCredits: CreditsSystem = credits && typeof credits.availableCredits === 'number' && typeof credits.totalCredits === 'number'
+    ? credits
+    : CreditsService.initializeCredits();
 
-  if (!credits) return null;
+  const isUnlimited = CreditsService.isSubscriptionActive(safeCredits);
 
   if (isUnlimited) {
-    const label = getSubscriptionLabel(credits, lang);
+    const label = getSubscriptionLabel(safeCredits, lang);
     const title = lang === 'ru' ? 'Активна подписка' : 'Active subscription';
     return (
       <div ref={wrapRef} className="relative inline-block">
@@ -63,9 +66,9 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({ credits, lang })
   }
 
   return (
-    <div className="px-3 py-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-glass)]">
-      <span className="text-sm font-medium text-[var(--text-primary)]">
-        {credits.availableCredits}
+    <div className="px-3 py-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-glass)] shrink-0 min-w-0">
+      <span className="text-sm font-medium text-[var(--text-primary)] tabular-nums">
+        {Number(safeCredits.availableCredits) ?? 0}
       </span>
     </div>
   );
