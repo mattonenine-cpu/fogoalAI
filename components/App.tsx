@@ -357,11 +357,11 @@ export default function App() {
 
   }, [theme, profile?.settings?.fontSize]);
 
-  const handleUpdateProfile = (update: UserProfile | ((prev: UserProfile | null) => UserProfile)) => {
+  const handleUpdateProfile: (update: UserProfile | ((prev: UserProfile | null) => UserProfile | null)) => void = (update) => {
       if (!authService.getCurrentUser() && localStorage.getItem('session_user') === null) {
           setProfile(null);
       } else if (typeof update === 'function') {
-          setProfile((prev: UserProfile | null) => (prev ? update(prev) : prev));
+          setProfile((prev: UserProfile | null) => update(prev));
       } else {
           setProfile(update);
       }
