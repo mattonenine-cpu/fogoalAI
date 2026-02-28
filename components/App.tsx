@@ -183,7 +183,18 @@ export default function App() {
       try {
         const updated = await authService.refreshFromCloud?.();
         if (!cancelled && updated) {
-          setProfile(updated.profile);
+          const mergedProfile = { ...updated.profile };
+          if (!mergedProfile.credits || typeof mergedProfile.credits.availableCredits !== 'number') {
+            const current = typeof profile !== 'undefined' ? profile : null;
+            if (current?.credits && typeof current.credits.availableCredits === 'number') {
+              mergedProfile.credits = current.credits;
+            } else {
+              mergedProfile.credits = CreditsService.initializeCredits();
+            }
+          } else if (CreditsService.needsMonthlyReset(mergedProfile.credits)) {
+            mergedProfile.credits = CreditsService.resetCredits(mergedProfile.credits);
+          }
+          setProfile(mergedProfile);
           setTasks(updated.tasks);
           setNotes(updated.notes);
           setFolders(updated.folders);
