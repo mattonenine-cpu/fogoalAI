@@ -143,7 +143,7 @@ export default async function handler(req: any, res: any) {
     }
     const rows: { username: string; user_data: any }[] = await resFetch.json();
     const aggregated = emptyAggregate();
-    const users: { username: string; usageStats: UsageStatsRow }[] = [];
+    const users: { username: string; displayName: string; usageStats: UsageStatsRow }[] = [];
 
     for (const row of rows || []) {
       const username = row?.username;
@@ -151,7 +151,10 @@ export default async function handler(req: any, res: any) {
       const ud = row.user_data;
       const profile = ud && typeof ud === 'object' ? ud.profile : null;
       const usageStats = normalizeUsageStats(profile?.usageStats);
-      users.push({ username: String(username), usageStats });
+      const telegramUsername = profile?.telegramUsername && typeof profile.telegramUsername === 'string' ? profile.telegramUsername.trim() : null;
+      const name = profile?.name && typeof profile.name === 'string' ? profile.name.trim() : null;
+      const displayName = telegramUsername ? (telegramUsername.startsWith('@') ? telegramUsername : `@${telegramUsername}`) : (name || String(username));
+      users.push({ username: String(username), displayName, usageStats });
       addToAggregate(aggregated, usageStats);
     }
 
@@ -166,3 +169,4 @@ export default async function handler(req: any, res: any) {
     sendJson(res, 500, { ok: false, error: String(e?.message || 'Internal error') });
   }
 }
+
