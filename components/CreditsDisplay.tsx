@@ -94,8 +94,8 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({ credits, lang })
           </span>
         </button>
         {showPopover && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[800] w-[240px] rounded-2xl bg-[var(--bg-card)] border border-[var(--border-glass)] shadow-2xl overflow-hidden">
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-[var(--bg-card)] border-l border-t border-[var(--border-glass)]" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[800] w-[240px] rounded-2xl border border-[var(--border-glass)] shadow-2xl overflow-hidden bg-[var(--bg-main)]">
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 border-l border-t border-[var(--border-glass)] bg-[var(--bg-main)]" />
             <div className="relative px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                 {lang === 'ru' ? 'Активна подписка' : 'Active subscription'}
@@ -120,9 +120,9 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({ credits, lang })
         </span>
       </button>
       {showPopover && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[800] w-[280px] rounded-2xl bg-[var(--bg-card)] border border-[var(--border-glass)] shadow-2xl overflow-hidden">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[800] w-[280px] rounded-2xl border border-[var(--border-glass)] shadow-2xl overflow-hidden bg-[var(--bg-main)]">
           {/* Стрелка к кнопке */}
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-[var(--bg-card)] border-l border-t border-[var(--border-glass)]" />
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 border-l border-t border-[var(--border-glass)] bg-[var(--bg-main)]" />
           <div className="relative px-4 py-4 space-y-4">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
               {lang === 'ru' ? 'До новой тысячи кредитов' : 'Until next 1,000 credits'}
