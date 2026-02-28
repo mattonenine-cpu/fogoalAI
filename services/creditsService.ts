@@ -177,4 +177,21 @@ export class CreditsService {
       percentage: (credits.hasUnlimitedAccess || active) ? 100 : (credits.availableCredits / credits.totalCredits) * 100
     };
   }
+
+  /**
+   * Дата следующей выдачи 1000 кредитов (первый день следующего месяца по lastResetDate).
+   */
+  static getNextResetDate(credits: CreditsSystem): Date {
+    const last = new Date(credits.lastResetDate);
+    return new Date(last.getFullYear(), last.getMonth() + 1, 1, 0, 0, 0, 0);
+  }
+
+  /**
+   * Оставшееся время до следующей выдачи в миллисекундах. Если уже пора — 0.
+   */
+  static getMsUntilNextReset(credits: CreditsSystem): number {
+    const next = this.getNextResetDate(credits);
+    const now = new Date();
+    return Math.max(0, next.getTime() - now.getTime());
+  }
 }
