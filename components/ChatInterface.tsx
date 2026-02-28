@@ -12,7 +12,7 @@ interface ChatInterfaceProps {
   tasks: Task[];
   onSetTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   onDeductCredits?: (cost: number) => void;
-  onUpdateProfile?: (profile: UserProfile) => void;
+  onUpdateProfile?: (update: UserProfile | ((prev: UserProfile | null) => UserProfile)) => void;
 }
 
 // --- Text Rendering Helpers ---
@@ -164,10 +164,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
         if (result.text) {
           setMessages((prev: ChatMessage[]) => [...prev, { id: Date.now().toString(), role: 'model', text: result.text, timestamp: new Date() }]);
           if (onUpdateProfile) {
-            const u = userProfile.usageStats || getDefaultUsageStats();
-            onUpdateProfile({
-              ...userProfile,
-              usageStats: { ...u, totalChatMessages: (u.totalChatMessages ?? 0) + 1 },
+            onUpdateProfile((prev) => {
+              if (!prev) return prev;
+              const u = prev.usageStats || getDefaultUsageStats();
+              return { ...prev, usageStats: { ...u, totalChatMessages: (u.totalChatMessages ?? 0) + 1 } };
             });
           }
         }
