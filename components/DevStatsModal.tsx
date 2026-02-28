@@ -31,7 +31,7 @@ interface AdminStatsResponse {
   error?: string;
   totalUsers?: number;
   aggregated?: UsageStatsRow;
-  users?: { username: string; usageStats: UsageStatsRow }[];
+  users?: { username: string; displayName: string; usageStats: UsageStatsRow }[];
 }
 
 const formatDate = (iso?: string) => {
@@ -300,7 +300,7 @@ export const DevStatsModal: React.FC<DevStatsModalProps> = ({ user, lang, onClos
                       const opens = agg.opens || {};
                       const maxOpenKey = (Object.entries(opens) as [string, number][]).reduce((a, b) => (b[1] > a[1] ? b : a), ['dashboard', 0])[0];
                       const maxLabel = OPEN_LABELS[maxOpenKey] ? (isRu ? OPEN_LABELS[maxOpenKey].ru : OPEN_LABELS[maxOpenKey].en) : maxOpenKey;
-                      const activeCount = data.users?.filter((u: { username: string; usageStats: UsageStatsRow }) => {
+                      const activeCount = data.users?.filter((u: { username: string; displayName: string; usageStats: UsageStatsRow }) => {
                         const s = u.usageStats;
                         const sum = (s.totalChatMessages ?? 0) + (s.totalGoalsCompleted ?? 0) + (s.ecosystem?.sport?.workoutsCompleted ?? 0) + (s.ecosystem?.study?.quizzesCompleted ?? 0) + (s.ecosystem?.study?.examsCreated ?? 0) + (s.ecosystem?.health?.logsSaved ?? 0);
                         return sum > 0;
@@ -349,7 +349,7 @@ export const DevStatsModal: React.FC<DevStatsModalProps> = ({ user, lang, onClos
                     {data.users.map((u) => (
                       <details key={u.username} className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border-glass)] overflow-hidden">
                         <summary className="px-4 py-2.5 text-sm font-bold text-[var(--text-primary)] cursor-pointer list-none flex items-center justify-between">
-                          <span className="truncate">{u.username}</span>
+                          <span className="truncate">{u.displayName ?? u.username}</span>
                           <span className="text-xs text-[var(--text-secondary)] tabular-nums">
                             Σ {(u.usageStats.totalChatMessages ?? 0) + (u.usageStats.totalGoalsCompleted ?? 0) + (u.usageStats.ecosystem?.sport?.workoutsCompleted ?? 0) + (u.usageStats.ecosystem?.study?.quizzesCompleted ?? 0)}
                           </span>
