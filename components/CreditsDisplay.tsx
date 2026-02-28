@@ -82,7 +82,6 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({ credits, lang })
 
   if (isUnlimited) {
     const label = getSubscriptionLabel(safeCredits, lang);
-    const title = lang === 'ru' ? 'Активна подписка' : 'Active subscription';
     return (
       <div ref={wrapRef} className="relative inline-block">
         <button
@@ -95,9 +94,14 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({ credits, lang })
           </span>
         </button>
         {showPopover && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[800] px-3 py-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] shadow-xl whitespace-nowrap text-xs">
-            <span className="text-[var(--text-secondary)]">{title}: </span>
-            <span className="font-medium text-[var(--text-primary)]">{label}</span>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[800] w-[240px] rounded-2xl bg-[var(--bg-card)] border border-[var(--border-glass)] shadow-2xl overflow-hidden">
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-[var(--bg-card)] border-l border-t border-[var(--border-glass)]" />
+            <div className="relative px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                {lang === 'ru' ? 'Активна подписка' : 'Active subscription'}
+              </p>
+              <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">{label}</p>
+            </div>
           </div>
         )}
       </div>
@@ -116,19 +120,35 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({ credits, lang })
         </span>
       </button>
       {showPopover && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[800] px-3 py-2.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] shadow-xl text-xs min-w-[200px]">
-          <p className="text-[var(--text-secondary)] font-medium mb-1">
-            {lang === 'ru' ? 'До новой тысячи кредитов' : 'Until next 1,000 credits'}
-          </p>
-          <p className="font-bold text-[var(--text-primary)] tabular-nums">
-            {timeLabel ? timeLabel.text : formatTimeUntilNextReset(safeCredits, lang).text}
-          </p>
-          <p className="text-[var(--text-secondary)] mt-1.5 text-[11px]">
-            {lang === 'ru' ? 'Следующая выдача' : 'Next reset'}: {timeLabel ? timeLabel.nextDate : formatTimeUntilNextReset(safeCredits, lang).nextDate}
-          </p>
-          <p className="text-[var(--text-secondary)] mt-0.5 text-[11px]">
-            {safeCredits.availableCredits} / {MONTHLY_CREDIT_ALLOWANCE} {lang === 'ru' ? 'кредитов' : 'credits'}
-          </p>
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[800] w-[280px] rounded-2xl bg-[var(--bg-card)] border border-[var(--border-glass)] shadow-2xl overflow-hidden">
+          {/* Стрелка к кнопке */}
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-[var(--bg-card)] border-l border-t border-[var(--border-glass)]" />
+          <div className="relative px-4 py-4 space-y-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+              {lang === 'ru' ? 'До новой тысячи кредитов' : 'Until next 1,000 credits'}
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-[var(--theme-accent)] tabular-nums">
+                {timeLabel ? timeLabel.text : formatTimeUntilNextReset(safeCredits, lang).text}
+              </span>
+            </div>
+            <div className="pt-2 border-t border-[var(--border-glass)]">
+              <p className="text-xs text-[var(--text-secondary)]">
+                {lang === 'ru' ? 'Следующая выдача' : 'Next reset'}
+              </p>
+              <p className="text-sm font-semibold text-[var(--text-primary)] mt-0.5">
+                {timeLabel ? timeLabel.nextDate : formatTimeUntilNextReset(safeCredits, lang).nextDate}
+              </p>
+            </div>
+            <div className="pt-2 border-t border-[var(--border-glass)] flex justify-between items-center">
+              <span className="text-xs text-[var(--text-secondary)]">
+                {lang === 'ru' ? 'Баланс' : 'Balance'}
+              </span>
+              <span className="text-sm font-bold text-[var(--text-primary)] tabular-nums">
+                {safeCredits.availableCredits} / {MONTHLY_CREDIT_ALLOWANCE}
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
