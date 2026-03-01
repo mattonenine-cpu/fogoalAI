@@ -626,9 +626,16 @@ export async function generateDrawingTutorial(prompt: string, lang: Language, st
 }
 
 export async function parseTicketsFromText(text: string, lang: Language) {
-    const prompt = `Extract exam tickets from the text below. Return ONLY a valid JSON array. Each element must be an object with exactly two keys: "number" (integer, 1-based) and "question" (string). Example: [{"number":1,"question":"What is..."},{"number":2,"question":"Explain..."}]. No other text, no markdown.
+    const prompt = `Extract exam tickets (questions) from the text below. Return ONLY a valid JSON array. Each element must be an object with exactly two keys: "number" (integer, 1-based) and "question" (string).
+
+Rules:
+- Each "question" must be a clear, self-contained exam question or topic (as a student would see on a ticket). Prefer full questions, not one-word topics.
+- Preserve the order and numbering implied by the text. If the text has numbers (1., 2., etc.), use them; otherwise assign 1, 2, 3...
+- Lang: ${lang}. Keep question text in the same language as the source.
+
 Text: ${text.substring(0, 5000)}
-Lang: ${lang}`;
+
+Example output shape: [{"number":1,"question":"What is..."},{"number":2,"question":"Explain..."}]. No other text, no markdown.`;
 
     const result = await callApi('/api/generate', {
         model: AI_MODEL,
@@ -645,24 +652,26 @@ export async function generateTicketNote(question: string, subject: string, lang
 Exam subject: "${subject}"
 Exam question / ticket: "${question}"
 
-Requirements:
+CRITICAL — ACCURACY AND SOURCES
+- Base the note ONLY on standard curricula, widely used textbooks, and commonly accepted definitions in this field. Do not invent facts, dates, or definitions.
+- Reason as if you had verified key facts against authoritative educational sources: include ONLY what would hold up in a textbook or official curriculum. If in doubt about a fact, omit it or phrase it cautiously (e.g. "often defined as...").
+- The goal is that after reading this note, the student can safely reproduce the material on an exam without spreading errors.
 
-1) LENGTH & DEPTH
-- Write a substantial note: not a short outline, but a full explanation a student can learn from. Aim for roughly 400–800 words (or equivalent in ${lang}). Cover the topic so that after one read the student understands causes, definitions, context, and can answer both the main question and typical follow-ups.
-- Include: a clear core definition or thesis at the start; main concepts; cause–effect and "why"; 2–3 concrete examples where useful; links between ideas. Add a short "Что часто спрашивают" / "Typical exam follow-ups" or "Common mistakes" only if it helps (1–2 sentences).
+LENGTH AND DEPTH (topic-adaptive)
+- Simple or narrow topic: aim for 500–900 words (or equivalent in ${lang}). One clear definition, 2–3 main points, 1–2 examples, short conclusion.
+- Medium topic (several concepts, cause-effect): 900–1400 words. Full structure: definition, main sections, causes and consequences, 2–4 examples, links between ideas, typical exam follow-ups.
+- Broad or complex topic (theory, multi-part question): 1400–2200 words. Exhaustive but structured: multiple ## sections, subsections ###, definitions of all key terms, step-by-step or chronological logic where needed, several examples, "What is often asked" / "Common mistakes" / "Typical follow-up questions" at the end.
+- Every paragraph must add information the student might need to reproduce or recognize on the exam. No filler. Prefer complete, structured content.
 
-2) STRUCTURE (strict Markdown)
-- Use exactly one # for the main title (the topic or question in short form).
-- Use ## for major sections (e.g. "Definition", "Main points", "Examples", "Conclusion").
-- Use ### for subsections inside them.
-- Use - or * for bullet lists. Use numbered list only when order matters (steps, chronology).
-- Bold only key terms and definitions with **term** (e.g. **Key concept**). Do not bold whole sentences.
-- Do not use raw asterisks for emphasis; only **...** for bold. No markdown outside this (no inline code unless necessary).
+STRUCTURE (strict Markdown)
+- Exactly one # for the main title (topic or question in short form).
+- ## for major sections (e.g. Definition, Main points, Causes and effects, Examples, Conclusion).
+- ### for subsections. Use - or * for bullet lists; numbered lists only when order matters (steps, chronology).
+- Bold only key terms and definitions with **term**. Do not bold whole sentences. No raw asterisks for emphasis; only **...** for bold. No extra markdown (no inline code unless necessary).
 
-3) CLARITY & ACCURACY
+CLARITY AND LANGUAGE
 - Write in ${lang}. Tone: clear, educational, exam-oriented. Explain so a student can follow without prior knowledge of this exact topic.
-- Be accurate: definitions and facts as in standard curricula or textbooks. Every paragraph should add information the student might need to reproduce or recognize on the exam.
-- Avoid filler. Prefer complete, structured content over brevity.
+- End with a short block (if useful): "Что часто спрашивают" / "Typical exam follow-ups" or "Common mistakes" — 2–4 concrete points only.
 
 Output only the Markdown note, no preamble or closing.`;
     
@@ -675,7 +684,7 @@ Output only the Markdown note, no preamble or closing.`;
 
 export async function generateGlossaryAndCards(tickets: Ticket[], subject: string, lang: Language) {
     const ticketsList = tickets.slice(0, 80).map((t, i) => ({ number: i + 1, question: t.question })).filter(t => t.question);
-    const prompt = `You are an expert teacher preparing a student for an exam. Create a glossary and flashcards that maximize exam success.
+    const prompt = `You are an expert teacher preparing a student for an exam. Create a glossary and flashcards that maximize exam success. All content must be accurate and exam-relevant.
 
 Subject: "${subject}"
 
@@ -684,20 +693,23 @@ Tickets (each has a number 1, 2, 3, ...). For EACH ticket you MUST generate exac
 - Medium topic → 3 flashcards
 - Broad or complex topic → 4 flashcards
 
+ACCURACY AND USEFULNESS
+- Glossary: Include only terms that are central to these tickets. Definitions must be short, precise, and match standard curricula or textbooks. Do not invent or guess definitions — only include terms you are confident you can define correctly.
+- Flashcards: Each question–answer pair must test knowledge that is actually required for the exam and that you are sure is correct. Prefer exam-style formulations (definitions, "What is...?", "Why...?", "How does...?"). One question per card; no compound questions. Answers: maximum 15 words; only key facts the student must reproduce.
+
 Tickets list (number + question):
 ${JSON.stringify(ticketsList, null, 0)}
 
 Output requirements:
-1) "glossary" – array of objects with "word" and "definition". Include the most important terms that appear across these tickets. Definitions must be short, precise, and exam-ready (as in textbooks or curricula). No filler.
-
-2) "flashcards" – array of objects. Each object MUST have:
-   - "question" (string): one clear question suitable for active recall. Prefer exam-style formulations (definitions, "What is...?", "Why...?", "How does...?").
-   - "answer" (string): concise answer, maximum 15 words. Only key facts the student must reproduce.
+1) "glossary" – array of objects with "word" and "definition". Definitions exam-ready and accurate. No filler.
+2) "flashcards" – array of objects. Each MUST have:
+   - "question" (string): one clear question for active recall.
+   - "answer" (string): concise answer, max 15 words.
    - "ticketNumber" (number): the ticket number (1-based) this card belongs to. Every card must be assigned to exactly one ticket.
 
 Rules:
-- Total flashcards = sum over all tickets: each ticket gets 2, 3, or 4 cards (never 1 or 5+). So if there are 10 tickets, you produce between 20 and 40 cards.
-- Prioritize high-yield information: what is most likely to be asked or required in a good answer. One question–answer per card; no compound questions.
+- Total flashcards = sum over all tickets: each ticket gets 2, 3, or 4 cards (never 1 or 5+). So if there are 10 tickets, between 20 and 40 cards.
+- Prioritize high-yield information: what is most likely to be asked or required in a good answer.
 - Language: ${lang}.
 
 Return ONLY a valid JSON object with exactly two keys: "glossary" and "flashcards". No other text, no markdown.
@@ -717,17 +729,23 @@ Example shape: {"glossary":[{"word":"X","definition":"..."}],"flashcards":[{"que
 }
 
 export async function generateQuiz(question: string, subject: string, lang: Language, count: number) {
-    const prompt = `Generate ${count} multiple-choice quiz questions to check knowledge after the student has read the study note for this exam ticket.
+    const prompt = `You are an expert examiner. Generate exactly ${count} multiple-choice quiz questions to check knowledge that is USEFUL for the exam and that you are CERTAIN is correct.
 
 Subject: "${subject}"
 This ticket only (do not go beyond this topic): "${question}"
 
-Strict rules:
-- Every question MUST be strictly and only about this ticket's topic. Base questions on the kind of content that would appear in a study note for this exact question: definitions, main facts, cause-effect, and examples from this topic only. Do not ask about other topics or tangents.
-- Be concrete: ask about specific facts, terms, or reasoning that a student would learn from the note (e.g. "What is the definition of X in this context?", "Why does Y happen according to this theory?", "Which of the following is an example of Z?"). Avoid vague or generic questions.
-- Vary difficulty: about 1/3 easy (direct recall), 1/3 medium (understanding, cause-effect), 1/3 hard (application, correct interpretation). All must still be on this ticket only.
-- Each question: exactly 4 options, one correct. correctIndex is 0-based (0, 1, 2, or 3). Options must be clear and distinct.
+MANDATORY QUALITY RULES
+1) CORRECTNESS: For every question you must be 100% sure that the indicated correct answer is factually right according to standard curricula and textbooks. Do not include questions where the "correct" answer is debatable or differs between sources. If you are not certain, do not add that question — produce fewer questions but all correct.
+2) USEFULNESS: Each question must test knowledge that is actually needed for the exam: definitions, key facts, cause-effect, or application that a student would be expected to know. Do not ask trivial details, trick questions, or things that would never appear on a real exam. Ask what matters for passing.
+3) ONE TOPIC: Every question must be strictly about this ticket's topic only. Base questions on content that would appear in a solid study note for this exact question. No tangents.
+
+QUESTION DESIGN
+- Be concrete: specific facts, terms, or reasoning (e.g. "What is the definition of X?", "Why does Y happen?", "Which of the following is an example of Z?"). Avoid vague or generic questions.
+- Exactly 4 options per question; one correct. correctIndex is 0-based (0, 1, 2, or 3). Options must be clear, distinct, and plausible; wrong answers must be clearly wrong to someone who knows the material.
+- Vary difficulty: about 1/3 easy (direct recall), 1/3 medium (understanding, cause-effect), 1/3 hard (application, interpretation). All must still be on this ticket and correct.
 - Language: ${lang}.
+
+Before outputting, mentally verify: (a) the correct answer is indisputable, (b) testing this knowledge helps the student for the exam.
 
 Return ONLY a JSON array. Each object: "question" (string), "options" (array of 4 strings), "correctIndex" (number 0-3), "difficulty" (string: "easy" | "medium" | "hard"). No other text.`;
     
