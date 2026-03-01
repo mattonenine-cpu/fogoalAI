@@ -131,7 +131,6 @@ export default function App() {
   const [activeEcosystem, setActiveEcosystem] = useState<EcosystemType | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showDevStatsModal, setShowDevStatsModal] = useState(false);
-  const [showSecretMessage, setShowSecretMessage] = useState(false);
   const [helpContext, setHelpContext] = useState<HelpContext | null>(null);
   
   const [tasks, setTasks] = useState<Task[]>(() => {
@@ -454,14 +453,10 @@ export default function App() {
       devStatsTapRef.current = { count: 1, lastAt: now };
       return;
     }
-    const newCount = count + 1;
-    devStatsTapRef.current = { count: newCount, lastAt: now };
-    if (newCount >= 15) {
-      setShowSecretMessage(true);
-      devStatsTapRef.current = { count: 0, lastAt: 0 };
-    } else if (newCount >= 5) {
+    devStatsTapRef.current = { count: count + 1, lastAt: now };
+    if (count + 1 >= 5) {
       setShowDevStatsModal(true);
-      // не сбрасываем счётчик — можно донажать до 15 для секрета
+      devStatsTapRef.current = { count: 0, lastAt: 0 };
     }
   };
 
@@ -721,24 +716,6 @@ export default function App() {
 
       {showDevStatsModal && profile && language && (
         <DevStatsModal user={profile} lang={language} onClose={() => setShowDevStatsModal(false)} />
-      )}
-
-      {showSecretMessage && (
-        <div
-          className="fixed inset-0 z-[800] flex items-center justify-center bg-black/90 p-4"
-          onClick={() => setShowSecretMessage(false)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Escape' && setShowSecretMessage(false)}
-          aria-label={language === 'ru' ? 'Закрыть секретное послание' : 'Close secret message'}
-        >
-          <img
-            src="/secret-message.png"
-            alt=""
-            className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
       )}
     </div>
   );
