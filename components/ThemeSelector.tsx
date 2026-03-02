@@ -19,12 +19,12 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, onSe
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
-    <div className={`relative z-50 ${className}`}>
+    <div className={`relative z-50 shrink-0 ${className}`}>
         <button 
             onClick={() => setIsOpen(!isOpen)}
-            className="w-10 h-10 rounded-full glass-liquid flex items-center justify-center text-[var(--text-primary)] hover:bg-white/10 transition-all active:scale-90"
+            className="w-10 h-10 rounded-full glass-liquid flex items-center justify-center text-[var(--text-primary)] hover:bg-white/10 transition-all active:scale-90 overflow-visible"
         >
-            <Palette size={16} />
+            <Palette size={16} className="shrink-0" />
         </button>
         
         {isOpen && (
