@@ -221,15 +221,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                 {activeTab === 'account' && (
                     <div className="space-y-6 animate-fade-in-up">
                          <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'ПРОФИЛЬ' : 'PROFILE'}</h3>
-                         <GlassCard className="p-8 border-[var(--border-glass)] bg-white/2 space-y-8 rounded-[40px]">
+                         <GlassCard className="p-4 sm:p-8 border-[var(--border-glass)] bg-white/2 space-y-6 rounded-[32px] overflow-hidden">
                             {/* Credits Info */}
-                            <div className="space-y-4">
-                                <h4 className="text-lg font-black text-[var(--text-primary)]">
+                            <div className="space-y-3">
+                                <h4 className="text-base sm:text-lg font-black text-[var(--text-primary)]">
                                     {lang === 'ru' ? 'Кредиты AI' : 'AI Credits'}
                                 </h4>
                                 {user.credits && (
                                     <div className="p-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)]">
-                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
+                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                                             <span className="text-sm text-[var(--text-secondary)] whitespace-nowrap">
                                                 {lang === 'ru' ? 'Доступно:' : 'Available:'}
                                             </span>
@@ -240,7 +240,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                             </span>
                                         </div>
                                         {CreditsService.isSubscriptionActive(user.credits) && user.credits.subscriptionType && (
-                                            <div className="text-xs text-[var(--text-secondary)] mt-1">
+                                            <div className="text-xs text-[var(--text-secondary)] mt-1 break-words">
                                                 {lang === 'ru' ? 'Активна подписка: ' : 'Active subscription: '}
                                                 {user.credits.subscriptionType === 'unlimited'
                                                     ? (lang === 'ru' ? 'Безлимит' : 'Unlimited')
@@ -259,8 +259,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                             </div>
 
                             {/* Promo Code */}
-                            <div className="space-y-4">
-                                <h4 className="text-lg font-black text-[var(--text-primary)]">
+                            <div className="space-y-3">
+                                <h4 className="text-base sm:text-lg font-black text-[var(--text-primary)]">
                                     {lang === 'ru' ? 'Промокод' : 'Promo Code'}
                                 </h4>
                                 <div className="flex flex-col sm:flex-row gap-2">
@@ -274,7 +274,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                     <button
                                         onClick={handleApplyPromoCode}
                                         disabled={promoLoading}
-                                        className="px-6 py-3 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
+                                        className="h-12 px-6 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50 flex items-center justify-center"
                                     >
                                         {promoLoading ? (lang === 'ru' ? 'Проверка...' : 'Checking...') : (lang === 'ru' ? 'Применить' : 'Apply')}
                                     </button>
@@ -290,18 +290,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-4 sm:gap-6">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-[32px] bg-indigo-500/20 flex items-center justify-center text-3xl sm:text-4xl border border-indigo-500/30 shrink-0">👤</div>
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-[28px] bg-indigo-500/20 flex items-center justify-center text-2xl sm:text-4xl border border-indigo-500/30 shrink-0 overflow-visible">👤</div>
                                 <div className="min-w-0 flex-1">
-                                    <h4 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] truncate">{user.name || 'Explorer'}</h4>
+                                    <h4 className="text-lg sm:text-2xl font-black text-[var(--text-primary)] truncate">{user.name || 'Explorer'}</h4>
                                     <p className="text-mini font-black uppercase tracking-widest opacity-30 truncate">{user.occupation || 'FoGoal User'}</p>
                                 </div>
                             </div>
-                            <button onClick={handleLogout} className="w-full p-6 rounded-[32px] bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center group active:scale-95 transition-all">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center"><LogOut size={20} /></div>
-                                    <span className="font-black uppercase text-xs tracking-widest">{t.logout}</span>
-                                </div>
+                            <button onClick={handleLogout} className="w-full h-14 rounded-[28px] bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center gap-3 active:scale-[0.98] transition-all">
+                                <LogOut size={20} className="shrink-0" />
+                                <span className="font-black uppercase text-xs tracking-widest">{t.logout}</span>
                             </button>
                          </GlassCard>
                     </div>
@@ -310,8 +308,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
         </div>
 
         {/* Save Button */}
-        <footer className="p-8 border-t border-[var(--border-glass)] bg-white/5 flex justify-center shrink-0">
-            <button onClick={onClose} className="px-16 py-5 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[12px] shadow-2xl hover:scale-105 active:scale-95 transition-all">
+        <footer className="p-4 sm:p-8 border-t border-[var(--border-glass)] bg-white/5 flex justify-center shrink-0">
+            <button onClick={onClose} className="px-8 sm:px-16 py-4 sm:py-5 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[11px] sm:text-[12px] shadow-2xl hover:scale-105 active:scale-95 transition-all">
                 {lang === 'ru' ? 'СОХРАНИТЬ' : 'SAVE CHANGES'}
             </button>
         </footer>
