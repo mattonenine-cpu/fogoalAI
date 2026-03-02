@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from './types';
+import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext, AppFontSize, EcosystemConfig } from './types';
 import { Onboarding } from './components/Onboarding';
 import { Dashboard } from './components/Dashboard';
 import { Scheduler } from './components/Scheduler';
@@ -165,14 +165,14 @@ const [theme, setTheme] = useState<AppTheme>(() => {
       root.style.setProperty('--border-glass', c.border);
       document.body.style.background = c.bgMain;
 
-      const fontScales = {
+      const fontScales: Record<AppFontSize, string> = {
           small: '0.95',
           normal: '1.05',
           medium: '1.15',
           large: '1.25',
           xlarge: '1.4'
       };
-      const currentFontSize = profile?.settings?.fontSize || 'large';
+      const currentFontSize: AppFontSize = (profile?.settings?.fontSize || 'large') as AppFontSize;
       const scale = fontScales[currentFontSize] || '1.15';
       root.style.setProperty('--font-scale', scale);
 
@@ -215,7 +215,7 @@ const [theme, setTheme] = useState<AppTheme>(() => {
         return <Dashboard 
           user={profile} stats={dailyStats} lang={language!} tasks={tasks} 
           onUpdateProfile={handleUpdateProfile} onUpdateStats={setDailyStats} onNavigate={setCurrentView}
-          onAddTasks={(newTasks) => setTasks(prev => [...prev, ...newTasks])}
+          onAddTasks={(newTasks: Task[]) => setTasks((prev: Task[]) => [...prev, ...newTasks])}
         />;
       case AppView.SCHEDULER:
         return <Scheduler 
@@ -287,7 +287,7 @@ const [theme, setTheme] = useState<AppTheme>(() => {
             <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
             <NavBtn active={currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('scheduler')} />
             <NavBtn active={currentView === AppView.SMART_PLANNER} onClick={() => { setCurrentView(AppView.SMART_PLANNER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
-            {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map(eco => (
+            {(profile.enabledEcosystems || []).filter((e: EcosystemConfig) => visibleNavItems.includes(e.type)).map((eco: EcosystemConfig) => (
                 <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
             ))}
             {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
