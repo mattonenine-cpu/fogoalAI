@@ -178,10 +178,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                 )}
 
                 {activeTab === 'ecosystems' && (
-                    <div className="space-y-8 animate-fade-in-up">
-                        <section className="space-y-6">
+                    <div className="space-y-6 animate-fade-in-up">
+                        <section className="space-y-4">
                             <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'НИЖНЯЯ ПАНЕЛЬ' : 'BOTTOM NAVIGATION'}</h3>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 {[
                                     { id: 'dashboard', emoji: '🏠', label: 'ГЛАВНАЯ' },
                                     { id: 'scheduler', emoji: '📅', label: 'ПЛАНЫ' },
@@ -200,14 +200,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                                 const updated = isVisible ? current.filter(v => v !== item.id) : [...current, item.id];
                                                 updateLocalSettings({ visibleViews: updated });
                                             }}
-                                            className={`p-5 rounded-[28px] border transition-all flex items-center gap-4 ${isVisible ? 'bg-indigo-600/10 border-indigo-500/40 text-[var(--text-primary)]' : 'bg-white/2 border-[var(--border-glass)] text-[var(--text-secondary)] opacity-60 grayscale'}`}
+                                            className={`h-14 sm:h-16 px-4 rounded-[24px] border transition-all flex items-center gap-3 min-w-0 ${isVisible ? 'bg-indigo-600/10 border-indigo-500/40 text-[var(--text-primary)]' : 'bg-white/2 border-[var(--border-glass)] text-[var(--text-secondary)] opacity-60 grayscale'}`}
                                         >
-                                            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center shrink-0 border border-white/5"><span className="text-xl">{item.emoji}</span></div>
-                                            <div className="text-left overflow-hidden">
+                                            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0 border border-white/5 overflow-visible"><span className="text-xl">{item.emoji}</span></div>
+                                            <div className="text-left min-w-0 flex-1">
                                                 <span className="text-xxs font-black uppercase tracking-tight block truncate">{item.label}</span>
-                                                <div className="flex gap-1 mt-1">
-                                                    <div className={`w-3 h-1 rounded-full ${isVisible ? 'bg-indigo-500' : 'bg-white/10'}`} />
-                                                    <div className={`w-3 h-1 rounded-full ${isVisible ? 'bg-indigo-500' : 'bg-white/10'}`} />
+                                                <div className="flex gap-1 mt-0.5">
+                                                    <div className={`w-2 h-0.5 rounded-full ${isVisible ? 'bg-indigo-500' : 'bg-white/10'}`} />
+                                                    <div className={`w-2 h-0.5 rounded-full ${isVisible ? 'bg-indigo-500' : 'bg-white/10'}`} />
                                                 </div>
                                             </div>
                                         </button>
