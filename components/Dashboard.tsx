@@ -167,15 +167,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
   };
 
   return (
-    <div className="space-y-6 animate-fade-in-up pb-24 px-1 overflow-x-hidden">
+    <div className="space-y-6 animate-fade-in-up pb-24 px-1">
        {/* 1. Date & Level Row */}
        <div className="flex gap-3">
-          <GlassCard className="flex-[2] min-w-0 py-4 px-5 flex items-center gap-3 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[32px] overflow-visible">
-              <div className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 overflow-visible">
-                <CalendarDays size={18} className="text-indigo-400 shrink-0" />
-              </div>
-              <div className="flex flex-col justify-center min-w-0">
-                  <span className="text-sm font-black text-[var(--text-primary)] capitalize truncate">
+          <GlassCard className="flex-[2] py-4 px-5 flex items-center gap-3 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[32px]">
+              <CalendarDays size={18} className="text-indigo-400" />
+              <div className="flex flex-col justify-center">
+                  <span className="text-sm font-black text-[var(--text-primary)] capitalize">
                       {formattedDate}
                   </span>
               </div>
@@ -183,11 +181,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
           
           <GlassCard 
             onClick={() => setShowLevelModal(true)}
-            className="flex-1 min-w-[80px] py-4 px-3 flex flex-col items-center justify-center gap-1 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[32px] cursor-pointer active:scale-95 transition-all overflow-visible"
+            className="flex-1 py-4 px-2 flex flex-col items-center justify-center gap-1 bg-[var(--bg-card)] border-[var(--border-glass)] rounded-[32px] cursor-pointer active:scale-95 transition-all"
           >
              <span className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">Lvl {user.level}</span>
-             <div className="h-1.5 w-10 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 transition-all rounded-full" style={{ width: `${progressPercent}%` }} />
+             <div className="h-1 w-10 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 transition-all" style={{ width: `${progressPercent}%` }} />
              </div>
           </GlassCard>
        </div>
@@ -268,15 +266,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, stats, lang, tasks, 
        {/* 3. Goals */}
        <div className="space-y-3">
            <div className="flex items-center justify-between px-1">
-               <div className="flex items-center gap-2 shrink-0">
-                   <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/10 border border-amber-500/20 overflow-visible">
-                     <Trophy size={18} className="text-amber-500 shrink-0" />
-                   </div>
+               <div className="flex items-center gap-2">
+                   <Trophy size={18} className="text-amber-500" />
                    <h3 className="text-sm font-semibold text-[var(--text-secondary)]">{lang === 'ru' ? 'Цели' : 'Goals'}</h3>
                </div>
-               <div className="flex gap-2 shrink-0">
-                   <button onClick={() => setShowGoalsList(true)} className="w-9 h-9 rounded-full bg-white/5 border border-[var(--border-glass)] flex items-center justify-center text-[var(--text-secondary)] active:scale-90 transition-all overflow-visible"><List size={16} className="shrink-0"/></button>
-                   <button onClick={() => { setEditingGoalId(null); setNewGoal({ title: '', target: 100, unit: '%', color: GOAL_COLORS[0] }); setShowAddGoalModal(true); }} className="w-9 h-9 rounded-full bg-[var(--bg-active)] text-[var(--bg-active-text)] flex items-center justify-center shadow-lg active:scale-90 transition-all overflow-visible"><Plus size={18} strokeWidth={2.5} className="shrink-0"/></button>
+               <div className="flex gap-2">
+                   <button onClick={() => setShowGoalsList(true)} className="w-8 h-8 rounded-full bg-white/5 border border-[var(--border-glass)] flex items-center justify-center text-[var(--text-secondary)] active:scale-90 transition-all"><List size={14}/></button>
+                   <button onClick={() => { setEditingGoalId(null); setNewGoal({ title: '', target: 100, unit: '%', color: GOAL_COLORS[0] }); setShowAddGoalModal(true); }} className="w-8 h-8 rounded-full bg-[var(--bg-active)] text-[var(--bg-active-text)] flex items-center justify-center shadow-lg active:scale-90 transition-all"><Plus size={16} strokeWidth={2.5}/></button>
                </div>
            </div>
            
