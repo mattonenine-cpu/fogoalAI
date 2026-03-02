@@ -194,7 +194,7 @@ const [theme, setTheme] = useState<AppTheme>(() => {
   };
 
   const handleTrackRequest = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasks.find((t: Task) => t.id === taskId);
     if (task) {
       setHelpContext({
         blockName: 'Scheduler Task',
