@@ -5,7 +5,7 @@ import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
 import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz, generateFullTicketListFromSubject, splitSummaryIntoThemes, planExamPreparation, reviewTicketExplanation } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
-import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2, Smile } from 'lucide-react';
 import { renderTextWithMath, renderBoldFragments } from '../LatexRenderer';
 
 const getDaysLeft = (dateStr: string) => {
