@@ -1,5 +1,5 @@
 
-import { UserProfile, Task, Language, Goal, EcosystemType, HelpContext, EcosystemConfig, HealthDailyLog, WorkoutPlan, WorkoutProgram, Ticket } from '../types';
+import { UserProfile, Task, Language, Goal, EcosystemType, HelpContext, EcosystemConfig, HealthDailyLog, WorkoutPlan, WorkoutProgram, Ticket, Exam } from '../types';
 
 // Groq model (change here to switch model, e.g. llama-3.3-70b-versatile)
 const AI_MODEL = 'llama-3.1-8b-instant';
@@ -704,6 +704,139 @@ ${summary.substring(0, 12000)}`;
             question: String(t.question).trim(),
             note: typeof t.note === 'string' && t.note.trim() ? cleanTextOutput(t.note.trim()) : ''
         }));
+}
+
+/** План подготовки к экзамену: распределяет билеты по датам от startDate до даты экзамена. */
+export async function planExamPreparation(
+    exam: Exam,
+    tickets: Ticket[],
+    lang: Language,
+    startDate?: string
+): Promise<{ ticketNumber: number; date: string }[]> {
+    if (!exam?.date || !tickets?.length) return [];
+    const examDate = exam.date;
+    const fromDate = startDate || getLocalISODate();
+    const list = tickets.map((t, i) => ({
+        number: typeof t.number === 'number' ? t.number : i + 1,
+        question: t.question,
+    })).filter(t => t.question);
+
+    const prompt = lang === 'ru'
+        ? `Ты учебный коуч. Нужно расписать подготовку к экзамену по дням.
+
+Предмет: "${exam.subject}"
+Дата экзамена (дедлайн): ${examDate}
+Дата начала подготовки: ${fromDate}
+
+Список билетов (number + вопрос):
+${JSON.stringify(list, null, 0)}
+
+Задача:
+- Для КАЖДОГО билета из списка выбери ДАТУ подготовки от "${fromDate}" до "${examDate}" включительно.
+- Каждый билет должен появиться в плане РОВНО ОДИН раз.
+- Можно ставить несколько билетов в один день, но старайся распределять равномерно (не больше 3 билетов на один день, если дней достаточно).
+
+Выводи ТОЛЬКО валидный JSON-массив объектов вида:
+[
+  { "ticketNumber": 1, "date": "YYYY-MM-DD" },
+  { "ticketNumber": 2, "date": "YYYY-MM-DD" }
+]
+Никакого дополнительного текста.`
+        : `You are a study coach. Plan exam preparation by days.
+
+Subject: "${exam.subject}"
+Exam date (deadline): ${examDate}
+Start of preparation: ${fromDate}
+
+Tickets (number + question):
+${JSON.stringify(list, null, 0)}
+
+Task:
+- For EACH ticket assign ONE study DATE between "${fromDate}" and "${examDate}" (inclusive).
+- Every ticket must appear in the plan EXACTLY ONCE.
+- You may put multiple tickets on the same day, but distribute them evenly (prefer no more than 3 tickets per day if days allow).
+
+Return ONLY a valid JSON array of objects:
+[
+  { "ticketNumber": 1, "date": "YYYY-MM-DD" },
+  { "ticketNumber": 2, "date": "YYYY-MM-DD" }
+]
+No extra text.`;
+
+    const result = await callApi('/api/generate', {
+        model: AI_MODEL,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        ticketNumber: { type: Type.INTEGER },
+                        date: { type: Type.STRING },
+                    },
+                    required: ['ticketNumber', 'date'],
+                },
+            },
+        },
+    });
+
+    const arr = parseJsonResponse<{ ticketNumber?: number; date?: string }[]>(result.text ?? '', []);
+    if (!Array.isArray(arr)) return [];
+    return arr
+        .filter(a => typeof a.ticketNumber === 'number' && typeof a.date === 'string' && a.date)
+        .map(a => ({ ticketNumber: a.ticketNumber as number, date: a.date as string }));
+}
+
+/** Проверка объяснения билета: ИИ находит дыры и даёт рекомендации. */
+export async function reviewTicketExplanation(
+    ticket: Ticket,
+    subject: string,
+    explanation: string,
+    lang: Language
+): Promise<string> {
+    const prompt = lang === 'ru'
+        ? `Ты экзаменатор и преподаватель. Студент пытается объяснить билет своими словами.
+
+Предмет: "${subject}"
+Билет (вопрос): "${ticket.question}"
+Ответ студента (его пересказ): "${explanation}"
+
+Твоя задача:
+1) Оцени, насколько ответ покрывает ключевые элементы хорошего экзаменационного ответа (0–100), но НЕ пиши число, только словом «очень слабый/средний/хороший/отличный».
+2) Кратко перечисли, ЧЕГО НЕ ХВАТАЕТ: какие понятия, определения, связи причин–следствий, примеры студент не упомянул.
+3) Дай конкретные советы: что добавить или переформулировать, чтобы ответ стал на 5/5.
+
+Формат ответа — короткий Markdown:
+- **Оценка**: ...
+- **Где дыры**: 2–4 пункта.
+- **Как усилить ответ**: 2–4 конкретных шага.
+
+Пиши по-делу, без лишней воды.`
+        : `You are an examiner and teacher. A student tries to explain an exam ticket in their own words.
+
+Subject: "${subject}"
+Ticket question: "${ticket.question}"
+Student explanation: "${explanation}"
+
+Your task:
+1) Qualitatively assess how well the answer covers key elements of a good exam answer (0–100), but DO NOT output the number, only a short phrase like "very weak / average / good / excellent".
+2) Briefly list WHAT IS MISSING: concepts, definitions, cause–effect links, examples the student did not mention.
+3) Give concrete advice: what to add or rephrase so the answer could get the maximum grade.
+
+Answer in concise Markdown:
+- **Assessment**: ...
+- **Gaps**: 2–4 bullet points.
+- **How to improve**: 2–4 specific steps.
+
+Be direct and focused, no fluff.`;
+
+    const result = await callApi('/api/generate', {
+        model: AI_MODEL,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    });
+    return result.text || "";
 }
 
 export async function generateTicketNote(question: string, subject: string, lang: Language) {
