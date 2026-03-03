@@ -326,17 +326,19 @@ export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks,
   // -- RENDERERS --
 
   if (type === 'study') {
-      return (
-          <div className="animate-fadeIn pb-32">
-              <ExamPrepApp 
-                user={user} 
-                lang={lang} 
-                onUpdateProfile={onUpdateProfile} 
-                theme={theme}
-                onDeductCredits={onDeductCredits}
-            />  
-          </div>
-      );
+    return (
+      <div className="animate-fadeIn pb-32">
+        <ExamPrepApp
+          user={user}
+          lang={lang}
+          onUpdateProfile={onUpdateProfile}
+          theme={theme}
+          onDeductCredits={onDeductCredits}
+          tasks={tasks}
+          onUpdateTasks={onUpdateTasks}
+        />
+      </div>
+    );
   }
 
   if (type === 'sport') {
