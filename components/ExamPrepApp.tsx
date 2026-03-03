@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Exam, Ticket, Term, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme } from '../types';
 import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
-import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz } from '../services/geminiService';
+import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz, generateFullTicketListFromSubject, splitSummaryIntoThemes } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
 import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2 } from 'lucide-react';
 import { renderTextWithMath, renderBoldFragments } from '../LatexRenderer';
@@ -106,6 +106,11 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   const [hubTab, setHubTab] = useState<'tickets' | 'flashcards' | 'glossary'>('tickets');
   const [isGeneratingNote, setIsGeneratingNote] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
+  const [wizardMode, setWizardMode] = useState<'full_list' | 'ready_summary' | 'paste_list' | null>(null);
+  const [ticketCount, setTicketCount] = useState(15);
+  const [summaryText, setSummaryText] = useState('');
+  const [summaryNumThemes, setSummaryNumThemes] = useState(10);
+  const [summaryGranularity, setSummaryGranularity] = useState<'fine' | 'medium' | 'coarse'>('medium');
   const [newExam, setNewExam] = useState<Partial<Exam>>({ id: Date.now().toString(), subject: '', date: getLocalISODate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)), tickets: [], progress: 0 });
   const [rawTicketsText, setRawTicketsText] = useState('');
   const [isWizardProcessing, setIsWizardProcessing] = useState(false);
@@ -178,7 +183,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
     }
     if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
 
-    setWizardStep(3);
+    setWizardStep(4);
     setIsWizardProcessing(true);
     setErrorStatus(null);
     try {
@@ -191,7 +196,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
         }));
         
         if (tickets.length === 0) {
-            setWizardStep(2);
+            setWizardStep(3);
             return;
         }
 
@@ -220,14 +225,121 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
         setPreparedExamData(fullExam);
     } catch (e: any) { 
         if (e.status === 429) setErrorStatus(429);
-        setWizardStep(2); 
+        setWizardStep(3); 
     } finally { setIsWizardProcessing(false); }
+  };
+
+  const handleFullListGenerate = async () => {
+    const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
+    if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+      alert(lang === 'ru' ? '❌ Недостаточно кредитов.' : '❌ Not enough credits.');
+      return;
+    }
+    if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
+    setWizardStep(4);
+    setIsWizardProcessing(true);
+    setErrorStatus(null);
+    try {
+      const list = await generateFullTicketListFromSubject(newExam.subject!, ticketCount, lang);
+      const tickets: Ticket[] = (list || []).map((p: any, i: number) => ({
+        id: `t_${Date.now()}_${i}`,
+        number: p.number || (i + 1),
+        question: p.question || '',
+        confidence: 0
+      }));
+      if (tickets.length === 0) {
+        setWizardStep(3);
+        return;
+      }
+      const { glossary, flashcards } = await generateGlossaryAndCards(tickets, newExam.subject!, lang);
+      const glossaryTerms: Term[] = (glossary || []).map((g: any, i: number) => ({
+        id: g.id ?? `term_${Date.now()}_${i}`,
+        word: typeof g.word === 'string' ? g.word : '',
+        definition: typeof g.definition === 'string' ? g.definition : '',
+      }));
+      const ticketIndex = (num: number) => Math.min(Math.max(0, (num || 1) - 1), tickets.length - 1);
+      const fullExam: Exam = {
+        ...(newExam as Exam),
+        tickets,
+        calendar: [],
+        glossary: glossaryTerms,
+        flashcards: (flashcards || []).map((f: any) => ({
+          id: `fc_${Date.now()}_${Math.random()}`,
+          question: f.question ?? '',
+          answer: f.answer ?? '',
+          confidence: 0,
+          status: 'new',
+          ticketId: tickets[ticketIndex(f.ticketNumber)]?.id,
+        })),
+        progress: 0
+      };
+      setPreparedExamData(fullExam);
+    } catch (e: any) {
+      if (e.status === 429) setErrorStatus(429);
+      setWizardStep(3);
+    } finally {
+      setIsWizardProcessing(false);
+    }
+  };
+
+  const handleSummarySplit = async () => {
+    const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
+    if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+      alert(lang === 'ru' ? '❌ Недостаточно кредитов.' : '❌ Not enough credits.');
+      return;
+    }
+    if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
+    setWizardStep(4);
+    setIsWizardProcessing(true);
+    setErrorStatus(null);
+    try {
+      const themes = await splitSummaryIntoThemes(summaryText, newExam.subject!, summaryNumThemes, summaryGranularity, lang);
+      const tickets: Ticket[] = (themes || []).map((t: any, i: number) => ({
+        id: `t_${Date.now()}_${i}`,
+        number: t.number || (i + 1),
+        question: t.question || '',
+        confidence: 0,
+        note: t.note || ''
+      }));
+      if (tickets.length === 0) {
+        setWizardStep(3);
+        return;
+      }
+      const { glossary, flashcards } = await generateGlossaryAndCards(tickets, newExam.subject!, lang);
+      const glossaryTerms: Term[] = (glossary || []).map((g: any, i: number) => ({
+        id: g.id ?? `term_${Date.now()}_${i}`,
+        word: typeof g.word === 'string' ? g.word : '',
+        definition: typeof g.definition === 'string' ? g.definition : '',
+      }));
+      const ticketIndex = (num: number) => Math.min(Math.max(0, (num || 1) - 1), tickets.length - 1);
+      const fullExam: Exam = {
+        ...(newExam as Exam),
+        tickets,
+        calendar: [],
+        glossary: glossaryTerms,
+        flashcards: (flashcards || []).map((f: any) => ({
+          id: `fc_${Date.now()}_${Math.random()}`,
+          question: f.question ?? '',
+          answer: f.answer ?? '',
+          confidence: 0,
+          status: 'new',
+          ticketId: tickets[ticketIndex(f.ticketNumber)]?.id,
+        })),
+        progress: 0
+      };
+      setPreparedExamData(fullExam);
+    } catch (e: any) {
+      if (e.status === 429) setErrorStatus(429);
+      setWizardStep(3);
+    } finally {
+      setIsWizardProcessing(false);
+    }
   };
 
   const handleFinalizeExam = () => {
       if (!preparedExamData) return;
       const u = user.usageStats || getDefaultUsageStats();
-      const ticketCount = preparedExamData.tickets?.length ?? 1;
+      const ticketCountFinal = preparedExamData.tickets?.length ?? 1;
       onUpdateProfile({
         ...user,
         exams: [...(user.exams || []), preparedExamData],
@@ -238,14 +350,16 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
             study: {
               examsCreated: (u.ecosystem.study.examsCreated ?? 0) + 1,
               quizzesCompleted: u.ecosystem.study.quizzesCompleted ?? 0,
-              ticketsParsed: (u.ecosystem.study.ticketsParsed ?? 0) + ticketCount,
+              ticketsParsed: (u.ecosystem.study.ticketsParsed ?? 0) + ticketCountFinal,
             },
           },
         },
       });
       setShowWizard(false);
       setWizardStep(1);
+      setWizardMode(null);
       setRawTicketsText('');
+      setSummaryText('');
   };
 
   const handleOpenTicket = async (ticket: Ticket) => {
@@ -429,7 +543,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                     {user.exams && user.exams.length > 0 ? (
                         <button onClick={() => setShowWizard(false)} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><X size={20} /></button>
                     ) : <div className="w-10" />}
-                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">{t.examStep} {wizardStep}/3</span>
+                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">{t.examStep} {wizardStep}/4</span>
                     <div className="w-10" />
                 </header>
                 <div className="flex-1 space-y-10 animate-fade-in-up px-2 pb-24 overflow-y-auto scrollbar-hide">
@@ -456,6 +570,99 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                     )}
                     {wizardStep === 2 && (
                         <div className="space-y-6">
+                            <p className="text-sm font-medium text-[var(--text-secondary)] text-center">{t.examHowAddMaterial}</p>
+                            <div className="grid gap-4">
+                                <button
+                                    onClick={() => { setWizardMode('full_list'); setWizardStep(3); }}
+                                    className="p-5 rounded-[28px] border border-[var(--border-glass)] bg-white/5 hover:bg-white/10 hover:border-indigo-500/30 text-left transition-all active:scale-[0.99]"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0"><FileText size={24} className="text-indigo-400" /></div>
+                                        <div>
+                                            <h3 className="text-base font-black text-[var(--text-primary)] uppercase tracking-tight mb-1">{t.examModeFullList}</h3>
+                                            <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">{t.examModeFullListDesc}</p>
+                                        </div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => { setWizardMode('ready_summary'); setWizardStep(3); }}
+                                    className="p-5 rounded-[28px] border border-[var(--border-glass)] bg-white/5 hover:bg-white/10 hover:border-indigo-500/30 text-left transition-all active:scale-[0.99]"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0"><BookOpen size={24} className="text-violet-400" /></div>
+                                        <div>
+                                            <h3 className="text-base font-black text-[var(--text-primary)] uppercase tracking-tight mb-1">{t.examModeReadySummary}</h3>
+                                            <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">{t.examModeReadySummaryDesc}</p>
+                                        </div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => { setWizardMode('paste_list'); setWizardStep(3); }}
+                                    className="p-5 rounded-[28px] border border-[var(--border-glass)] bg-white/5 hover:bg-white/10 hover:border-indigo-500/30 text-left transition-all active:scale-[0.99]"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0"><Layers size={24} className="text-amber-400" /></div>
+                                        <div>
+                                            <h3 className="text-base font-black text-[var(--text-primary)] uppercase tracking-tight mb-1">{t.examModePasteList}</h3>
+                                            <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">{t.examModePasteListDesc}</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                            <button onClick={() => setWizardStep(1)} className="w-full py-3 text-[var(--text-secondary)] font-bold text-sm flex items-center justify-center gap-2"><ChevronLeft size={18} /> {t.back}</button>
+                        </div>
+                    )}
+                    {wizardStep === 3 && wizardMode === 'full_list' && (
+                        <div className="space-y-6">
+                            <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{t.examHowManyTickets}</p>
+                            <div className="flex flex-wrap gap-2 justify-center">
+                                {[10, 15, 20, 25, 30].map(n => (
+                                    <button key={n} onClick={() => setTicketCount(n)} className={`w-14 h-14 rounded-2xl font-black text-sm border-2 transition-all ${ticketCount === n ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] border-[var(--bg-active)]' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-primary)]'}`}>{n}</button>
+                                ))}
+                            </div>
+                            {errorStatus === 429 && (
+                                <button onClick={handleOpenKeySelection} className="w-full p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-400 text-xs font-bold uppercase tracking-widest">
+                                    <Key size={16}/> {lang === 'ru' ? 'Лимит исчерпан. Выбрать свой ключ?' : 'Limit reached. Select your own key?'}
+                                </button>
+                            )}
+                            <div className="flex gap-4">
+                                <button onClick={() => setWizardStep(2)} className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><ChevronLeft size={28} /></button>
+                                <button onClick={handleFullListGenerate} className="flex-1 h-16 bg-indigo-600 text-white font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95 flex items-center justify-center gap-2">{t.examGenerateList} <Sparkles size={16} /></button>
+                            </div>
+                        </div>
+                    )}
+                    {wizardStep === 3 && wizardMode === 'ready_summary' && (
+                        <div className="space-y-6">
+                            <GlassTextArea value={summaryText} onChange={e => setSummaryText(e.target.value)} placeholder={t.examPasteSummary} className="h-40 min-h-[120px]" />
+                            <div>
+                                <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2">{t.examSplitIntoThemes}</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {[5, 10, 15, 20, 25].map(n => (
+                                        <button key={n} onClick={() => setSummaryNumThemes(n)} className={`px-4 py-2.5 rounded-xl font-bold text-sm border-2 transition-all ${summaryNumThemes === n ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] border-[var(--bg-active)]' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-primary)]'}`}>{n}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2">{t.examGranularity}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                    <button onClick={() => setSummaryGranularity('fine')} className={`px-4 py-2.5 rounded-xl font-bold text-xs border-2 transition-all ${summaryGranularity === 'fine' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-secondary)]'}`}>{t.examGranularityFine}</button>
+                                    <button onClick={() => setSummaryGranularity('medium')} className={`px-4 py-2.5 rounded-xl font-bold text-xs border-2 transition-all ${summaryGranularity === 'medium' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-secondary)]'}`}>{t.examGranularityMedium}</button>
+                                    <button onClick={() => setSummaryGranularity('coarse')} className={`px-4 py-2.5 rounded-xl font-bold text-xs border-2 transition-all ${summaryGranularity === 'coarse' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-secondary)]'}`}>{t.examGranularityCoarse}</button>
+                                </div>
+                            </div>
+                            {errorStatus === 429 && (
+                                <button onClick={handleOpenKeySelection} className="w-full p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-400 text-xs font-bold uppercase tracking-widest">
+                                    <Key size={16}/> {lang === 'ru' ? 'Лимит исчерпан. Выбрать свой ключ?' : 'Limit reached. Select your own key?'}
+                                </button>
+                            )}
+                            <div className="flex gap-4">
+                                <button onClick={() => setWizardStep(2)} className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><ChevronLeft size={28} /></button>
+                                <button onClick={handleSummarySplit} disabled={!summaryText.trim()} className="flex-1 h-16 bg-violet-600 text-white font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95 flex items-center justify-center gap-2 disabled:opacity-30">{t.examSplitAndCreate} <Sparkles size={16} /></button>
+                            </div>
+                        </div>
+                    )}
+                    {wizardStep === 3 && wizardMode === 'paste_list' && (
+                        <div className="space-y-6">
                             <GlassTextArea value={rawTicketsText} onChange={e => setRawTicketsText(e.target.value)} placeholder={t.examPasteQuestions} className="h-56" />
                             {errorStatus === 429 && (
                                 <button onClick={handleOpenKeySelection} className="w-full p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-400 text-xs font-bold uppercase tracking-widest">
@@ -463,12 +670,12 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                                 </button>
                             )}
                             <div className="flex gap-4">
-                                <button onClick={() => setWizardStep(1)} className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><ChevronLeft size={28} /></button>
+                                <button onClick={() => setWizardStep(2)} className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><ChevronLeft size={28} /></button>
                                 <button onClick={handleQuickParse} disabled={!rawTicketsText.trim()} className="flex-1 h-16 bg-indigo-600 text-white font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95">{t.examParseAI} <Sparkles size={16} className="ml-2 inline" /></button>
                             </div>
                         </div>
                     )}
-                    {wizardStep === 3 && (
+                    {wizardStep === 4 && (
                         <div className="text-center py-10">
                             {isWizardProcessing ? (
                                 <div className="space-y-8">
@@ -870,7 +1077,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
             </GlassCard>
         ))}
         
-        <button onClick={() => setShowWizard(true)} className={`w-full py-12 rounded-[40px] border border-dashed flex flex-col items-center justify-center gap-4 transition-all group ${isLightTheme ? 'border-slate-300 text-slate-500 hover:text-slate-800' : 'border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white hover:bg-white/5'}`}>
+        <button onClick={() => { setWizardStep(1); setWizardMode(null); setShowWizard(true); }} className={`w-full py-12 rounded-[40px] border border-dashed flex flex-col items-center justify-center gap-4 transition-all group ${isLightTheme ? 'border-slate-300 text-slate-500 hover:text-slate-800' : 'border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white hover:bg-white/5'}`}>
             <Plus size={32} strokeWidth={1.5} />
             <span className="text-xs font-black uppercase tracking-[0.3em]">{t.examNewExam}</span>
         </button>
