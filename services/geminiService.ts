@@ -777,9 +777,56 @@ Example shape: {"glossary":[{"word":"X","definition":"..."}],"flashcards":[{"que
     });
     const def = { glossary: [] as { word: string; definition: string }[], flashcards: [] as { question: string; answer: string; ticketNumber?: number }[] };
     const data = parseJsonResponse<typeof def>(result.text ?? '', def);
+
+    const glossary = Array.isArray(data.glossary) ? data.glossary : [];
+    const rawCards = Array.isArray(data.flashcards) ? data.flashcards : [];
+
+    // Пост‑обработка: гарантируем 2–3 карточки на каждый билет (минимум 2)
+    const normalizedCards: { question: string; answer: string; ticketNumber: number }[] = [];
+    tickets.forEach((ticket, index) => {
+        const ticketNumber = typeof ticket.number === 'number' ? ticket.number : index + 1;
+
+        let group = rawCards
+            .filter((c: any) => typeof c?.ticketNumber === 'number' && c.ticketNumber === ticketNumber)
+            .filter((c: any) => typeof c.question === 'string' && c.question.trim());
+
+        // ограничиваем максимум тремя карточками на билет
+        if (group.length > 3) {
+            group = group.slice(0, 3);
+        }
+
+        // создаём заглушки, если карточек меньше 2
+        if (group.length < 2) {
+            const missing = 2 - group.length;
+            for (let i = 0; i < missing; i++) {
+                const stubQuestion = lang === 'ru'
+                    ? (i === 0
+                        ? `Главный факт по билету: ${ticket.question}`
+                        : `Ещё один важный момент по билету: ${ticket.question}`)
+                    : (i === 0
+                        ? `Key fact for ticket: ${ticket.question}`
+                        : `Another key point for ticket: ${ticket.question}`);
+                group.push({
+                    question: stubQuestion,
+                    answer: '',
+                    ticketNumber,
+                } as any);
+            }
+        }
+
+        // если вдруг модель вернула 0 карточек и мы не смогли создать, пропускаем — но такое маловероятно
+        group.forEach((c: any) => {
+            normalizedCards.push({
+                question: String(c.question).trim(),
+                answer: typeof c.answer === 'string' ? c.answer : '',
+                ticketNumber,
+            });
+        });
+    });
+
     return {
-        glossary: Array.isArray(data.glossary) ? data.glossary : [],
-        flashcards: Array.isArray(data.flashcards) ? data.flashcards : [],
+        glossary,
+        flashcards: normalizedCards,
     };
 }
 
