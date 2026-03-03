@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
+import { UserProfile, Language, TRANSLATIONS, WorkoutPlan, WorkoutProgram, Exercise, FitnessGoal, FitnessLevel, Task, AppTheme } from '../types';
 import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput } from './GlassCard';
-import { generateWorkout, getExerciseTechnique, createChatSession, cleanTextOutput, getLocalISODate } from '../services/geminiService';
+import { generateWorkout, generateWorkoutProgram, getExerciseTechnique, createChatSession, cleanTextOutput, getLocalISODate } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
 import { renderBoldFragments } from '../LatexRenderer';
 import { Dumbbell, Play, Pause, RefreshCw, Loader2, MessageCircle, Plus, User, X, Check, Clock, Info, Send, Bot, SkipForward, ArrowLeft, Star, Trophy, Flame, LogOut, UserCog } from 'lucide-react';
@@ -144,6 +144,11 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
       goal: user.fitnessGoal || FitnessGoal.GENERAL
   });
 
+  // Program generation state
+  const [programMode, setProgramMode] = useState<'single' | 'program'>('single');
+  const [programWeeks, setProgramWeeks] = useState(4);
+  const [programDaysPerWeek, setProgramDaysPerWeek] = useState(3);
+
   // Main Workout Timer - Runs independently
   useEffect(() => {
     let interval: any;
@@ -255,6 +260,39 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
         setWorkoutSeconds(0);
         setIsPaused(false);
         setIsResting(false);
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateProgram = async () => {
+    // Check and deduct credits (используем ту же цену, что и для одиночной тренировки)
+    const workoutCost = CreditsService.getActionCost('workoutGeneration', user.settings?.aiDetailLevel);
+    if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), workoutCost)) {
+      alert(lang === 'ru'
+        ? '❌ Недостаточно кредитов для генерации программы. Введите промокод в настройках для получения безлимитного доступа.'
+        : '❌ Not enough credits to generate a program. Enter promo code in settings for unlimited access.');
+      return;
+    }
+    if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(workoutCost);
+
+    setIsGenerating(true);
+    try {
+        const program = await generateWorkoutProgram(user, lang, programWeeks, programDaysPerWeek, targetMuscles);
+        // сохраняем программу в профиль
+        const existing = user.workoutPrograms || [];
+        const updatedPrograms: WorkoutProgram[] = [...existing, program];
+        onUpdateProfile({ ...user, workoutPrograms: updatedPrograms });
+        // сразу открываем первую тренировку программы как активную
+        if (program.plans && program.plans.length > 0) {
+          setActivePlan(program.plans[0]);
+          setCompletedIds([]);
+          setWorkoutSeconds(0);
+          setIsPaused(false);
+          setIsResting(false);
+        }
     } catch (e) {
         console.error(e);
     } finally {
@@ -566,6 +604,80 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                       </div>
                   </div>
 
+                  {/* Program vs Single mode */}
+                  <div className="space-y-4 pt-6 border-t border-[var(--border-glass)]">
+                      <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
+                        {lang === 'ru' ? 'Режим генерации' : 'Generation Mode'}
+                      </h3>
+                      <div className="flex gap-2">
+                          <button
+                            onClick={() => setProgramMode('single')}
+                            className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+                              programMode === 'single'
+                                ? 'bg-orange-600 text-white border-orange-600 shadow-lg'
+                                : 'bg-black/5 border-[var(--border-glass)] text-[var(--text-secondary)]'
+                            }`}
+                          >
+                            {t.sportModeSingle || (lang === 'ru' ? 'Одна тренировка' : 'Single workout')}
+                          </button>
+                          <button
+                            onClick={() => setProgramMode('program')}
+                            className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+                              programMode === 'program'
+                                ? 'bg-orange-600 text-white border-orange-600 shadow-lg'
+                                : 'bg-black/5 border-[var(--border-glass)] text-[var(--text-secondary)]'
+                            }`}
+                          >
+                            {t.sportModeProgram || (lang === 'ru' ? 'Программа' : 'Program')}
+                          </button>
+                      </div>
+
+                      {programMode === 'program' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
+                                  {t.sportProgramWeeks || (lang === 'ru' ? 'Недели' : 'Weeks')}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {[4, 6, 8, 12].map(w => (
+                                        <button
+                                          key={w}
+                                          onClick={() => setProgramWeeks(w)}
+                                          className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                                            programWeeks === w
+                                              ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] border-[var(--bg-active)]'
+                                              : 'bg-black/5 border-[var(--border-glass)] text-[var(--text-secondary)]'
+                                          }`}
+                                        >
+                                          {w}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
+                                  {t.sportProgramDaysPerWeek || (lang === 'ru' ? 'Дней в неделю' : 'Days / week')}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {[2, 3, 4, 5].map(d => (
+                                        <button
+                                          key={d}
+                                          onClick={() => setProgramDaysPerWeek(d)}
+                                          className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                                            programDaysPerWeek === d
+                                              ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] border-[var(--bg-active)]'
+                                              : 'bg-black/5 border-[var(--border-glass)] text-[var(--text-secondary)]'
+                                          }`}
+                                        >
+                                          {d}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                      )}
+                  </div>
+
                   {/* Profile & Account */}
                   <div className="pt-6 mt-6 border-t border-[var(--border-glass)] flex flex-wrap gap-3">
                       <button
@@ -587,14 +699,64 @@ export const SportApp: React.FC<SportAppProps> = ({ user, lang, onUpdateProfile,
                   </div>
               </GlassCard>
               <div className="grid grid-cols-2 gap-4">
-                  <button onClick={handleGenerate} disabled={isGenerating} className={`h-24 rounded-[32px] flex flex-col items-center justify-center gap-2 font-black uppercase tracking-widest text-[11px] shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)]`}>
-                      {isGenerating ? <Loader2 className="animate-spin" size={24}/> : <><RefreshCw size={24}/> {t.sportGenerateBtn}</>}
+                  <button
+                    onClick={programMode === 'single' ? handleGenerate : handleGenerateProgram}
+                    disabled={isGenerating}
+                    className={`h-24 rounded-[32px] flex flex-col items-center justify-center gap-2 font-black uppercase tracking-widest text-[11px] shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)]`}
+                  >
+                      {isGenerating ? (
+                        <Loader2 className="animate-spin" size={24}/>
+                      ) : (
+                        <>
+                          <RefreshCw size={24}/>
+                          {programMode === 'single'
+                            ? t.sportGenerateBtn
+                            : (t.sportGenerateProgram || (lang === 'ru' ? 'Новая программа' : 'New program'))}
+                        </>
+                      )}
                   </button>
                   <button onClick={() => { setShowCoachChat(true); if(coachMessages.length === 0) setCoachMessages([{role: 'model', text: t.sportCoachInit}])}} className={`h-24 border rounded-[32px] flex flex-col items-center justify-center gap-2 font-black uppercase tracking-widest text-[11px] shadow-lg active:scale-[0.98] transition-all bg-[var(--bg-card)] border-[var(--border-glass)] text-[var(--text-primary)]`}>
                       <MessageCircle size={24} className="text-orange-500" />
                       {t.sportCoachChat}
                   </button>
               </div>
+              {/* Saved programs preview */}
+              {(user.workoutPrograms && user.workoutPrograms.length > 0) && (
+                <div className="space-y-3 mt-4">
+                    <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
+                      {t.sportProgramsTitle || (lang === 'ru' ? 'Мои программы' : 'My programs')}
+                    </h3>
+                    <div className="space-y-2">
+                      {user.workoutPrograms.slice(-3).reverse().map((p: WorkoutProgram) => (
+                        <GlassCard
+                          key={p.id}
+                          className="p-4 rounded-[24px] border-[var(--border-glass)] bg-white/5 flex items-center justify-between gap-3"
+                        >
+                          <div>
+                            <p className="text-sm font-bold text-[var(--text-primary)] line-clamp-1">{p.title}</p>
+                            <p className="text-[10px] text-[var(--text-secondary)] font-medium mt-1">
+                              {p.weeks} {lang === 'ru' ? 'нед.' : 'weeks'} · {p.daysPerWeek} {lang === 'ru' ? 'дн/нед' : 'days/wk'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (p.plans && p.plans.length > 0) {
+                                setActivePlan(p.plans[0]);
+                                setCompletedIds([]);
+                                setWorkoutSeconds(0);
+                                setIsPaused(false);
+                                setIsResting(false);
+                              }
+                            }}
+                            className="px-3 py-2 rounded-full bg-orange-600 text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                          >
+                            {t.sportProgramStart || (lang === 'ru' ? 'Старт' : 'Start')}
+                          </button>
+                        </GlassCard>
+                      ))}
+                    </div>
+                </div>
+              )}
           </div>
       ) : (
           <div className="space-y-6 animate-fadeIn pb-32">
