@@ -1,581 +1,1302 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { EcosystemType, UserProfile, Task, Language, TRANSLATIONS, Practice, Goal, AppView, AppTheme } from '../types';
+// ... imports unchanged ...
+import React, { useState, useMemo, useEffect } from 'react';
+import { Exam, Ticket, Term, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme, Task } from '../types';
 import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
-import { createChatSession, cleanTextOutput, evaluateProgress, getLocalISODate } from '../services/geminiService';
+import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz, generateFullTicketListFromSubject, splitSummaryIntoThemes, planExamPreparation, reviewTicketExplanation } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
-import { ExamPrepApp } from './ExamPrepApp';
-import { SportApp } from './SportApp';
-import { HealthApp } from './HealthApp'; 
-import { Activity, Bot, Sparkles, Loader2, Send, Brain, CheckCircle, X, ChevronRight, Trophy, Star, TrendingUp, ListTodo, History, Lightbulb, Clock, Check, Dumbbell, Heart, Share2, RefreshCcw, Quote } from 'lucide-react';
+import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2, Smile } from 'lucide-react';
+import { renderTextWithMath, renderBoldFragments } from '../LatexRenderer';
 
-interface EcosystemViewProps {
-  type: EcosystemType;
-  user: UserProfile;
-  tasks: Task[];
-  lang: Language;
-  onUpdateTasks: React.Dispatch<React.SetStateAction<Task[]>>;
-  onUpdateProfile: (profile: UserProfile) => void;
-  onNavigate: (view: AppView) => void;
-  theme: AppTheme;
-  onDeductCredits?: (cost: number) => void;
-  onLogout?: () => void;
+const getDaysLeft = (dateStr: string) => {
+  const target = new Date(dateStr);
+  const now = new Date();
+  const diffTime = target.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 0;
+};
+
+const NOTE_BOLD_CLASS = 'text-indigo-300 font-semibold';
+
+function renderNoteInline(content: string): React.ReactNode {
+  const nodes = renderTextWithMath(content);
+  return (
+    <>
+      {nodes.map((node, i) =>
+        typeof node === 'string'
+          ? <React.Fragment key={i}>{renderBoldFragments(node, NOTE_BOLD_CLASS)}</React.Fragment>
+          : <React.Fragment key={i}>{node}</React.Fragment>
+      )}
+    </>
+  );
 }
 
-export const EcosystemView: React.FC<EcosystemViewProps> = ({ type, user, tasks, lang, onUpdateTasks, onUpdateProfile, onNavigate, theme, onDeductCredits, onLogout }) => {
+const NoteRenderer: React.FC<{ text: string; lang: Language }> = ({ text }) => {
+    const lines = text.split('\n');
+    return (
+        <div className="note-conspect space-y-5 text-[var(--text-primary)] leading-relaxed font-medium max-w-full overflow-hidden break-words">
+            {lines.map((line, idx) => {
+                const trimmed = line.trim();
+                if (!trimmed) return <div key={idx} className="h-2 shrink-0" />;
+                if (trimmed.startsWith('# ')) {
+                    const content = trimmed.substring(2);
+                    return (
+                        <h1 key={idx} className="text-2xl sm:text-3xl font-black text-[var(--text-primary)] tracking-tight pt-2 border-b-2 border-indigo-500/40 pb-4 mb-6 text-center bg-gradient-to-r from-indigo-500/15 to-violet-500/15 rounded-2xl px-4 py-5 break-words">
+                            {renderNoteInline(content)}
+                        </h1>
+                    );
+                }
+                if (trimmed.startsWith('## ')) {
+                    const content = trimmed.substring(3);
+                    return (
+                        <div key={idx} className="pt-6 mt-2 mb-2 shrink-0">
+                            <h2 className="text-lg sm:text-xl font-black text-indigo-400 tracking-wide uppercase flex items-center gap-3 break-words min-w-0">
+                                <span className="w-1.5 h-5 sm:h-6 bg-gradient-to-b from-indigo-500 to-violet-500 rounded-full shrink-0 shadow-[0_0_10px_rgba(99,102,241,0.35)]" />
+                                <span className="min-w-0">{renderNoteInline(content)}</span>
+                            </h2>
+                        </div>
+                    );
+                }
+                if (trimmed.startsWith('### ')) {
+                    const content = trimmed.substring(4);
+                    return (
+                        <h3 key={idx} className="text-base sm:text-lg font-bold text-violet-300/95 tracking-tight mt-4 mb-1 break-words">
+                            {renderNoteInline(content)}
+                        </h3>
+                    );
+                }
+                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                    const bulletContent = trimmed.substring(2);
+                    return (
+                        <div key={idx} className="flex items-start gap-3 pl-1 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 mt-2 shrink-0 shadow-[0_0_6px_rgba(99,102,241,0.5)]" aria-hidden />
+                            <p className="text-[15px] sm:text-[16px] leading-relaxed text-[var(--text-secondary)] flex-1 min-w-0 break-words">
+                                {renderNoteInline(bulletContent)}
+                            </p>
+                        </div>
+                    );
+                }
+                return (
+                    <p key={idx} className="text-[15px] sm:text-[17px] leading-7 sm:leading-8 text-[var(--text-primary)] font-normal tracking-wide break-words">
+                        {renderNoteInline(trimmed)}
+                    </p>
+                );
+            })}
+        </div>
+    );
+};
+
+interface ExamPrepAppProps {
+  user: UserProfile;
+  lang: Language;
+  onUpdateProfile: (profile: UserProfile) => void;
+  theme: AppTheme;
+  onDeductCredits?: (cost: number) => void;
+  tasks: Task[];
+  onUpdateTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+}
+
+export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdateProfile, theme, onDeductCredits, tasks, onUpdateTasks }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
+  const [activeExam, setActiveExam] = useState<Exam | null>(null);
+  const isLightTheme = theme === 'white' || theme === 'ice';
+
+  const [showWizard, setShowWizard] = useState(user.exams ? user.exams.length === 0 : true);
+  const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
+  const [ticketMode, setTicketMode] = useState<'note' | 'quiz' | 'result'>('note');
   
-  // -- STATES --
-  const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [messages, setMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  
-  const [logValue, setLogValue] = useState('');
-  const [isLogging, setIsLogging] = useState(false);
-  const [logFeedback, setLogFeedback] = useState<string | null>(null);
-  const [productivityScore, setProductivityScore] = useState<number | null>(null);
-  
-  const [momentum, setMomentum] = useState(() => {
-    const saved = localStorage.getItem(`focu_momentum_${type}`);
-    return saved ? parseFloat(saved) : 0;
-  });
+  const [hubTab, setHubTab] = useState<'tickets' | 'flashcards' | 'glossary'>('tickets');
+  const [isGeneratingNote, setIsGeneratingNote] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [wizardMode, setWizardMode] = useState<'full_list' | 'ready_summary' | 'paste_list' | null>(null);
+  const [ticketCount, setTicketCount] = useState(15);
+  const [summaryText, setSummaryText] = useState('');
+  const [summaryNumThemes, setSummaryNumThemes] = useState(10);
+  const [summaryGranularity, setSummaryGranularity] = useState<'fine' | 'medium' | 'coarse'>('medium');
+  const [newExam, setNewExam] = useState<Partial<Exam>>({ id: Date.now().toString(), subject: '', date: getLocalISODate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)), tickets: [], progress: 0 });
+  const [rawTicketsText, setRawTicketsText] = useState('');
+  const [isWizardProcessing, setIsWizardProcessing] = useState(false);
+  const [preparedExamData, setPreparedExamData] = useState<Exam | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
-  const [showDomainChat, setShowDomainChat] = useState(false);
-  const [domainMessages, setDomainMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
-  const [domainInputValue, setDomainInputValue] = useState('');
-  const [domainLoading, setDomainLoading] = useState(false);
+  // Flashcard States
+  const [showManualCardModal, setShowManualCardModal] = useState(false);
+  const [manualCard, setManualCard] = useState({ question: '', answer: '', ticketId: '' });
+  const [isFlashcardSession, setIsFlashcardSession] = useState(false);
+  const [sessionQueue, setSessionQueue] = useState<Flashcard[]>([]);
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [startSessionCount, setStartSessionCount] = useState(0);
 
-  
-  const practiceSessionRef = useRef<any>(null);
-  const domainSessionRef = useRef<any>(null);
+  // Quiz States
+  const [quizQuestions, setQuizQuestions] = useState<{question: string, options: string[], correctIndex: number, difficulty?: 'easy' | 'medium' | 'hard'}[]>([]);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [currentQuizStep, setCurrentQuizStep] = useState<number | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizCount, setQuizCount] = useState<3 | 5 | 10>(5);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [answerFeedback, setAnswerFeedback] = useState<'correct' | 'incorrect' | null>(null);
+  const [quizResult, setQuizResult] = useState<{ score: number; xp: number } | null>(null);
 
-  // ... (keeping existing computed logic for progress, etc.) ...
-  const domainTasks = useMemo(() => tasks.filter(task => task.category.toLowerCase() === type.toLowerCase()), [tasks, type]);
-  const pendingDomainTasks = useMemo(() => domainTasks.filter(task => !task.completed), [domainTasks]);
-  
-  const progress = useMemo(() => {
-      const taskWeight = 0.4;
-      const goalWeight = 0.4;
-      const momentumWeight = 0.2;
+  // "Explain like to a friend" States
+  const [explanationText, setExplanationText] = useState('');
+  const [explanationFeedback, setExplanationFeedback] = useState<string | null>(null);
+  const [isCheckingExplanation, setIsCheckingExplanation] = useState(false);
 
-      const completedCount = domainTasks.filter(task => task.completed).length;
-      const totalCount = domainTasks.length;
-      const taskProgress = totalCount > 0 ? (completedCount / totalCount) : 0;
-
-      const relevantGoals = (user.goals || []).filter(g => {
-        const title = g.title.toLowerCase();
-        const category = type.toLowerCase();
-        return title.includes(category) || 
-               (category === 'sport' && (title.includes('зал') || title.includes('трени') || title.includes('фит'))) ||
-               (category === 'work' && (title.includes('раб') || title.includes('дел') || title.includes('проект'))) ||
-               (category === 'study' && (title.includes('уч') || title.includes('кур') || title.includes('чит')));
-      });
-      
-      const goalProgress = relevantGoals.length > 0 
-        ? relevantGoals.reduce((acc, g) => acc + (g.progress / g.target), 0) / relevantGoals.length
-        : taskProgress;
-
-      if (totalCount === 0 && relevantGoals.length === 0) {
-          const activityBonus = Math.min(0.5, (user.activityHistory || []).filter(h => h.startsWith(`${type.toUpperCase()}: `)).length * 0.05);
-          return Math.min(100, (momentum + activityBonus) * 100);
-      }
-
-      const finalProgress = (taskProgress * taskWeight + goalProgress * goalWeight + momentum * momentumWeight) * 100;
-      return Math.min(100, finalProgress);
-  }, [domainTasks, user.goals, type, momentum, user.activityHistory]);
-
-  useEffect(() => {
-    localStorage.setItem(`focu_momentum_${type}`, momentum.toString());
-  }, [momentum, type]);
-
-  const domainInsight = useMemo(() => {
-      const insights: Record<string, string[]> = {
-          work: [
-              lang === 'ru' ? "Начните с самой сложной задачи, пока когнитивный ресурс на пике." : "Start with your hardest task while your cognitive resource is at its peak.",
-              lang === 'ru' ? "Глубокая работа требует минимум 90 минут без уведомлений." : "Deep work requires at least 90 minutes without notifications."
-          ],
-          sport: [
-              lang === 'ru' ? "Сегодня отличный день для работы над техникой, а не весом." : "Today is a great day to focus on technique over weight.",
-              lang === 'ru' ? "Восстановление — это часть тренировки. Не пренебрегайте сном." : "Recovery is part of training. Don't neglect sleep."
-          ],
-          study: [
-              lang === 'ru' ? "Попробуйте метод Фейнмана: объясните тему вслух воображаемому ученику." : "Try the Feynman technique: explain the topic aloud to an imaginary student.",
-              lang === 'ru' ? "Активное припоминание эффективнее простого чтения конспектов." : "Active recall is more effective than just reading notes."
-          ],
-          health: [
-              lang === 'ru' ? "Маленькие шаги в питании дают огромный эффект через год." : "Small dietary changes lead to massive effects in a year.",
-              lang === 'ru' ? "Медитация на 5 минут лучше, чем отсутствие медитации." : "5 minutes of meditation is better than no meditation at all."
-          ],
-      };
-      const list = insights[type] || [lang === 'ru' ? "Фокус — это мышца. Тренируйте её каждый день." : "Focus is a muscle. Train it every day."];
-      return list[Math.floor(Math.random() * list.length)];
-  }, [type, lang]);
-
-  const workQuotes = useMemo(() => {
-    if (lang === 'ru') {
-        return [
-            { text: "Ваше время ограничено, не тратьте его, живя чужой жизнью.", author: "Стив Джобс" },
-            { text: "Успех — это способность идти от поражения к поражению, не теряя энтузиазма.", author: "Уинстон Черчилль" },
-            { text: "Лучший способ предсказать будущее — создать его.", author: "Питер Друкер" },
-            { text: "Не бойтесь отказаться от хорошего, ради великого.", author: "Джон Д. Рокфеллер" },
-            { text: "Гений — это 1% вдохновения и 99% пота.", author: "Томас Эдисон" },
-            { text: "Логика приведет вас из пункта А в пункт Б. Воображение приведет вас куда угодно.", author: "Альберт Эйнштейн" }
-        ];
-    }
-    return [
-        { text: "Your time is limited, so don't waste it living someone else's life.", author: "Steve Jobs" },
-        { text: "Success is walking from failure to failure with no loss of enthusiasm.", author: "Winston Churchill" },
-        { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
-        { text: "Don't be afraid to give up the good to go for the great.", author: "John D. Rockefeller" },
-        { text: "Genius is 1% inspiration and 99% perspiration.", author: "Thomas Edison" },
-        { text: "Logic will get you from A to B. Imagination will take you everywhere.", author: "Albert Einstein" }
-    ];
-  }, [lang]);
-
-  const randomQuote = useMemo(() => workQuotes[Math.floor(Math.random() * workQuotes.length)], [workQuotes]);
-
-  const practices = useMemo((): Practice[] => {
-      const isRu = lang === 'ru';
-      const data: Record<string, Practice[]> = {
-          sport: [
-              { id: 'ar', name: isRu ? "Активное восстановление" : "Active Recovery", description: isRu ? "Легкая активность для восстановления." : "Light activity to recover." },
-              { id: 'tr', name: isRu ? "Тренировочный сброс" : "Training Reset", description: isRu ? "Фокус на технике." : "Focus on technique." }
-          ],
-          work: [
-              { id: 'dw', name: isRu ? "Глубокая работа" : "Deep Work", description: isRu ? "Блок полной тишины." : "Total focus block." },
-              { id: 'fs', name: isRu ? "Спринт фокуса" : "Focus Sprint", description: isRu ? "25 минут без отвлечений." : "25 min focus." }
-          ]
-      };
-      return data[type] || [
-          { id: 'dr', name: isRu ? "Ежедневная рутина" : "Daily Routine", description: isRu ? "Поддержание порядка." : "Maintain order." }
-      ];
-  }, [type, lang]);
-
-  // -- HANDLERS --
-
-  const handlePracticeSend = async () => {
-    if (!inputValue.trim() || chatLoading) return;
-    const text = inputValue.trim();
-    setMessages(prev => [...prev, {role: 'user', text}]);
-    setInputValue('');
-    setChatLoading(true);
-
-    try {
-        if (!practiceSessionRef.current) {
-            practiceSessionRef.current = createChatSession(user, [], lang, domainTasks, type, getLocalISODate());
-        }
-        
-        // Check and deduct credits for practice chat
-        const practiceCost = CreditsService.getActionCost('chatMessage', user.settings?.aiDetailLevel);
-        if (user.credits && !CreditsService.canAfford(user.credits, CreditsService.getActionCost('ecosystemAnalysis', user.settings?.aiDetailLevel))) {
-          if (!CreditsService.canAfford(user.credits, practiceCost)) {
-            setMessages(prev => [...prev, {role: 'model', text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.'}]);
-            return;
-          }
-          onDeductCredits?.(practiceCost);
-        }
-        
-        const res = await practiceSessionRef.current.sendMessage({ message: text });
-        setMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(res.text || "")}]);
-    } catch (e) {
-        setMessages(prev => [...prev, {role: 'model', text: t.chatError}]);
-    } finally {
-        setChatLoading(false);
+  const handleOpenKeySelection = async () => {
+    if (typeof (window as any).aistudio?.openSelectKey === 'function') {
+      await (window as any).aistudio.openSelectKey();
+      setErrorStatus(null);
     }
   };
 
-  const handleDomainSend = async () => {
-    if (!domainInputValue.trim() || domainLoading) return;
-    const text = domainInputValue.trim();
-    setDomainMessages(prev => [...prev, {role: 'user', text}]);
-    setDomainInputValue('');
-    setDomainLoading(true);
-    
-    // Check and deduct credits for domain chat
-    const domainCost = CreditsService.getActionCost('chatMessage', user.settings?.aiDetailLevel);
-    if (user.credits && !CreditsService.canAfford(user.credits, CreditsService.getActionCost('ecosystemAnalysis', user.settings?.aiDetailLevel))) {
-      if (!CreditsService.canAfford(user.credits, domainCost)) {
-        setDomainMessages(prev => [...prev, {role: 'model', text: lang === 'ru' ? '❌ Недостаточно кредитов для отправки сообщения. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to send message. Enter promo code in settings for unlimited access.'}]);
+  const calculateExamProgress = (exam: Exam): number => {
+    if (!exam || !exam.tickets || exam.tickets.length === 0) return 0;
+    const cardsTotal = exam.flashcards?.length || 1;
+    const cardsMastered = (exam.flashcards || []).filter(f => f.status === 'mastered').length;
+    const cardsWeight = (cardsMastered / cardsTotal) * 30;
+    const ticketsTested = (exam.tickets || []).filter(t => t.lastScore !== undefined).length;
+    const ticketsWeight = (exam.tickets || []).length > 0 ? (ticketsTested / exam.tickets.length) * 70 : 0;
+    return Math.round(cardsWeight + ticketsWeight);
+  };
+
+  const getTicketColor = (score?: number) => {
+      if (score === undefined) return 'bg-white/5 border-white/5 hover:border-indigo-500/30';
+      if (score >= 75) return 'bg-emerald-500/10 border-emerald-500/50';
+      if (score >= 50) return 'bg-amber-500/10 border-amber-500/50';
+      return 'bg-rose-500/10 border-rose-500/50';
+  };
+
+  const handleDeleteExam = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      const confirmMessage = lang === 'ru' 
+        ? 'Вы уверены, что хотите удалить этот экзамен и все связанные материалы?' 
+        : 'Are you sure you want to delete this exam and all related materials?';
+
+      if (window.confirm(confirmMessage)) {
+          const updatedExams = (user.exams || []).filter(ex => ex.id !== id);
+          onUpdateProfile({ ...user, exams: updatedExams });
+      }
+  };
+
+  const handleQuickParse = async () => {
+    // Check and deduct credits
+    const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
+    if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+      alert(lang === 'ru' ? '❌ Недостаточно кредитов для генерации экзамена. Введите промокод в настройках для получения безлимитного доступа.' : '❌ Not enough credits to generate exam. Enter promo code in settings for unlimited access.');
+      return;
+    }
+    if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
+
+    setWizardStep(4);
+    setIsWizardProcessing(true);
+    setErrorStatus(null);
+    try {
+        const parsed = await parseTicketsFromText(rawTicketsText, lang);
+        const tickets: Ticket[] = (parsed || []).filter((p: any) => !!p && p.question).map((p: any, i: number) => ({ 
+            id: `t_${Date.now()}_${i}`, 
+            number: p.number || (i + 1), 
+            question: p.question || '', 
+            confidence: 0 
+        }));
+        
+        if (tickets.length === 0) {
+            setWizardStep(3);
+            return;
+        }
+
+        const { glossary, flashcards } = await generateGlossaryAndCards(tickets, newExam.subject!, lang);
+        const glossaryTerms: Term[] = (glossary || []).map((g: any, i: number) => ({
+            id: g.id ?? `term_${Date.now()}_${i}`,
+            word: typeof g.word === 'string' ? g.word : '',
+            definition: typeof g.definition === 'string' ? g.definition : '',
+        }));
+        const ticketIndex = (num: number) => Math.min(Math.max(0, (num || 1) - 1), tickets.length - 1);
+        const fullExam: Exam = { 
+            ...(newExam as Exam), 
+            tickets, 
+            calendar: [], 
+            glossary: glossaryTerms, 
+            flashcards: (flashcards || []).map((f: any) => ({
+                id: `fc_${Date.now()}_${Math.random()}`,
+                question: f.question ?? '',
+                answer: f.answer ?? '',
+                confidence: 0,
+                status: 'new',
+                ticketId: tickets[ticketIndex(f.ticketNumber)]?.id,
+            })), 
+            progress: 0 
+        };
+        setPreparedExamData(fullExam);
+    } catch (e: any) { 
+        if (e.status === 429) setErrorStatus(429);
+        setWizardStep(3); 
+    } finally { setIsWizardProcessing(false); }
+  };
+
+  const handleFullListGenerate = async () => {
+    const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
+    if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+      alert(lang === 'ru' ? '❌ Недостаточно кредитов.' : '❌ Not enough credits.');
+      return;
+    }
+    if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
+    setWizardStep(4);
+    setIsWizardProcessing(true);
+    setErrorStatus(null);
+    try {
+      const list = await generateFullTicketListFromSubject(newExam.subject!, ticketCount, lang);
+      const tickets: Ticket[] = (list || []).map((p: any, i: number) => ({
+        id: `t_${Date.now()}_${i}`,
+        number: p.number || (i + 1),
+        question: p.question || '',
+        confidence: 0
+      }));
+      if (tickets.length === 0) {
+        setWizardStep(3);
         return;
       }
-      onDeductCredits?.(domainCost);
+      const { glossary, flashcards } = await generateGlossaryAndCards(tickets, newExam.subject!, lang);
+      const glossaryTerms: Term[] = (glossary || []).map((g: any, i: number) => ({
+        id: g.id ?? `term_${Date.now()}_${i}`,
+        word: typeof g.word === 'string' ? g.word : '',
+        definition: typeof g.definition === 'string' ? g.definition : '',
+      }));
+      const ticketIndex = (num: number) => Math.min(Math.max(0, (num || 1) - 1), tickets.length - 1);
+      const fullExam: Exam = {
+        ...(newExam as Exam),
+        tickets,
+        calendar: [],
+        glossary: glossaryTerms,
+        flashcards: (flashcards || []).map((f: any) => ({
+          id: `fc_${Date.now()}_${Math.random()}`,
+          question: f.question ?? '',
+          answer: f.answer ?? '',
+          confidence: 0,
+          status: 'new',
+          ticketId: tickets[ticketIndex(f.ticketNumber)]?.id,
+        })),
+        progress: 0
+      };
+      setPreparedExamData(fullExam);
+    } catch (e: any) {
+      if (e.status === 429) setErrorStatus(429);
+      setWizardStep(3);
+    } finally {
+      setIsWizardProcessing(false);
     }
-    
+  };
+
+  const handleSummarySplit = async () => {
+    const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
+    if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+      alert(lang === 'ru' ? '❌ Недостаточно кредитов.' : '❌ Not enough credits.');
+      return;
+    }
+    if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
+    setWizardStep(4);
+    setIsWizardProcessing(true);
+    setErrorStatus(null);
     try {
-        if (!domainSessionRef.current) {
-            domainSessionRef.current = createChatSession(user, [], lang, domainTasks, type, getLocalISODate());
-        }
-        const res = await domainSessionRef.current.sendMessage({ message: text });
-        setDomainMessages(prev => [...prev, {role: 'model', text: cleanTextOutput(res.text || "")}]);
-        if (type === 'work' && res?.text) {
+      const themes = await splitSummaryIntoThemes(summaryText, newExam.subject!, summaryNumThemes, summaryGranularity, lang);
+      const tickets: Ticket[] = (themes || []).map((t: any, i: number) => ({
+        id: `t_${Date.now()}_${i}`,
+        number: t.number || (i + 1),
+        question: t.question || '',
+        confidence: 0,
+        note: t.note || ''
+      }));
+      if (tickets.length === 0) {
+        setWizardStep(3);
+        return;
+      }
+      const { glossary, flashcards } = await generateGlossaryAndCards(tickets, newExam.subject!, lang);
+      const glossaryTerms: Term[] = (glossary || []).map((g: any, i: number) => ({
+        id: g.id ?? `term_${Date.now()}_${i}`,
+        word: typeof g.word === 'string' ? g.word : '',
+        definition: typeof g.definition === 'string' ? g.definition : '',
+      }));
+      const ticketIndex = (num: number) => Math.min(Math.max(0, (num || 1) - 1), tickets.length - 1);
+      const fullExam: Exam = {
+        ...(newExam as Exam),
+        tickets,
+        calendar: [],
+        glossary: glossaryTerms,
+        flashcards: (flashcards || []).map((f: any) => ({
+          id: `fc_${Date.now()}_${Math.random()}`,
+          question: f.question ?? '',
+          answer: f.answer ?? '',
+          confidence: 0,
+          status: 'new',
+          ticketId: tickets[ticketIndex(f.ticketNumber)]?.id,
+        })),
+        progress: 0
+      };
+      setPreparedExamData(fullExam);
+    } catch (e: any) {
+      if (e.status === 429) setErrorStatus(429);
+      setWizardStep(3);
+    } finally {
+      setIsWizardProcessing(false);
+    }
+  };
+
+  const handleFinalizeExam = () => {
+      if (!preparedExamData) return;
+      const u = user.usageStats || getDefaultUsageStats();
+      const ticketCountFinal = preparedExamData.tickets?.length ?? 1;
+      onUpdateProfile({
+        ...user,
+        exams: [...(user.exams || []), preparedExamData],
+        usageStats: {
+          ...u,
+          ecosystem: {
+            ...u.ecosystem,
+            study: {
+              examsCreated: (u.ecosystem.study.examsCreated ?? 0) + 1,
+              quizzesCompleted: u.ecosystem.study.quizzesCompleted ?? 0,
+              ticketsParsed: (u.ecosystem.study.ticketsParsed ?? 0) + ticketCountFinal,
+            },
+          },
+        },
+      });
+      setShowWizard(false);
+      setWizardStep(1);
+      setWizardMode(null);
+      setRawTicketsText('');
+      setSummaryText('');
+  };
+
+  const handlePlanSchedule = async (onlyRemaining: boolean = false) => {
+      if (!activeExam) return;
+      const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
+      if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+        alert(lang === 'ru'
+          ? '❌ Недостаточно кредитов для распределения билетов по дням. Введите промокод в настройках для получения безлимитного доступа.'
+          : '❌ Not enough credits to spread tickets across days. Enter promo code in settings for unlimited access.');
+        return;
+      }
+      if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
+
+      const todayIso = getLocalISODate();
+      const ticketsToPlan = activeExam.tickets.filter(t => {
+          if (!onlyRemaining) return true;
+          // считаем "непройденными" билеты без результата
+          return t.lastScore === undefined;
+      });
+      if (ticketsToPlan.length === 0) return;
+
+      try {
+          const plan = await planExamPreparation(activeExam, ticketsToPlan, lang, onlyRemaining ? todayIso : undefined);
+          if (!Array.isArray(plan) || plan.length === 0) return;
+
+          // маппинг номер билета -> ticketId
+          const byNumber: Record<number, Ticket> = {};
+          activeExam.tickets.forEach(t => {
+              const n = typeof t.number === 'number' ? t.number : Number(t.number) || 0;
+              if (n) byNumber[n] = t;
+          });
+
+          const calendar = plan
+              .map(p => {
+                  const ticket = byNumber[p.ticketNumber];
+                  if (!ticket) return null;
+                  return { ticketId: ticket.id, date: p.date };
+              })
+              .filter((x): x is { ticketId: string; date: string } => !!x);
+
+          // обновляем exam в профиле
+          const updatedExam: Exam = {
+              ...activeExam,
+              calendar,
+          };
+          setActiveExam(updatedExam);
+          onUpdateProfile({
+              ...user,
+              exams: (user.exams || []).map(e => e.id === updatedExam.id ? updatedExam : e),
+          });
+
+          // создаём/обновляем задачи в глобальном списке
+          const prefix = `exam_${updatedExam.id}_`;
+          onUpdateTasks(prev => {
+              const withoutOld = prev.filter(t => !t.id.startsWith(prefix));
+              const newTasks: Task[] = calendar.map(entry => {
+                  const ticket = updatedExam.tickets.find(t => t.id === entry.ticketId)!;
+                  const baseTitle = lang === 'ru'
+                      ? `Экзамен: билет ${ticket.number}`
+                      : `Exam: ticket ${ticket.number}`;
+                  return {
+                      id: `${prefix}${entry.ticketId}`,
+                      title: baseTitle,
+                      description: ticket.question,
+                      category: 'study',
+                      durationMinutes: 45,
+                      completed: false,
+                      priority: 'Medium',
+                      energyRequired: 'medium',
+                      date: entry.date,
+                      status: 'planned',
+                  };
+              });
+              return [...withoutOld, ...newTasks];
+          });
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
+  const handleOpenTicket = async (ticket: Ticket) => {
+      setActiveTicket(ticket);
+      setTicketMode('note');
+      setIsGeneratingNote(!ticket.note);
+      if (!ticket.note) {
+          try {
+              const noteRaw = await generateTicketNote(ticket.question, activeExam!.subject, lang);
+              const note = cleanTextOutput(noteRaw);
+              const updatedTickets = activeExam!.tickets.map(t => t.id === ticket.id ? { ...t, note } : t);
+              const updatedExam = { ...activeExam!, tickets: updatedTickets };
+              setActiveExam(updatedExam);
+              onUpdateProfile({ ...user, exams: user.exams?.map(e => e.id === activeExam!.id ? updatedExam : e) });
+              setActiveTicket({ ...ticket, note });
+          } catch (e: any) { 
+              if (e.status === 429) setErrorStatus(429);
+          } finally { setIsGeneratingNote(false); }
+      }
+  };
+
+  // Flashcard Actions
+  const startFlashcardSession = () => {
+    if (!activeExam) return;
+    const pool = (activeExam.flashcards || []).filter(f => f.status !== 'mastered');
+    if (pool.length === 0) return;
+
+    setSessionQueue([...pool]);
+    setStartSessionCount(pool.length);
+    setCurrentCardIndex(Math.floor(Math.random() * pool.length));
+    setIsFlashcardSession(true);
+    setIsFlipped(false);
+  };
+
+  const processCardResult = (isKnown: boolean) => {
+    if (!activeExam || sessionQueue.length === 0) return;
+    const currentCard = sessionQueue[currentCardIndex];
+    if (!currentCard) return;
+
+    let updatedQueue = [...sessionQueue];
+    
+    if (isKnown) {
+        // PERMANENT UPDATE: Mark as mastered in global state
+        const updatedFlashcards = activeExam.flashcards.map(f => 
+            f.id === currentCard.id ? { ...f, status: 'mastered' as const } : f
+        );
+        const updatedExam = { ...activeExam, flashcards: updatedFlashcards };
+        setActiveExam(updatedExam);
+        onUpdateProfile({ 
+            ...user, 
+            exams: user.exams?.map(e => e.id === activeExam.id ? updatedExam : e),
+            totalExperience: (user.totalExperience || 0) + 5
+        });
+
+        // SESSION UPDATE: Remove from current queue
+        updatedQueue = sessionQueue.filter(f => f.id !== currentCard.id);
+    }
+
+    if (updatedQueue.length === 0) {
+        setSessionQueue([]);
+        return;
+    }
+
+    // Pick next random
+    let nextIdx = Math.floor(Math.random() * updatedQueue.length);
+    if (!isKnown && updatedQueue.length > 1 && updatedQueue[nextIdx].id === currentCard.id) {
+        nextIdx = (nextIdx + 1) % updatedQueue.length;
+    }
+
+    setSessionQueue(updatedQueue);
+    setCurrentCardIndex(nextIdx);
+    setIsFlipped(false);
+  };
+
+  const handleAddManualCard = () => {
+    if (!manualCard.question || !manualCard.answer || !activeExam) return;
+    const newCard: Flashcard = {
+        id: `manual_${Date.now()}`,
+        question: manualCard.question,
+        answer: manualCard.answer,
+        confidence: 0,
+        status: 'new',
+        ticketId: manualCard.ticketId || undefined
+    };
+    const updatedExam = { ...activeExam, flashcards: [...(activeExam.flashcards || []), newCard] };
+    setActiveExam(updatedExam);
+    onUpdateProfile({ ...user, exams: user.exams?.map(e => e.id === activeExam.id ? updatedExam : e) });
+    setShowManualCardModal(false);
+    setManualCard({ question: '', answer: '', ticketId: '' });
+  };
+
+  const getActiveCardMetadata = () => {
+      const card = sessionQueue[currentCardIndex];
+      if (!card || !activeExam) return null;
+      const ticket = activeExam.tickets.find(t => t.id === card.ticketId);
+      return { 
+          ticketNumber: ticket?.number || '?', 
+          ticketQuestion: ticket?.question || activeExam.subject 
+      };
+  };
+
+  const resetCards = () => {
+    if (!activeExam) return;
+    const reset = (activeExam.flashcards || []).map(f => ({ ...f, status: 'new' as const }));
+    const updatedExam = { ...activeExam, flashcards: reset };
+    setActiveExam(updatedExam);
+    onUpdateProfile({ ...user, exams: user.exams?.map(e => e.id === activeExam.id ? updatedExam : e) });
+  };
+
+  // Quiz Actions
+  const handleStartQuiz = async () => {
+      if (!activeTicket) return;
+      setIsGeneratingQuiz(true);
+      setErrorStatus(null);
+      setQuizScore(0);
+      setAnswerFeedback(null); // Fix: Reset feedback state
+      setSelectedAnswer(null); // Fix: Reset selected answer state
+      try {
+          const raw = await generateQuiz(activeTicket.question, activeExam!.subject, lang, quizCount);
+          const normalized: { question: string; options: string[]; correctIndex: number; difficulty?: 'easy' | 'medium' | 'hard' }[] = (raw || []).map(q => ({
+              question: q.question ?? '',
+              options: Array.isArray(q.options) ? q.options : [],
+              correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+              difficulty: q.difficulty === 'easy' || q.difficulty === 'medium' || q.difficulty === 'hard' ? q.difficulty : undefined,
+          }));
+          setQuizQuestions(normalized);
+          setCurrentQuizStep(0);
+          setTicketMode('quiz');
+      } catch (e: any) { 
+          if (e.status === 429) setErrorStatus(429);
+      } finally { setIsGeneratingQuiz(false); }
+  };
+
+  const handleSubmitAnswer = (idx: number) => {
+      if (currentQuizStep === null || answerFeedback !== null || !quizQuestions[currentQuizStep]) return;
+      setSelectedAnswer(idx);
+      const isCorrect = idx === quizQuestions[currentQuizStep].correctIndex;
+      setAnswerFeedback(isCorrect ? 'correct' : 'incorrect');
+      if (isCorrect) setQuizScore(prev => prev + 1);
+  };
+
+  const handleNextQuestion = () => {
+      if (currentQuizStep === null) return;
+      if (currentQuizStep < quizQuestions.length - 1) {
+          setAnswerFeedback(null);
+          setSelectedAnswer(null);
+          setCurrentQuizStep(prev => prev! + 1);
+      } else {
+          const finalScore = Math.round((quizScore / quizQuestions.length) * 100);
+          const earnedXp = Math.round(10 + (finalScore * 0.4));
+          const updatedTickets = activeExam!.tickets.map(t => t.id === activeTicket!.id ? { ...t, lastScore: finalScore } : t);
+          const updatedExam = { ...activeExam!, tickets: updatedTickets };
+          setActiveExam(updatedExam);
           const u = user.usageStats || getDefaultUsageStats();
           onUpdateProfile({
             ...user,
+            exams: user.exams?.map(e => e.id === activeExam!.id ? updatedExam : e),
+            totalExperience: (user.totalExperience || 0) + earnedXp,
             usageStats: {
               ...u,
               ecosystem: {
                 ...u.ecosystem,
-                work: {
-                  progressLogs: u.ecosystem.work.progressLogs ?? 0,
-                  expertChatMessages: (u.ecosystem.work.expertChatMessages ?? 0) + 1,
+                study: {
+                  examsCreated: u.ecosystem.study.examsCreated ?? 0,
+                  quizzesCompleted: (u.ecosystem.study.quizzesCompleted ?? 0) + 1,
+                  ticketsParsed: u.ecosystem.study.ticketsParsed ?? 0,
                 },
               },
             },
           });
-        }
-    } catch (e) {
-        setDomainMessages(prev => [...prev, {role: 'model', text: t.chatError}]);
-    } finally {
-        setDomainLoading(false);
-    }
-  };
-
-  const handleLogProgress = async () => {
-      if (!logValue.trim() || isLogging) return;
-      setIsLogging(true);
-      setLogFeedback(null);
-      setProductivityScore(null);
-
-      try {
-          const evalResult = await evaluateProgress(logValue, domainTasks, user.goals || [], type, lang);
-          const updatedTaskIds = evalResult?.updatedTaskIds ?? [];
-          const goalUpdates = evalResult?.goalUpdates ?? [];
-          const isUseful = (evalResult?.productivityScore ?? 0) > 0 ||
-                           (evalResult?.generalProgressAdd ?? 0) > 0 ||
-                           updatedTaskIds.length > 0 ||
-                           goalUpdates.length > 0;
-
-          if (!isUseful) {
-              setLogFeedback(evalResult?.feedback || (lang === 'ru' ? "Действие не распознано как полезное для этой сферы." : "Action not recognized as productive for this sphere."));
-              setLogValue('');
-              setTimeout(() => setLogFeedback(null), 4000);
-              return;
-          }
-
-          if (updatedTaskIds.length > 0) {
-              onUpdateTasks(prev => prev.map(tk => updatedTaskIds.includes(tk.id) ? { ...tk, completed: true } : tk));
-          }
-
-          const updatedGoals = (user.goals || []).map(g => {
-              const update = goalUpdates.find((u: any) => u.id === g.id);
-              if (update) {
-                  const newProgress = Math.min(g.target, g.progress + update.progressAdd);
-                  return { ...g, progress: newProgress, completed: newProgress >= g.target };
-              }
-              return g;
-          });
-          
-          if ((evalResult?.generalProgressAdd ?? 0) > 0) {
-              setMomentum(prev => Math.min(1, prev + (evalResult?.generalProgressAdd ?? 0)));
-          }
-
-          let newXp = (user.totalExperience || 0) + (evalResult?.productivityScore ?? 0);
-          let newLevel = user.level || 1;
-          
-          while (newXp >= newLevel * 100) {
-              newXp -= newLevel * 100;
-              newLevel += 1;
-          }
-
-          onUpdateProfile({ 
-              ...user, 
-              goals: updatedGoals,
-              activityHistory: [...(user.activityHistory || []), `${type.toUpperCase()}: ${logValue}`],
-              totalExperience: newXp,
-              level: newLevel,
-              ...(type === 'work' ? (() => {
-                const u = user.usageStats || getDefaultUsageStats();
-                return {
-                  usageStats: {
-                    ...u,
-                    ecosystem: {
-                      ...u.ecosystem,
-                      work: {
-                        progressLogs: (u.ecosystem.work.progressLogs ?? 0) + 1,
-                        expertChatMessages: u.ecosystem.work.expertChatMessages ?? 0,
-                      },
-                    },
-                  },
-                };
-              })() : {}),
-          });
-          
-          setLogFeedback(evalResult?.feedback ?? '');
-          setProductivityScore(evalResult?.productivityScore ?? 0);
-          setLogValue('');
-          
-          setTimeout(() => {
-              setLogFeedback(null);
-              setProductivityScore(null);
-          }, 6000);
-      } catch (e) {
-          console.error(e);
-      } finally {
-          setIsLogging(false);
+          setQuizResult({ score: finalScore, xp: earnedXp });
+          setTicketMode('result');
       }
   };
 
-  const handleToggleTask = (id: string) => {
-    onUpdateTasks(prev => prev.map(tk => tk.id === id ? { ...tk, completed: !tk.completed } : tk));
-  };
-
-  const ecoLabel = t[`eco_${type}` as keyof typeof t] || type;
-
-  // -- RENDERERS --
-
-  if (type === 'study') {
-    return (
-      <div className="animate-fadeIn pb-32">
-        <ExamPrepApp
-          user={user}
-          lang={lang}
-          onUpdateProfile={onUpdateProfile}
-          theme={theme}
-          onDeductCredits={onDeductCredits}
-          tasks={tasks}
-          onUpdateTasks={onUpdateTasks}
-        />
-      </div>
-    );
-  }
-
-  if (type === 'sport') {
+  if (showWizard) {
       return (
-        <div className="animate-fadeIn pb-32">
-            <header className="flex justify-between items-center px-1 mb-8">
-                <div>
-                    <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight uppercase">{lang === 'ru' ? 'Атлетика' : 'Athletics'}</h1>
-                    <p className="text-[10px] text-orange-500 font-black uppercase tracking-[0.2em]">{t.sportHubSub}</p>
-                </div>
-                <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
-                    <Dumbbell size={24} />
-                </div>
-            </header>
-            <SportApp user={user} lang={lang} onUpdateProfile={onUpdateProfile} onAddTasks={(newTasks) => onUpdateTasks(prev => [...prev, ...newTasks])} theme={theme} onDeductCredits={onDeductCredits} onLogout={onLogout} />
-        </div>
-      );
-  }
-
-  if (type === 'health') {
-      return (
-        <div className="animate-fadeIn pb-32">
-            <HealthApp user={user} lang={lang} onUpdateProfile={onUpdateProfile} theme={theme} />
-        </div>
-      );
-  }
-
-  // DEFAULT VIEW (Work) - EXPERT CHAT IS HERE
-  return (
-    <div className="space-y-6 animate-fadeIn pb-6">
-      <header className="flex justify-between items-center px-1">
-          <div>
-              <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight uppercase">{ecoLabel}</h1>
-              <p className="text-sm text-[var(--text-secondary)] font-medium">{t.ecoState}: {t.stateBalanced}</p>
-          </div>
-          <button 
-            onClick={() => { setShowDomainChat(true); setDomainMessages([{role: 'model', text: lang === 'ru' ? `Привет! Я ИИ-эксперт в сфере ${ecoLabel}. Что обсудим?` : `Hello! I'm an AI expert for ${ecoLabel}. What's on your mind?`}]); }}
-            className="px-5 py-2.5 bg-white/5 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2 hover:bg-white/10 transition-all active:scale-95 shadow-lg"
-          >
-              <Bot size={14} className="text-indigo-400"/>
-              {t.navExpert}
-          </button>
-      </header>
-
-      <section className="space-y-3">
-          <GlassCard className="p-6 bg-[var(--bg-card)] border-[var(--border-glass)] shadow-lg relative overflow-hidden rounded-[32px]">
-              <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-2">
-                    <Trophy size={14} className="text-amber-400" />
-                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">{t.domainProgress}</span>
-                  </div>
-                  <span className="text-xl font-bold text-[var(--text-primary)] tracking-tighter">{Math.round(progress)}%</span>
-              </div>
-              <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden mb-6 ring-1 ring-white/5">
-                  <div className="h-full bg-indigo-500 transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.6)]" style={{width: `${progress}%`}} />
-              </div>
-
-              {(logFeedback || productivityScore !== null) && (
-                  <div className="mb-4 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-[24px] flex flex-col gap-2 animate-fade-in-up">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Star size={14} className="text-indigo-400" />
-                            <span className="text-[9px] font-bold text-indigo-300 uppercase tracking-widest">{t.examResult}</span>
-                        </div>
-                        {productivityScore !== null && productivityScore > 0 && (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-500/20 rounded-full">
-                                <TrendingUp size={10} className="text-indigo-400" />
-                                <span className="text-[10px] font-bold text-indigo-400">+{productivityScore} XP</span>
-                            </div>
-                        )}
-                      </div>
-                      <p className="text-[12px] text-indigo-100 italic leading-snug">{logFeedback}</p>
-                  </div>
-              )}
-
-              <div className="flex gap-2">
-                  <input 
-                    value={logValue} 
-                    onChange={e => setLogValue(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleLogProgress()}
-                    placeholder={t.ecoLogPlaceholder}
-                    disabled={isLogging}
-                    className="flex-1 bg-black/10 border border-[var(--border-glass)] rounded-full px-6 py-4 text-sm text-[var(--text-primary)] focus:outline-none focus:border-indigo-500/20 transition-all placeholder:text-[var(--text-secondary)]"
-                  />
-                  <button 
-                    onClick={handleLogProgress}
-                    disabled={isLogging || !logValue.trim()}
-                    className="w-12 h-12 bg-[var(--bg-active)] rounded-full flex items-center justify-center text-[var(--bg-active-text)] active:scale-90 transition-all disabled:opacity-30 shadow-lg"
-                  >
-                    {isLogging ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} strokeWidth={2.5} />}
-                  </button>
-              </div>
-          </GlassCard>
-      </section>
-
-      <section className="animate-fade-in-up delay-100">
-          <GlassCard className="p-4 bg-indigo-500/5 border-indigo-500/10 rounded-[28px] flex gap-4 items-center">
-              <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">
-                  <Lightbulb size={20} />
-              </div>
-              <div>
-                  <h4 className="text-[9px] font-bold text-indigo-400 uppercase tracking-[0.2em] mb-1">{t.ecoInsightTitle}</h4>
-                  <p className="text-[12px] text-[var(--text-secondary)] leading-snug font-medium italic">"{domainInsight}"</p>
-              </div>
-          </GlassCard>
-      </section>
-
-      <section className="animate-fade-in-up delay-150">
-          <GlassCard className="p-6 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 border-[var(--border-glass)] rounded-[28px] relative overflow-hidden group">
-              <Quote className="absolute top-4 right-4 text-[var(--text-secondary)] opacity-10 rotate-180" size={64} />
-              <div className="relative z-10">
-                  <p className="text-[13px] font-bold text-[var(--text-primary)] leading-relaxed italic mb-3">"{randomQuote.text}"</p>
-                  <div className="flex items-center gap-2 justify-end">
-                      <div className="h-px w-8 bg-[var(--theme-accent)] opacity-50" />
-                      <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{randomQuote.author}</p>
-                  </div>
-              </div>
-          </GlassCard>
-      </section>
-
-      {pendingDomainTasks.length > 0 && (
-          <section className="animate-fade-in-up delay-200">
-              <div className="flex items-center gap-2 mb-3 px-2">
-                <ListTodo size={14} className="text-[var(--text-secondary)]" />
-                <h3 className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em]">{t.ecoTasksTitle}</h3>
-              </div>
-              <div className="space-y-2">
-                  {pendingDomainTasks.slice(0, 3).map(tk => (
-                      <div 
-                        key={tk.id} 
-                        onClick={() => handleToggleTask(tk.id)}
-                        className="p-4 rounded-[24px] bg-[var(--bg-card)] border border-[var(--border-glass)] flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer"
-                      >
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full border border-[var(--border-glass)] group-hover:border-indigo-400 flex items-center justify-center transition-all">
-                                  {tk.completed && <Check size={12} className="text-indigo-400" />}
-                              </div>
-                              <span className="text-sm font-medium text-[var(--text-primary)]">{tk.title}</span>
-                          </div>
-                          {tk.scheduledTime && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] font-bold uppercase">
-                                  <Clock size={12} />
-                                  {tk.scheduledTime}
-                              </div>
-                          )}
-                      </div>
-                  ))}
-              </div>
-          </section>
-      )}
-
-      <section className="animate-fade-in-up delay-300">
-          <div className="flex items-center gap-2 mb-3 px-2">
-            <History size={14} className="text-[var(--text-secondary)]" />
-            <h3 className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em]">{t.ecoHistoryTitle}</h3>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-              {(user.activityHistory || []).filter(h => h.startsWith(type.toUpperCase())).slice(-3).reverse().map((entry, idx) => (
-                  <div key={idx} className="px-5 py-3 rounded-[22px] bg-white/2 border border-[var(--border-glass)] text-[11px] text-[var(--text-secondary)] font-medium flex items-center gap-3">
-                      <CheckCircle size={14} className="text-emerald-500/50 shrink-0" />
-                      <span className="truncate">{entry.split(': ')[1]}</span>
-                  </div>
-              ))}
-          </div>
-      </section>
-
-      <section className="animate-fade-in-up delay-400">
-          <div className="flex items-center gap-2 mb-4 px-2">
-            <Activity size={14} className="text-[var(--text-secondary)]" />
-            <h3 className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em]">{t.ecoPractices}</h3>
-          </div>
-          <div className="grid gap-4">
-              {practices.map(p => (
-                  <button 
-                    key={p.id} 
-                    onClick={() => { setSelectedPractice(p); setMessages([{role: 'model', text: p.description}]); }}
-                    className="w-full p-6 rounded-[32px] bg-[var(--bg-card)] border border-[var(--border-glass)] hover:bg-white/5 transition-all flex items-center justify-between group shadow-md active:scale-[0.98]"
-                  >
-                      <div className="flex items-center gap-5">
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500/20 transition-all">
-                            <Sparkles size={20} />
-                        </div>
-                        <div className="text-left">
-                          <span className="text-[16px] font-bold text-[var(--text-primary)] block group-hover:text-indigo-400 transition-colors">{p.name}</span>
-                          <span className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest opacity-60">FoGoal Core</span>
-                        </div>
-                      </div>
-                      <ChevronRight size={20} className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-all transform group-hover:translate-x-1" />
-                  </button>
-              ))}
-          </div>
-      </section>
-      
-      {showDomainChat && (
-        <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex flex-col p-4 animate-fadeIn">
-            <div className="flex-1 flex flex-col pb-[110px] w-full max-w-lg mx-auto">
-                <header className="flex justify-between items-center p-6 bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-t-[40px] shadow-lg">
-                    <div className="flex items-center gap-3">
-                        <Bot size={24} className="text-indigo-400" />
-                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Эксперт' : 'Expert'} {ecoLabel}</h3>
-                    </div>
-                    <button onClick={() => setShowDomainChat(false)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"><X size={20}/></button>
+          <div className="h-full flex flex-col animate-fadeIn bg-[var(--bg-main)] relative">
+                {/* ... Wizard Content (Unchanged) ... */}
+                <header className="flex justify-between items-center mb-6 shrink-0 px-2">
+                    {user.exams && user.exams.length > 0 ? (
+                        <button onClick={() => setShowWizard(false)} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><X size={20} /></button>
+                    ) : <div className="w-10" />}
+                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">{t.examStep} {wizardStep}/4</span>
+                    <div className="w-10" />
                 </header>
-                <div className="flex-1 overflow-y-auto space-y-4 px-6 py-6 bg-[var(--bg-main)] border-x border-[var(--border-glass)] scrollbar-hide">
-                    {domainMessages.map((msg, i) => (
-                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] px-5 py-3.5 rounded-[24px] text-[13px] leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] font-medium' : 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border-glass)]'}`}>
-                                {msg.text}
+                <div className="flex-1 space-y-10 animate-fade-in-up px-2 pb-24 overflow-y-auto scrollbar-hide">
+                    <h2 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tighter text-center">{t.examNewExam}</h2>
+                    {wizardStep === 1 && (
+                        <div className="space-y-6">
+                            <GlassInput 
+                                value={newExam.subject} 
+                                onChange={e => setNewExam({...newExam, subject: e.target.value})} 
+                                placeholder={t.examSubject}
+                                className="h-14"
+                            />
+                            <div className="relative">
+                                <GlassInput 
+                                    type="date" 
+                                    value={newExam.date} 
+                                    onChange={e => setNewExam({...newExam, date: e.target.value})} 
+                                    className="h-14 w-full block text-left min-h-[56px] bg-white/5 px-4 text-[var(--text-primary)]"
+                                    style={{ appearance: 'none', WebkitAppearance: 'none', boxSizing: 'border-box' }}
+                                />
                             </div>
+                            <button onClick={() => setWizardStep(2)} disabled={!newExam.subject || !newExam.date} className="w-full h-16 bg-[var(--bg-active)] text-[var(--bg-active-text)] font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95 transition-all disabled:opacity-30">{t.next}</button>
                         </div>
-                    ))}
-                    {domainLoading && (
-                        <div className="flex justify-start animate-pulse">
-                            <div className="bg-[var(--bg-card)] px-5 py-3 rounded-[24px] flex items-center gap-2 text-[10px] text-indigo-400 font-bold uppercase tracking-widest border border-[var(--border-glass)]">
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                                <span>{t.thinking}</span>
+                    )}
+                    {wizardStep === 2 && (
+                        <div className="space-y-6">
+                            <p className="text-sm font-medium text-[var(--text-secondary)] text-center">{t.examHowAddMaterial}</p>
+                            <div className="grid gap-4">
+                                <button
+                                    onClick={() => { setWizardMode('full_list'); setWizardStep(3); }}
+                                    className="p-5 rounded-[28px] border border-[var(--border-glass)] bg-white/5 hover:bg-white/10 hover:border-indigo-500/30 text-left transition-all active:scale-[0.99]"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0"><FileText size={24} className="text-indigo-400" /></div>
+                                        <div>
+                                            <h3 className="text-base font-black text-[var(--text-primary)] uppercase tracking-tight mb-1">{t.examModeFullList}</h3>
+                                            <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">{t.examModeFullListDesc}</p>
+                                        </div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => { setWizardMode('ready_summary'); setWizardStep(3); }}
+                                    className="p-5 rounded-[28px] border border-[var(--border-glass)] bg-white/5 hover:bg-white/10 hover:border-indigo-500/30 text-left transition-all active:scale-[0.99]"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0"><BookOpen size={24} className="text-violet-400" /></div>
+                                        <div>
+                                            <h3 className="text-base font-black text-[var(--text-primary)] uppercase tracking-tight mb-1">{t.examModeReadySummary}</h3>
+                                            <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">{t.examModeReadySummaryDesc}</p>
+                                        </div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => { setWizardMode('paste_list'); setWizardStep(3); }}
+                                    className="p-5 rounded-[28px] border border-[var(--border-glass)] bg-white/5 hover:bg-white/10 hover:border-indigo-500/30 text-left transition-all active:scale-[0.99]"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0"><Layers size={24} className="text-amber-400" /></div>
+                                        <div>
+                                            <h3 className="text-base font-black text-[var(--text-primary)] uppercase tracking-tight mb-1">{t.examModePasteList}</h3>
+                                            <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">{t.examModePasteListDesc}</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                            <button onClick={() => setWizardStep(1)} className="w-full py-3 text-[var(--text-secondary)] font-bold text-sm flex items-center justify-center gap-2"><ChevronLeft size={18} /> {t.back}</button>
+                        </div>
+                    )}
+                    {wizardStep === 3 && wizardMode === 'full_list' && (
+                        <div className="space-y-6">
+                            <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{t.examHowManyTickets}</p>
+                            <div className="flex flex-wrap gap-2 justify-center">
+                                {[10, 15, 20, 25, 30].map(n => (
+                                    <button key={n} onClick={() => setTicketCount(n)} className={`w-14 h-14 rounded-2xl font-black text-sm border-2 transition-all ${ticketCount === n ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] border-[var(--bg-active)]' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-primary)]'}`}>{n}</button>
+                                ))}
+                            </div>
+                            {errorStatus === 429 && (
+                                <button onClick={handleOpenKeySelection} className="w-full p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-400 text-xs font-bold uppercase tracking-widest">
+                                    <Key size={16}/> {lang === 'ru' ? 'Лимит исчерпан. Выбрать свой ключ?' : 'Limit reached. Select your own key?'}
+                                </button>
+                            )}
+                            <div className="flex gap-4">
+                                <button onClick={() => setWizardStep(2)} className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><ChevronLeft size={28} /></button>
+                                <button onClick={handleFullListGenerate} className="flex-1 h-16 bg-indigo-600 text-white font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95 flex items-center justify-center gap-2">{t.examGenerateList} <Sparkles size={16} /></button>
                             </div>
                         </div>
                     )}
+                    {wizardStep === 3 && wizardMode === 'ready_summary' && (
+                        <div className="space-y-6">
+                            <GlassTextArea value={summaryText} onChange={e => setSummaryText(e.target.value)} placeholder={t.examPasteSummary} className="h-40 min-h-[120px]" />
+                            <div>
+                                <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2">{t.examSplitIntoThemes}</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {[5, 10, 15, 20, 25].map(n => (
+                                        <button key={n} onClick={() => setSummaryNumThemes(n)} className={`px-4 py-2.5 rounded-xl font-bold text-sm border-2 transition-all ${summaryNumThemes === n ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] border-[var(--bg-active)]' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-primary)]'}`}>{n}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-2">{t.examGranularity}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                    <button onClick={() => setSummaryGranularity('fine')} className={`px-4 py-2.5 rounded-xl font-bold text-xs border-2 transition-all ${summaryGranularity === 'fine' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-secondary)]'}`}>{t.examGranularityFine}</button>
+                                    <button onClick={() => setSummaryGranularity('medium')} className={`px-4 py-2.5 rounded-xl font-bold text-xs border-2 transition-all ${summaryGranularity === 'medium' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-secondary)]'}`}>{t.examGranularityMedium}</button>
+                                    <button onClick={() => setSummaryGranularity('coarse')} className={`px-4 py-2.5 rounded-xl font-bold text-xs border-2 transition-all ${summaryGranularity === 'coarse' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-white/5 border-[var(--border-glass)] text-[var(--text-secondary)]'}`}>{t.examGranularityCoarse}</button>
+                                </div>
+                            </div>
+                            {errorStatus === 429 && (
+                                <button onClick={handleOpenKeySelection} className="w-full p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-400 text-xs font-bold uppercase tracking-widest">
+                                    <Key size={16}/> {lang === 'ru' ? 'Лимит исчерпан. Выбрать свой ключ?' : 'Limit reached. Select your own key?'}
+                                </button>
+                            )}
+                            <div className="flex gap-4">
+                                <button onClick={() => setWizardStep(2)} className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><ChevronLeft size={28} /></button>
+                                <button onClick={handleSummarySplit} disabled={!summaryText.trim()} className="flex-1 h-16 bg-violet-600 text-white font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95 flex items-center justify-center gap-2 disabled:opacity-30">{t.examSplitAndCreate} <Sparkles size={16} /></button>
+                            </div>
+                        </div>
+                    )}
+                    {wizardStep === 3 && wizardMode === 'paste_list' && (
+                        <div className="space-y-6">
+                            <GlassTextArea value={rawTicketsText} onChange={e => setRawTicketsText(e.target.value)} placeholder={t.examPasteQuestions} className="h-56" />
+                            {errorStatus === 429 && (
+                                <button onClick={handleOpenKeySelection} className="w-full p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-400 text-xs font-bold uppercase tracking-widest">
+                                    <Key size={16}/> {lang === 'ru' ? 'Лимит исчерпан. Выбрать свой ключ?' : 'Limit reached. Select your own key?'}
+                                </button>
+                            )}
+                            <div className="flex gap-4">
+                                <button onClick={() => setWizardStep(2)} className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><ChevronLeft size={28} /></button>
+                                <button onClick={handleQuickParse} disabled={!rawTicketsText.trim()} className="flex-1 h-16 bg-indigo-600 text-white font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95">{t.examParseAI} <Sparkles size={16} className="ml-2 inline" /></button>
+                            </div>
+                        </div>
+                    )}
+                    {wizardStep === 4 && (
+                        <div className="text-center py-10">
+                            {isWizardProcessing ? (
+                                <div className="space-y-8">
+                                    <div className="relative w-28 h-28 mx-auto"><div className="absolute inset-0 rounded-full border-4 border-white/5" /><div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" /><Bot className="absolute inset-0 m-auto text-indigo-500" size={40} /></div>
+                                    <h3 className="text-2xl font-black text-[var(--text-primary)]">{t.examGenPlan}...</h3>
+                                </div>
+                            ) : (
+                                <div className="space-y-10">
+                                    <div className="w-28 h-28 bg-green-500/10 rounded-full flex items-center justify-center mx-auto border border-green-500/20 shadow-2xl"><CheckCircle2 size={56} className="text-green-500" /></div>
+                                    <h3 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tight">{t.examReady}</h3>
+                                    <button onClick={handleFinalizeExam} className="w-full h-16 bg-[var(--bg-active)] text-[var(--bg-active-text)] font-black uppercase tracking-widest rounded-full shadow-2xl active:scale-95">{t.examEnterStudy}</button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
-                <div className="p-6 bg-[var(--bg-main)] border-x border-b border-[var(--border-glass)] rounded-b-[40px]">
-                    <div className="relative flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[32px] p-1 shadow-lg focus-within:border-white/20 transition-all w-full">
-                        <input 
-                            value={domainInputValue} 
-                            onChange={e => setDomainInputValue(e.target.value)} 
-                            onKeyDown={e => e.key === 'Enter' && handleDomainSend()}
-                            placeholder={lang === 'ru' ? 'Спросить эксперта...' : 'Ask expert...'} 
-                            className="flex-1 bg-transparent border-none text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] py-3 px-5 focus:outline-none"
-                        />
-                        <button onClick={handleDomainSend} disabled={domainLoading || !domainInputValue.trim()} className="w-10 h-10 rounded-full flex items-center justify-center transition-all bg-indigo-500 text-white active:scale-90">
-                            <Send size={18} />
+          </div>
+      );
+  }
+
+  if (activeExam) {
+      const mastered = (activeExam.flashcards || []).filter(f => f.status === 'mastered').length;
+      const total = (activeExam.flashcards || []).length;
+      const remaining = total - mastered;
+
+      return (
+          <div className="animate-fadeIn w-full">
+                {/* ... Header & Progress ... */}
+                <header className="flex justify-between items-center mb-6 shrink-0">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setActiveExam(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-[var(--text-primary)]"><ChevronLeft size={22} /></button>
+                        <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter truncate max-w-[180px]">{activeExam.subject}</h2>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500"><Trophy size={18} /></div>
+                </header>
+
+                <div className="space-y-6">
+                    <GlassCard className="p-6 bg-indigo-500/10 border-indigo-500/20 rounded-[32px] flex items-center justify-between">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{lang === 'ru' ? 'Ваш прогресс' : 'Your Progress'}</p>
+                            <h3 className="text-4xl font-black text-[var(--text-primary)] tracking-tighter">{calculateExamProgress(activeExam)}%</h3>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                           <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">{activeExam.tickets.filter(t => t.lastScore !== undefined).length} / {activeExam.tickets.length} {lang === 'ru' ? 'Билетов' : 'Tickets'}</span>
+                           <div className="w-24 h-2 bg-white/5 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${calculateExamProgress(activeExam)}%` }} />
+                           </div>
+                        </div>
+                    </GlassCard>
+
+                    <div className="flex gap-3">
+                        <button
+                          onClick={() => handlePlanSchedule(false)}
+                          className="flex-1 h-11 rounded-full bg-white/5 border border-indigo-500/40 text-[11px] font-black uppercase tracking-widest text-indigo-300 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                        >
+                          <Sparkles size={14} />
+                          {lang === 'ru' ? 'Растянуть по дням' : 'Spread across days'}
+                        </button>
+                        <button
+                          onClick={() => handlePlanSchedule(true)}
+                          className="flex-1 h-11 rounded-full bg-white/5 border border-[var(--border-glass)] text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 active:scale-95 transition-all"
+                        >
+                          {lang === 'ru' ? 'Перепланировать непройденные' : 'Replan remaining'}
                         </button>
                     </div>
+
+                    <div className={`flex rounded-full p-1 border border-white/5 bg-white/5 backdrop-blur-md`}>
+                        {[
+                            { id: 'tickets', icon: <FileText size={16}/>, label: lang === 'ru' ? 'Билеты' : 'Tickets' },
+                            { id: 'flashcards', icon: <Layers size={16}/>, label: lang === 'ru' ? 'Карточки' : 'Cards' },
+                            { id: 'glossary', icon: <BookOpen size={16}/>, label: lang === 'ru' ? 'Словарь' : 'Glossary' }
+                        ].map(tab => (
+                            <button key={tab.id} onClick={() => setHubTab(tab.id as any)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${hubTab === tab.id ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg' : 'text-slate-400 hover:text-[var(--text-primary)]'}`}>{tab.icon} <span className="hidden xs:inline">{tab.label}</span></button>
+                        ))}
+                    </div>
+
+                    {hubTab === 'tickets' && (
+                        <div className="space-y-3 animate-fadeIn pb-32">
+                            {(activeExam.tickets || []).map(ticket => (
+                                <GlassCard key={ticket.id} onClick={() => handleOpenTicket(ticket)} className={`p-5 rounded-[28px] border transition-all flex items-center justify-between group cursor-pointer ${getTicketColor(ticket.lastScore)}`}>
+                                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 font-black text-sm shadow-inner transition-colors duration-500 ${ticket.lastScore !== undefined ? (ticket.lastScore >= 75 ? 'bg-emerald-500 text-white' : ticket.lastScore >= 50 ? 'bg-amber-500 text-white' : 'bg-rose-500 text-white') : 'bg-white/10 text-slate-500'}`}>
+                                            {ticket.number}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className={`text-[15px] font-bold truncate text-[var(--text-primary)]`}>{ticket.question}</p>
+                                            {ticket.lastScore !== undefined && (
+                                                <p className={`text-[9px] font-black uppercase mt-1 ${ticket.lastScore >= 75 ? 'text-emerald-500' : ticket.lastScore >= 50 ? 'text-amber-500' : 'text-rose-500'}`}>{lang === 'ru' ? 'Результат' : 'Result'}: {ticket.lastScore}%</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={18} className="text-[var(--text-secondary)] opacity-30 group-hover:opacity-100" />
+                                </GlassCard>
+                            ))}
+                        </div>
+                    )}
+
+                    {hubTab === 'flashcards' && (
+                      <div className="space-y-8 animate-fadeIn text-center py-6 pb-32">
+                          <BrainCircuit className="mx-auto text-indigo-500" size={64} />
+                          <div className="space-y-2">
+                            <h3 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter">{lang === 'ru' ? 'Карточки' : 'Atomic Review'}</h3>
+                            <p className="text-xs text-[var(--text-secondary)] font-medium max-w-[240px] mx-auto opacity-70">
+                                {lang === 'ru' ? 'Повторяйте факты, даты и формулы.' : 'Review facts, dates, and formulas.'}
+                            </p>
+                          </div>
+                          <GlassCard className="p-6 bg-white/5 border-white/10 rounded-[32px]">
+                             <div className="flex justify-between items-center mb-6 px-2">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{lang === 'ru' ? 'В очереди' : 'In Queue'}</span>
+                                <span className="text-2xl font-black text-indigo-400">{remaining}</span>
+                             </div>
+                             <div className="flex gap-3">
+                                 <button 
+                                    onClick={startFlashcardSession}
+                                    disabled={remaining === 0}
+                                    className="flex-[3] h-16 bg-[var(--bg-active)] text-[var(--bg-active-text)] rounded-full font-black uppercase tracking-widest text-[12px] shadow-2xl active:scale-[0.98] disabled:opacity-20"
+                                 >
+                                     {lang === 'ru' ? 'Начать учить' : 'Start Studying'}
+                                 </button>
+                                 <button 
+                                    onClick={() => setShowManualCardModal(true)}
+                                    className="flex-1 h-16 bg-white/5 border border-white/10 text-white rounded-full flex items-center justify-center active:scale-95"
+                                 >
+                                     <Plus size={24} />
+                                 </button>
+                             </div>
+                             {mastered > 0 && (
+                                 <button onClick={resetCards} className="mt-4 text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center justify-center gap-2 mx-auto"><RotateCcw size={12}/> {lang === 'ru' ? 'Сбросить прогресс' : 'Reset Progress'}</button>
+                             )}
+                          </GlassCard>
+                      </div>
+                    )}
+                    
+                    {hubTab === 'glossary' && (
+                        <div className="space-y-4 pb-32 animate-fadeIn">
+                             {(activeExam.glossary || []).map((term, i) => (
+                                 <GlassCard key={i} className="p-5 rounded-[24px] border-[var(--border-glass)] bg-[var(--bg-card)] relative overflow-hidden group hover:border-indigo-500/30">
+                                     <div className="absolute top-0 right-0 p-3 opacity-5"><BookOpen size={48} /></div>
+                                     <h4 className="text-sm font-black text-indigo-400 uppercase tracking-wide mb-2">{term.word}</h4>
+                                     <p className="text-xs text-[var(--text-primary)] leading-relaxed font-medium opacity-90">{term.definition}</p>
+                                 </GlassCard>
+                             ))}
+                        </div>
+                    )}
                 </div>
+
+                {/* Manual Card Adder Modal */}
+                {showManualCardModal && (
+                    <div className="fixed inset-0 z-[550] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
+                        <GlassCard className="w-full max-w-sm p-6 bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-2xl space-y-6">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest">{lang === 'ru' ? 'Новая карточка' : 'New Flashcard'}</h3>
+                                <button onClick={() => setShowManualCardModal(false)} className="p-2 text-slate-500 hover:text-white transition-all"><X size={20}/></button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">{lang === 'ru' ? 'Вопрос / Термин' : 'Question / Term'}</label>
+                                    <GlassInput value={manualCard.question} onChange={e => setManualCard({...manualCard, question: e.target.value})} placeholder="Напр: Теорема Пифагора" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">{lang === 'ru' ? 'Ответ / Определение' : 'Answer / Definition'}</label>
+                                    <GlassTextArea value={manualCard.answer} onChange={e => setManualCard({...manualCard, answer: e.target.value})} placeholder="Краткий ответ..." className="h-24" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">{lang === 'ru' ? 'Привязать к билету (опц)' : 'Link to Ticket'}</label>
+                                    <select value={manualCard.ticketId} onChange={e => setManualCard({...manualCard, ticketId: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-xl h-10 px-4 text-white text-xs outline-none focus:border-indigo-500/50">
+                                        <option value="">{lang === 'ru' ? 'Без билета' : 'No ticket'}</option>
+                                        {activeExam.tickets.map(t => <option key={t.id} value={t.id}>{lang === 'ru' ? 'Билет' : 'Ticket'} #{t.number}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <button onClick={handleAddManualCard} disabled={!manualCard.question || !manualCard.answer} className="w-full h-14 bg-indigo-500 text-white rounded-full font-black uppercase text-[11px] shadow-lg disabled:opacity-30 active:scale-95 transition-all">{t.save}</button>
+                        </GlassCard>
+                    </div>
+                )}
+
+                {/* FLASHCARD STUDY SESSION OVERLAY - OPTIMIZED LAYOUT */}
+                {isFlashcardSession && (
+                  <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-3xl flex items-center justify-center p-4 animate-fadeIn">
+                      <div className="w-full max-w-md h-[85vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-2xl flex flex-col relative overflow-hidden">
+                          <header className="flex justify-between items-center p-6 shrink-0 bg-[var(--bg-main)] z-20">
+                              <button onClick={() => setIsFlashcardSession(false)} className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-slate-400 active:scale-90 transition-all hover:text-white"><X size={20} /></button>
+                              <div className="text-center">
+                                  <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">{lang === 'ru' ? 'Изучение' : 'Studying'}</p>
+                                  <p className="text-[10px] font-black text-indigo-400 mt-0.5">{startSessionCount - sessionQueue.length + 1} / {startSessionCount}</p>
+                              </div>
+                              <div className="w-12" />
+                          </header>
+
+                          <div className="flex-1 flex flex-col items-center justify-center p-4">
+                              {sessionQueue.length === 0 ? (
+                                  <div className="text-center space-y-8 animate-fade-in-up">
+                                      <div className="w-28 h-28 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto text-indigo-400 border border-indigo-500/30 shadow-[0_0_30px_rgba(99,102,241,0.2)]">
+                                          <CheckCircle2 size={56} />
+                                      </div>
+                                      <h2 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tighter">{lang === 'ru' ? 'ОТЛИЧНО!' : 'DONE!'}</h2>
+                                      <button onClick={() => setIsFlashcardSession(false)} className="px-12 py-5 bg-indigo-600 text-white rounded-full font-black uppercase tracking-widest text-[11px] shadow-2xl active:scale-95">{t.back}</button>
+                                  </div>
+                              ) : (
+                                  <div 
+                                    onClick={() => setIsFlipped(!isFlipped)} 
+                                    className="w-full max-w-[300px] aspect-[4/5] bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-[44px] shadow-[0_20px_80px_rgba(0,0,0,0.2)] p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:-translate-y-1 relative overflow-hidden group active:scale-[0.98]"
+                                  >
+                                      {/* Background Decoration */}
+                                      <div className="absolute -top-20 -right-20 w-40 h-40 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+                                      
+                                      {/* Header metadata inside card */}
+                                      {!isFlipped && getActiveCardMetadata() && (
+                                          <div className="absolute top-10 left-8 right-8 flex flex-col items-center gap-1.5 border-b border-white/5 pb-4">
+                                              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{lang === 'ru' ? 'Билет' : 'Ticket'} #{getActiveCardMetadata()?.ticketNumber}</span>
+                                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.1em] truncate w-full px-2 text-center opacity-70">{getActiveCardMetadata()?.ticketQuestion}</p>
+                                          </div>
+                                      )}
+
+                                      <div className="flex flex-col items-center justify-center h-full relative z-10 pt-16">
+                                        <p className={`text-2xl font-black leading-tight tracking-tight ${isFlipped ? 'text-indigo-400' : 'text-[var(--text-primary)]'}`}>
+                                            {isFlipped ? sessionQueue[currentCardIndex]?.answer : sessionQueue[currentCardIndex]?.question}
+                                        </p>
+                                      </div>
+
+                                      {!isFlipped && (
+                                          <div className="absolute bottom-10 animate-bounce">
+                                              <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.3em]">{lang === 'ru' ? 'Нажми для ответа' : 'Tap to reveal'}</span>
+                                          </div>
+                                      )}
+                                  </div>
+                              )}
+                          </div>
+
+                          {sessionQueue.length > 0 && isFlipped && (
+                              <footer className="shrink-0 p-6 flex gap-4 pb-8 animate-fade-in-up bg-[var(--bg-main)] border-t border-[var(--border-glass)] z-20">
+                                  <button 
+                                    onClick={() => processCardResult(false)} 
+                                    className="flex-1 h-16 bg-white/5 text-[var(--text-secondary)] rounded-3xl font-black uppercase text-[10px] active:scale-95 border border-[var(--border-glass)] transition-all hover:bg-white/10"
+                                  >
+                                      {lang === 'ru' ? 'Не помню' : 'Retry'}
+                                  </button>
+                                  <button 
+                                    onClick={() => processCardResult(true)} 
+                                    className="flex-[1.5] h-16 bg-indigo-600 text-white rounded-3xl font-black uppercase text-[10px] shadow-[0_10px_30px_rgba(99,102,241,0.3)] active:scale-95 flex items-center justify-center gap-3 transition-all"
+                                  >
+                                      <Check size={18} strokeWidth={3} />
+                                      {lang === 'ru' ? 'Я знаю' : 'Know it'}
+                                  </button>
+                              </footer>
+                          )}
+                      </div>
+                  </div>
+                )}
+
+                {/* Ticket Overlays (Note/Quiz) */}
+                {activeTicket && (
+                    <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-3xl flex items-center justify-center p-4 animate-fadeIn">
+                        <div className="w-full max-w-md h-[85vh] bg-[var(--bg-main)] border border-[var(--border-glass)] rounded-[40px] shadow-2xl flex flex-col relative overflow-hidden">
+                          {ticketMode === 'note' && (
+                              <div className="flex flex-col h-full">
+                                  <header className="p-6 flex justify-between items-center bg-[var(--bg-main)] z-10 border-b border-[var(--border-glass)] shrink-0">
+                                       <button onClick={() => setActiveTicket(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"><ChevronLeft size={22} /></button>
+                                       <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-tight truncate flex-1 text-center mx-4">{activeTicket.question}</h3>
+                                       <div className="w-10 h-10" />
+                                  </header>
+                                  <div className="flex-1 overflow-y-auto p-8 pb-48 scrollbar-hide">
+                                      {isGeneratingNote ? (
+                                          <div className="flex flex-col items-center justify-center py-32 space-y-8 animate-pulse">
+                                              <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
+                                              <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{t.thinking}</p>
+                                          </div>
+                                      ) : (
+                                          <div className="animate-fadeIn">
+                                              <NoteRenderer text={activeTicket.note || ''} lang={lang} />
+                                              <div className="mt-20 pt-10 border-t border-[var(--border-glass)] text-center">
+                                                  <h3 className="text-xl font-black text-[var(--text-primary)] uppercase mb-6">{lang === 'ru' ? 'Проверка знаний' : 'Knowledge Check'}</h3>
+                                                  <div className="flex justify-center gap-2 mb-6">
+                                                      {[3, 5, 10].map(num => (
+                                                          <button key={num} onClick={() => setQuizCount(num as any)} className={`w-10 h-10 rounded-full text-[12px] font-bold border transition-all ${quizCount === num ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-[var(--text-secondary)]'}`}>{num}</button>
+                                                      ))}
+                                                  </div>
+                                                  <button onClick={handleStartQuiz} className="w-full h-16 rounded-[32px] bg-indigo-600 text-white font-black uppercase text-[13px] shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-transform">
+                                                      {isGeneratingQuiz ? <Loader2 className="animate-spin" size={24} /> : <Play size={22} fill="currentColor" />}
+                                                      {lang === 'ru' ? 'Начать Тест' : 'Start Quiz'}
+                                                  </button>
+                                                  <div className="mt-10 text-left space-y-3">
+                                                      <p className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
+                                                        {lang === 'ru' ? 'Объясни как другу' : 'Explain like to a friend'}
+                                                      </p>
+                                                      <textarea
+                                                        value={explanationText}
+                                                        onChange={e => setExplanationText(e.target.value)}
+                                                        rows={4}
+                                                        className="w-full bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-indigo-500/50 resize-none"
+                                                        placeholder={lang === 'ru' ? 'Опиши этот билет своими словами...' : 'Explain this ticket in your own words...'}
+                                                      />
+                                                      <button
+                                                        disabled={!explanationText.trim() || isCheckingExplanation}
+                                                        onClick={async () => {
+                                                            if (!activeTicket) return;
+                                                            setIsCheckingExplanation(true);
+                                                            try {
+                                                                const feedback = await reviewTicketExplanation(activeTicket, activeExam!.subject, explanationText, lang);
+                                                                setExplanationFeedback(cleanTextOutput(feedback || ''));
+                                                            } catch (e) {
+                                                                setExplanationFeedback(lang === 'ru' ? 'Не удалось проверить ответ.' : 'Failed to review your explanation.');
+                                                            } finally {
+                                                                setIsCheckingExplanation(false);
+                                                            }
+                                                        }}
+                                                        className="w-full h-11 mt-1 rounded-full bg-white/5 border border-indigo-500/30 text-[11px] font-black uppercase tracking-widest text-indigo-300 flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-40"
+                                                      >
+                                                        {isCheckingExplanation ? <Loader2 size={16} className="animate-spin" /> : <Smile size={14} />}
+                                                        {lang === 'ru' ? 'Проверить объяснение' : 'Check explanation'}
+                                                      </button>
+                                                      {explanationFeedback && (
+                                                        <div className="mt-4 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-left text-xs text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
+                                                            {explanationFeedback}
+                                                        </div>
+                                                      )}
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                          )}
+
+                          {ticketMode === 'quiz' && currentQuizStep !== null && quizQuestions.length > 0 && (
+                              <div className="flex flex-col h-full bg-[var(--bg-main)]">
+                                  <header className="p-6 flex justify-between items-center bg-[var(--bg-main)] z-10 border-b border-[var(--border-glass)] shrink-0">
+                                       <button onClick={() => setTicketMode('note')} className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">{t.cancel}</button>
+                                       <div className="flex flex-col items-center gap-0.5">
+                                         <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">{lang === 'ru' ? 'Вопрос' : 'Question'} {currentQuizStep + 1} / {quizQuestions.length}</span>
+                                         {quizQuestions[currentQuizStep]?.difficulty && (
+                                           <span className={`text-[9px] font-bold uppercase rounded-full px-2 py-0.5 ${
+                                             quizQuestions[currentQuizStep].difficulty === 'easy' ? 'bg-emerald-500/20 text-emerald-400' :
+                                             quizQuestions[currentQuizStep].difficulty === 'hard' ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'
+                                           }`}>
+                                             {lang === 'ru' ? (quizQuestions[currentQuizStep].difficulty === 'easy' ? 'Лёгкий' : quizQuestions[currentQuizStep].difficulty === 'hard' ? 'Сложный' : 'Средний') : quizQuestions[currentQuizStep].difficulty}
+                                           </span>
+                                         )}
+                                       </div>
+                                       <div className="w-10 text-right text-[10px] font-black text-[var(--text-secondary)]">{quizScore} pts</div>
+                                  </header>
+                                  <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center pb-48 scrollbar-hide">
+                                      <div className="w-full max-sm space-y-8 pt-4">
+                                          <h4 className="text-2xl font-black text-[var(--text-primary)] leading-tight tracking-tight text-center">{quizQuestions[currentQuizStep]?.question || ''}</h4>
+                                          <div className="grid gap-3">
+                                              {(quizQuestions[currentQuizStep]?.options || []).map((opt, idx) => {
+                                                  const isSelected = selectedAnswer === idx;
+                                                  const isCorrect = idx === quizQuestions[currentQuizStep].correctIndex;
+                                                  let btnClass = "bg-white/5 border-white/10 text-[var(--text-primary)] hover:bg-white/10";
+                                                  if (answerFeedback !== null) {
+                                                      if (isCorrect) btnClass = "bg-emerald-500/20 border-emerald-500 text-emerald-400";
+                                                      else if (isSelected) btnClass = "bg-rose-500/20 border-rose-500 text-rose-400";
+                                                      else btnClass = "bg-white/5 border-white/5 text-[var(--text-secondary)] opacity-50";
+                                                  }
+                                                  return (
+                                                      <button key={idx} onClick={() => handleSubmitAnswer(idx)} disabled={answerFeedback !== null} className={`w-full p-5 rounded-[24px] border-2 font-bold transition-all text-sm text-left flex items-center justify-between group ${btnClass}`}>
+                                                          <span className="flex-1 pr-4">{opt}</span>
+                                                          {answerFeedback !== null && isCorrect && <CheckCircle2 size={20} className="text-emerald-500 shrink-0 ml-4" />}
+                                                          {answerFeedback !== null && isSelected && !isCorrect && <X size={20} className="text-rose-500 shrink-0 ml-4" />}
+                                                      </button>
+                                                  );
+                                              })}
+                                          </div>
+                                          {answerFeedback !== null && (
+                                              <div className="rounded-2xl border-2 p-4 text-center min-h-[52px] flex flex-col justify-center">
+                                                  {answerFeedback === 'correct' ? (
+                                                      <p className="text-emerald-400 font-bold text-sm flex items-center justify-center gap-2"><CheckCircle2 size={18} />{lang === 'ru' ? 'Верно!' : 'Correct!'}</p>
+                                                  ) : (
+                                                      <p className="text-rose-400 font-bold text-sm">
+                                                          {lang === 'ru' ? 'Неверно. ' : 'Wrong. '}
+                                                          <span className="text-[var(--text-primary)] font-normal">{lang === 'ru' ? 'Правильный ответ: ' : 'Correct answer: '}
+                                                              {quizQuestions[currentQuizStep]?.options?.[quizQuestions[currentQuizStep].correctIndex]}
+                                                          </span>
+                                                      </p>
+                                                  )}
+                                              </div>
+                                          )}
+                                      </div>
+                                  </div>
+                                  {answerFeedback !== null && (
+                                      <div className="sticky bottom-0 p-6 pt-4 bg-[var(--bg-main)] border-t border-[var(--border-glass)] shrink-0 safe-area-pb">
+                                          <button onClick={handleNextQuestion} className="w-full h-16 rounded-[32px] bg-indigo-600 text-white font-black uppercase text-[12px] shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-indigo-500">
+                                              {currentQuizStep < quizQuestions.length - 1 ? <>{lang === 'ru' ? 'Далее' : 'Next'} <ArrowRight size={18} /></> : <>{lang === 'ru' ? 'Завершить' : 'Finish'} <Check size={18} /></>}
+                                          </button>
+                                      </div>
+                                  )}
+                              </div>
+                          )}
+
+                          {ticketMode === 'result' && quizResult && (
+                              <div className="flex flex-col h-full items-center justify-center p-8 text-center bg-[var(--bg-main)]">
+                                  <div className="space-y-8 animate-fade-in-up w-full max-w-sm pb-24">
+                                      <div className="w-32 h-32 rounded-full bg-indigo-500/20 flex items-center justify-center mx-auto border border-indigo-500/30 shadow-[0_0_40px_rgba(99,102,241,0.3)]"><Trophy size={64} className="text-indigo-400" /></div>
+                                      <div className="space-y-2">
+                                          <h2 className="text-4xl font-black text-[var(--text-primary)] tracking-tighter">{quizResult.score}%</h2>
+                                          <p className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-widest">{lang === 'ru' ? 'Ваш результат' : 'Quiz Result'}</p>
+                                      </div>
+                                      <div className="flex items-center justify-center gap-2 bg-white/5 px-6 py-3 rounded-full border border-white/10"><Star className="text-amber-400" size={20} fill="currentColor"/><span className="text-xl font-black text-[var(--text-primary)]">+{quizResult.xp} XP</span></div>
+                                      <div className="pt-8 space-y-3">
+                                          <button onClick={() => setTicketMode('note')} className="w-full h-14 rounded-full border border-[var(--border-glass)] text-[var(--text-secondary)] font-black uppercase tracking-widest text-[11px] transition-colors hover:bg-white/5">{lang === 'ru' ? 'К конспекту' : 'Back to Note'}</button>
+                                          <button onClick={() => setActiveTicket(null)} className="w-full h-14 bg-indigo-600 text-white rounded-full font-black uppercase tracking-widest text-[11px] shadow-xl transition-transform active:scale-95">{lang === 'ru' ? 'Закрыть' : 'Close'}</button>
+                                      </div>
+                                  </div>
+                              </div>
+                          )}
+                        </div>
+                    </div>
+                )}
+          </div>
+      );
+  }
+
+  const [examViewMode, setExamViewMode] = useState<'list' | 'session'>('list');
+
+  return (
+    <div className="animate-fadeIn space-y-6 max-w-md mx-auto h-full flex flex-col">
+        <div className="flex justify-between items-center mb-2 px-1">
+            <div>
+                <h1 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter">{t.examAcademy}</h1>
+                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">{t.examHubDesc}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center border border-indigo-500/20"><Bot size={20} /></div>
+        </div>
+
+        <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex bg-white/5 rounded-full p-1 border border-[var(--border-glass)] w-fit shadow-sm backdrop-blur-xl">
+                {(['list','session'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setExamViewMode(mode)}
+                      className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                        examViewMode === mode
+                          ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-sm'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      {mode === 'list' ? (lang === 'ru' ? 'Экзамены' : 'Exams') : (lang === 'ru' ? 'Сессия' : 'Session')}
+                    </button>
+                ))}
             </div>
         </div>
-      )}
+
+        {examViewMode === 'session' && (user.exams && user.exams.length > 0) && (
+            <GlassCard className="p-5 rounded-[32px] bg-[var(--bg-card)] border-[var(--border-glass)] space-y-4">
+                <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.25em] mb-1">
+                  {lang === 'ru' ? 'Сессия и дедлайны' : 'Session & Deadlines'}
+                </h3>
+                <div className="space-y-3">
+                    {user.exams
+                      .slice()
+                      .sort((a, b) => a.date.localeCompare(b.date))
+                      .map(exam => {
+                          const daysLeft = getDaysLeft(exam.date);
+                          const prog = calculateExamProgress(exam);
+                          let status: 'done' | 'in_progress' | 'burning';
+                          if (prog >= 90) status = 'done';
+                          else if (daysLeft <= 3 && prog < 70) status = 'burning';
+                          else status = 'in_progress';
+                          const colorClass =
+                            status === 'done'
+                              ? 'bg-emerald-500/15 border-emerald-500/40'
+                              : status === 'burning'
+                              ? 'bg-rose-500/15 border-rose-500/40'
+                              : 'bg-amber-500/10 border-amber-500/30';
+                          const statusLabel =
+                            status === 'done'
+                              ? (lang === 'ru' ? 'Готово' : 'Ready')
+                              : status === 'burning'
+                              ? (lang === 'ru' ? 'Горит' : 'Urgent')
+                              : (lang === 'ru' ? 'В работе' : 'In progress');
+                          const recommendation =
+                            status === 'done'
+                              ? (lang === 'ru' ? 'Можно слегка ослабить фокус и перейти к другим предметам.' : 'You can ease focus and shift to other subjects.')
+                              : status === 'burning'
+                              ? (lang === 'ru' ? 'Усиль подготовку по этому экзамену в ближайшие дни.' : 'Increase focus on this exam in the next days.')
+                              : (lang === 'ru' ? 'Продолжай текущий темп, не бросая другие сферы.' : 'Maintain pace without dropping other areas.');
+                          return (
+                            <div key={exam.id} className={`p-3 rounded-2xl border ${colorClass} flex items-start gap-3`}>
+                                <div className="w-1 rounded-full bg-gradient-to-b from-indigo-500/60 to-transparent h-full mt-1" />
+                                <div className="flex-1 min-w-0 space-y-1">
+                                    <div className="flex justify-between items-center gap-2">
+                                        <p className="text-sm font-bold text-[var(--text-primary)] truncate">{exam.subject}</p>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                                          {exam.date}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                                        <span className="px-2 py-0.5 rounded-full bg-white/10 text-[var(--text-secondary)]">
+                                          {daysLeft} {lang === 'ru' ? 'дн.' : 'days'}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded-full bg-white/5 text-[var(--text-secondary)]">
+                                          {statusLabel}
+                                        </span>
+                                        <span className="ml-auto text-[var(--text-secondary)]">{prog}%</span>
+                                    </div>
+                                    <p className="text-[11px] text-[var(--text-secondary)] leading-snug">
+                                      {recommendation}
+                                    </p>
+                                </div>
+                            </div>
+                          );
+                      })}
+                </div>
+            </GlassCard>
+        )}
+
+        {examViewMode === 'list' && user.exams?.map(exam => (
+            <GlassCard key={exam.id} onClick={() => setActiveExam(exam)} className="p-6 rounded-[36px] bg-[var(--bg-card)] border-[var(--border-glass)] cursor-pointer hover:border-indigo-500/30 transition-all active:scale-[0.98] shadow-xl relative group">
+                <div className="flex justify-between items-center mb-6">
+                    <div className="flex-1 min-w-0 pr-4">
+                        <h3 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tight leading-none mb-2 truncate">{exam.subject}</h3>
+                        <div className="flex items-center gap-3">
+                            <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-500/10 px-2 py-0.5 rounded-full">{getDaysLeft(exam.date)} {lang === 'ru' ? 'дн. осталось' : 'days left'}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={(e) => handleDeleteExam(e, exam.id)} 
+                            className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-rose-500 hover:bg-rose-500/20 transition-all active:scale-90 z-20"
+                            title={lang === 'ru' ? 'Удалить' : 'Delete'}
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-[var(--text-secondary)]"><ChevronRight size={24} /></div>
+                    </div>
+                </div>
+                <div className="h-1.5 w-full bg-black/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${calculateExamProgress(exam)}%` }} />
+                </div>
+            </GlassCard>
+        ))}
+        
+        <button onClick={() => { setWizardStep(1); setWizardMode(null); setShowWizard(true); }} className={`w-full py-12 rounded-[40px] border border-dashed flex flex-col items-center justify-center gap-4 transition-all group ${isLightTheme ? 'border-slate-300 text-slate-500 hover:text-slate-800' : 'border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white hover:bg-white/5'}`}>
+            <Plus size={32} strokeWidth={1.5} />
+            <span className="text-xs font-black uppercase tracking-[0.3em]">{t.examNewExam}</span>
+        </button>
     </div>
   );
 };
