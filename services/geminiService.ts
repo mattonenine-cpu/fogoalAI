@@ -1,5 +1,5 @@
 
-import { UserProfile, Task, Language, Goal, EcosystemType, HelpContext, EcosystemConfig, HealthDailyLog, WorkoutPlan, Ticket } from '../types';
+import { UserProfile, Task, Language, Goal, EcosystemType, HelpContext, EcosystemConfig, HealthDailyLog, WorkoutPlan, WorkoutProgram, Ticket } from '../types';
 
 // Groq model (change here to switch model, e.g. llama-3.3-70b-versatile)
 const AI_MODEL = 'llama-3.1-8b-instant';
@@ -894,6 +894,14 @@ Write "бицепс" and "трицепс" in Russian only, no Biceps/Curl.`
 
     const prompt = `You are a fitness coach. Create ONE workout plan as JSON.
 
+User profile:
+- Level: ${level}
+- Goal: ${goal}
+- Equipment: ${equipmentStr}
+- Recent workouts completed (approx): ${(user.usageStats?.ecosystem.sport.workoutsCompleted ?? 0)}
+
+Design a session that realistically fits this profile (no overkill for beginners, enough challenge for advanced), respects the goal and equipment, and could be part of a long-term structured program (warm-up → main work → finisher/core where appropriate).
+
 RULES:
 1) ${levelRules[level] ?? levelRules.beginner}
 2) ${goalRules[goal] ?? goalRules['general fitness']}
@@ -931,6 +939,162 @@ Return ONLY valid JSON. Example for Russian: {"title":"Грудь и бицеп�
         durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : 30,
         exercises,
         date: getLocalISODate(),
+    };
+}
+
+export async function generateWorkoutProgram(
+    user: UserProfile,
+    lang: Language,
+    weeks: number,
+    daysPerWeek: number,
+    muscleGroups: string[] = []
+): Promise<WorkoutProgram> {
+    const level = user.fitnessLevel || 'beginner';
+    const goal = user.fitnessGoal || 'general fitness';
+    const equipmentList = (user.fitnessEquipment && user.fitnessEquipment.length) ? user.fitnessEquipment : ['bodyweight'];
+    const equipmentStr = equipmentList.join(', ');
+    const totalDays = Math.max(1, weeks * daysPerWeek);
+    const startDate = getLocalISODate();
+
+    const langRule = lang === 'ru'
+        ? `LANGUAGE: ONLY RUSSIAN for all names, as in generateWorkout.`
+        : `LANGUAGE: English for all names, as in generateWorkout.`;
+
+    const focusRule = muscleGroups.length > 0
+        ? `Distribute emphasis across these target muscle groups over the week: ${muscleGroups.join(', ')}.`
+        : 'Use a reasonable split for full-body progress (e.g. full body / upper-lower / push-pull-legs depending on level).';
+
+    const prompt = `You are an experienced strength and conditioning coach.
+Create a structured ${weeks}-week training PROGRAM for this user.
+
+User profile:
+- Level: ${level}
+- Goal: ${goal}
+- Equipment: ${equipmentStr}
+- Planned frequency: ${daysPerWeek} training days per week (total about ${totalDays} workouts).
+
+${focusRule}
+
+Program rules:
+- Build a realistic progression: week 1 easier, then gradually more challenging (volume, difficulty, or density).
+- Each workout should look like a plan from generateWorkout: title, durationMinutes, exercises with sets, reps, restSeconds, notes, equipment.
+- Use exercises that people actually do in the gym / at home with the provided equipment.
+- Respect recovery: avoid hitting the exact same heavy muscles on consecutive days.
+- Total workouts: ${totalDays} (days are numbered from 1 to ${totalDays}).
+
+${langRule}
+
+Output ONLY valid JSON with this shape:
+{
+  "title": "string, name of the whole program",
+  "weeks": ${weeks},
+  "daysPerWeek": ${daysPerWeek},
+  "days": [
+    {
+      "dayIndex": 1,               // from 1 to ${totalDays}, sequential training days
+      "plan": {
+        "title": "Workout title",
+        "durationMinutes": 45,
+        "exercises": [
+          { "name": "...", "sets": 3, "reps": "8-12", "restSeconds": 60, "notes": "", "equipment": "..." }
+        ]
+      }
+    }
+  ]
+}`;
+
+    const result = await callApi('/api/generate', {
+        model: AI_MODEL,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    weeks: { type: Type.INTEGER },
+                    daysPerWeek: { type: Type.INTEGER },
+                    days: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                dayIndex: { type: Type.INTEGER },
+                                plan: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        title: { type: Type.STRING },
+                                        durationMinutes: { type: Type.NUMBER },
+                                        exercises: {
+                                            type: Type.ARRAY,
+                                            items: {
+                                                type: Type.OBJECT,
+                                                properties: {
+                                                    name: { type: Type.STRING },
+                                                    sets: { type: Type.NUMBER },
+                                                    reps: { type: Type.STRING },
+                                                    restSeconds: { type: Type.NUMBER },
+                                                    notes: { type: Type.STRING },
+                                                    equipment: { type: Type.STRING }
+                                                },
+                                                required: ['name']
+                                            }
+                                        }
+                                    },
+                                    required: ['title', 'exercises']
+                                }
+                            },
+                            required: ['dayIndex', 'plan']
+                        }
+                    }
+                },
+                required: ['title', 'days']
+            }
+        }
+    });
+
+    const def = { title: '', weeks, daysPerWeek, days: [] as any[] };
+    const data = parseJsonResponse<typeof def>(result.text ?? '', def);
+    const baseDate = new Date(startDate + 'T12:00:00');
+
+    const daysArray = Array.isArray(data.days) ? data.days : [];
+    const plans: WorkoutPlan[] = daysArray.map((d: any, idx: number) => {
+        const planRaw = d?.plan || {};
+        const rawExercises = Array.isArray(planRaw.exercises) ? planRaw.exercises : [];
+        const exercises = rawExercises.map((e: any, i: number) => {
+            let name = (e?.name ?? e?.title ?? e?.exercise ?? '').toString().trim() || `Exercise ${i + 1}`;
+            if (lang === 'ru') name = normalizeExerciseNameRu(name);
+            return {
+                id: (e?.id ?? name ?? `ex_${idx}_${i}`).toString().replace(/\s+/g, '_'),
+                name,
+                sets: typeof e?.sets === 'number' ? e.sets : (typeof e?.sets === 'string' ? parseInt(e.sets, 10) : 3) || 3,
+                reps: (e?.reps ?? e?.rep_range ?? e?.repetitions ?? '10').toString(),
+                restSeconds: typeof e?.restSeconds === 'number' ? e.restSeconds : (typeof e?.rest === 'number' ? e.rest : 60),
+                notes: (e?.notes ?? e?.description ?? '').toString(),
+                equipment: (e?.equipment ?? e?.equipment_needed ?? '').toString(),
+            };
+        }).filter((e: { name: string }) => e.name.length > 0);
+
+        const dayIndex = typeof d?.dayIndex === 'number' ? d.dayIndex : (idx + 1);
+        const dateObj = new Date(baseDate.getTime());
+        dateObj.setDate(baseDate.getDate() + (dayIndex - 1));
+        const iso = getLocalISODate(dateObj);
+
+        return {
+            title: typeof planRaw.title === 'string' && planRaw.title ? planRaw.title : (lang === 'ru' ? `Тренировка ${dayIndex}` : `Workout ${dayIndex}`),
+            durationMinutes: typeof planRaw.durationMinutes === 'number' ? planRaw.durationMinutes : 45,
+            exercises,
+            date: iso,
+        };
+    }).filter(p => p.exercises.length > 0);
+
+    return {
+        id: `program_${Date.now()}`,
+        title: typeof data.title === 'string' && data.title ? data.title : (lang === 'ru' ? 'Программа тренировок' : 'Training Program'),
+        weeks: typeof data.weeks === 'number' ? data.weeks : weeks,
+        daysPerWeek: typeof data.daysPerWeek === 'number' ? data.daysPerWeek : daysPerWeek,
+        startDate,
+        plans,
     };
 }
 
