@@ -107,6 +107,8 @@ export interface UserProfile {
   telegramReminderSettings?: TelegramReminderSettings;
   /** Полная статистика использования (экосистемы, открытия, действия) — сохраняется в Supabase в user_data */
   usageStats?: UsageStats;
+  /** Долгосрочные программы тренировок */
+  workoutPrograms?: WorkoutProgram[];
 }
 
 /** Частота напоминаний в Telegram */
@@ -311,6 +313,19 @@ export interface WorkoutPlan {
   durationMinutes: number;
   exercises: Exercise[];
   date: string;
+}
+
+export interface WorkoutProgram {
+  id: string;
+  title: string;
+  /** Сколько недель длится программа */
+  weeks: number;
+  /** Сколько тренировочных дней в неделю запланировано */
+  daysPerWeek: number;
+  /** Дата старта программы (ISO yyyy-mm-dd) */
+  startDate: string;
+  /** Конкретные тренировки по дням (с уже выставленными датами) */
+  plans: WorkoutPlan[];
 }
 
 export interface PlanOption {
@@ -523,6 +538,13 @@ export const TRANSLATIONS: any = {
     sportEquipmentTitle: "Equipment",
     sportAddEquipment: "Add more...",
     sportGenerateBtn: "New Workout",
+    sportGenerateProgram: "New Program",
+    sportModeSingle: "One workout",
+    sportModeProgram: "Program",
+    sportProgramWeeks: "Weeks",
+    sportProgramDaysPerWeek: "Days per week",
+    sportProgramsTitle: "My programs",
+    sportProgramStart: "Start",
     sportCoachChat: "AI Coach",
     sportCoachInit: "I'm your AI fitness coach. What's the plan?",
     sportDone: "Done",
@@ -729,6 +751,13 @@ export const TRANSLATIONS: any = {
     sportEquipmentTitle: "Инвентарь",
     sportAddEquipment: "Добавить...",
     sportGenerateBtn: "Новая тренировка",
+    sportGenerateProgram: "Новая программа",
+    sportModeSingle: "Одна тренировка",
+    sportModeProgram: "Программа",
+    sportProgramWeeks: "Недели",
+    sportProgramDaysPerWeek: "Дней в неделю",
+    sportProgramsTitle: "Мои программы",
+    sportProgramStart: "Старт",
     sportCoachChat: "ИИ Тренер",
     sportCoachInit: "Я твой ИИ-тренер. Какой план?",
     sportDone: "Готово",
