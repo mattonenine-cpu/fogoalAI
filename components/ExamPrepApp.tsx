@@ -1,9 +1,9 @@
 // ... imports unchanged ...
 import React, { useState, useMemo, useEffect } from 'react';
-import { Exam, Ticket, Term, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme } from '../types';
+import { Exam, Ticket, Term, UserProfile, Language, TRANSLATIONS, Flashcard, AppTheme, Task } from '../types';
 import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassTextArea } from './GlassCard';
-import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz, generateFullTicketListFromSubject, splitSummaryIntoThemes } from '../services/geminiService';
+import { parseTicketsFromText, cleanTextOutput, generateTicketNote, generateGlossaryAndCards, getLocalISODate, generateQuiz, generateFullTicketListFromSubject, splitSummaryIntoThemes, planExamPreparation, reviewTicketExplanation } from '../services/geminiService';
 import { CreditsService } from '../services/creditsService';
 import { ChevronRight, X, BookOpen, Bot, ChevronLeft, Sparkles, FileText, Trophy, Key, Loader2, Play, ArrowRight, Check, Star, CheckCircle2, Plus, Layers, BrainCircuit, RotateCcw, Trash2 } from 'lucide-react';
 import { renderTextWithMath, renderBoldFragments } from '../LatexRenderer';
@@ -92,9 +92,11 @@ interface ExamPrepAppProps {
   onUpdateProfile: (profile: UserProfile) => void;
   theme: AppTheme;
   onDeductCredits?: (cost: number) => void;
+  tasks: Task[];
+  onUpdateTasks: React.Dispatch<React.SetStateAction<Task[]>>;
 }
 
-export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdateProfile, theme, onDeductCredits }) => {
+export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdateProfile, theme, onDeductCredits, tasks, onUpdateTasks }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
   const isLightTheme = theme === 'white' || theme === 'ice';
@@ -135,6 +137,11 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answerFeedback, setAnswerFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [quizResult, setQuizResult] = useState<{ score: number; xp: number } | null>(null);
+
+  // "Explain like to a friend" States
+  const [explanationText, setExplanationText] = useState('');
+  const [explanationFeedback, setExplanationFeedback] = useState<string | null>(null);
+  const [isCheckingExplanation, setIsCheckingExplanation] = useState(false);
 
   const handleOpenKeySelection = async () => {
     if (typeof (window as any).aistudio?.openSelectKey === 'function') {
@@ -360,6 +367,84 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       setWizardMode(null);
       setRawTicketsText('');
       setSummaryText('');
+  };
+
+  const handlePlanSchedule = async (onlyRemaining: boolean = false) => {
+      if (!activeExam) return;
+      const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
+      if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+        alert(lang === 'ru'
+          ? '❌ Недостаточно кредитов для распределения билетов по дням. Введите промокод в настройках для получения безлимитного доступа.'
+          : '❌ Not enough credits to spread tickets across days. Enter promo code in settings for unlimited access.');
+        return;
+      }
+      if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
+
+      const todayIso = getLocalISODate();
+      const ticketsToPlan = activeExam.tickets.filter(t => {
+          if (!onlyRemaining) return true;
+          // считаем "непройденными" билеты без результата
+          return t.lastScore === undefined;
+      });
+      if (ticketsToPlan.length === 0) return;
+
+      try {
+          const plan = await planExamPreparation(activeExam, ticketsToPlan, lang, onlyRemaining ? todayIso : undefined);
+          if (!Array.isArray(plan) || plan.length === 0) return;
+
+          // маппинг номер билета -> ticketId
+          const byNumber: Record<number, Ticket> = {};
+          activeExam.tickets.forEach(t => {
+              const n = typeof t.number === 'number' ? t.number : Number(t.number) || 0;
+              if (n) byNumber[n] = t;
+          });
+
+          const calendar = plan
+              .map(p => {
+                  const ticket = byNumber[p.ticketNumber];
+                  if (!ticket) return null;
+                  return { ticketId: ticket.id, date: p.date };
+              })
+              .filter((x): x is { ticketId: string; date: string } => !!x);
+
+          // обновляем exam в профиле
+          const updatedExam: Exam = {
+              ...activeExam,
+              calendar,
+          };
+          setActiveExam(updatedExam);
+          onUpdateProfile({
+              ...user,
+              exams: (user.exams || []).map(e => e.id === updatedExam.id ? updatedExam : e),
+          });
+
+          // создаём/обновляем задачи в глобальном списке
+          const prefix = `exam_${updatedExam.id}_`;
+          onUpdateTasks(prev => {
+              const withoutOld = prev.filter(t => !t.id.startsWith(prefix));
+              const newTasks: Task[] = calendar.map(entry => {
+                  const ticket = updatedExam.tickets.find(t => t.id === entry.ticketId)!;
+                  const baseTitle = lang === 'ru'
+                      ? `Экзамен: билет ${ticket.number}`
+                      : `Exam: ticket ${ticket.number}`;
+                  return {
+                      id: `${prefix}${entry.ticketId}`,
+                      title: baseTitle,
+                      description: ticket.question,
+                      category: 'study',
+                      durationMinutes: 45,
+                      completed: false,
+                      priority: 'Medium',
+                      energyRequired: 'medium',
+                      date: entry.date,
+                      status: 'planned',
+                  };
+              });
+              return [...withoutOld, ...newTasks];
+          });
+      } catch (e) {
+          console.error(e);
+      }
   };
 
   const handleOpenTicket = async (ticket: Ticket) => {
@@ -726,6 +811,22 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                         </div>
                     </GlassCard>
 
+                    <div className="flex gap-3">
+                        <button
+                          onClick={() => handlePlanSchedule(false)}
+                          className="flex-1 h-11 rounded-full bg-white/5 border border-indigo-500/40 text-[11px] font-black uppercase tracking-widest text-indigo-300 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                        >
+                          <Sparkles size={14} />
+                          {lang === 'ru' ? 'Растянуть по дням' : 'Spread across days'}
+                        </button>
+                        <button
+                          onClick={() => handlePlanSchedule(true)}
+                          className="flex-1 h-11 rounded-full bg-white/5 border border-[var(--border-glass)] text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 active:scale-95 transition-all"
+                        >
+                          {lang === 'ru' ? 'Перепланировать непройденные' : 'Replan remaining'}
+                        </button>
+                    </div>
+
                     <div className={`flex rounded-full p-1 border border-white/5 bg-white/5 backdrop-blur-md`}>
                         {[
                             { id: 'tickets', icon: <FileText size={16}/>, label: lang === 'ru' ? 'Билеты' : 'Tickets' },
@@ -941,6 +1042,42 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                                                       {isGeneratingQuiz ? <Loader2 className="animate-spin" size={24} /> : <Play size={22} fill="currentColor" />}
                                                       {lang === 'ru' ? 'Начать Тест' : 'Start Quiz'}
                                                   </button>
+                                                  <div className="mt-10 text-left space-y-3">
+                                                      <p className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
+                                                        {lang === 'ru' ? 'Объясни как другу' : 'Explain like to a friend'}
+                                                      </p>
+                                                      <textarea
+                                                        value={explanationText}
+                                                        onChange={e => setExplanationText(e.target.value)}
+                                                        rows={4}
+                                                        className="w-full bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-2xl px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-indigo-500/50 resize-none"
+                                                        placeholder={lang === 'ru' ? 'Опиши этот билет своими словами...' : 'Explain this ticket in your own words...'}
+                                                      />
+                                                      <button
+                                                        disabled={!explanationText.trim() || isCheckingExplanation}
+                                                        onClick={async () => {
+                                                            if (!activeTicket) return;
+                                                            setIsCheckingExplanation(true);
+                                                            try {
+                                                                const feedback = await reviewTicketExplanation(activeTicket, activeExam!.subject, explanationText, lang);
+                                                                setExplanationFeedback(cleanTextOutput(feedback || ''));
+                                                            } catch (e) {
+                                                                setExplanationFeedback(lang === 'ru' ? 'Не удалось проверить ответ.' : 'Failed to review your explanation.');
+                                                            } finally {
+                                                                setIsCheckingExplanation(false);
+                                                            }
+                                                        }}
+                                                        className="w-full h-11 mt-1 rounded-full bg-white/5 border border-indigo-500/30 text-[11px] font-black uppercase tracking-widest text-indigo-300 flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-40"
+                                                      >
+                                                        {isCheckingExplanation ? <Loader2 size={16} className="animate-spin" /> : <Smile size={14} />}
+                                                        {lang === 'ru' ? 'Проверить объяснение' : 'Check explanation'}
+                                                      </button>
+                                                      {explanationFeedback && (
+                                                        <div className="mt-4 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-left text-xs text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
+                                                            {explanationFeedback}
+                                                        </div>
+                                                      )}
+                                                  </div>
                                               </div>
                                           </div>
                                       )}
@@ -1036,11 +1173,8 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       );
   }
 
-  // ... (main return remains similar but layout was fixed in previous steps)
-  // Re-pasting just the main return block to ensure consistency if needed, but it was mostly unchanged.
-  // Assuming the `handleStartQuiz` fix and flashcard layout fix are key.
-  // The logic above includes the full component with changes.
-  
+  const [examViewMode, setExamViewMode] = useState<'list' | 'session'>('list');
+
   return (
     <div className="animate-fadeIn space-y-6 max-w-md mx-auto h-full flex flex-col">
         <div className="flex justify-between items-center mb-2 px-1">
@@ -1050,8 +1184,90 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
             </div>
             <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center border border-indigo-500/20"><Bot size={20} /></div>
         </div>
-        
-        {user.exams?.map(exam => (
+
+        <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex bg-white/5 rounded-full p-1 border border-[var(--border-glass)] w-fit shadow-sm backdrop-blur-xl">
+                {(['list','session'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setExamViewMode(mode)}
+                      className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                        examViewMode === mode
+                          ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-sm'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      {mode === 'list' ? (lang === 'ru' ? 'Экзамены' : 'Exams') : (lang === 'ru' ? 'Сессия' : 'Session')}
+                    </button>
+                ))}
+            </div>
+        </div>
+
+        {examViewMode === 'session' && (user.exams && user.exams.length > 0) && (
+            <GlassCard className="p-5 rounded-[32px] bg-[var(--bg-card)] border-[var(--border-glass)] space-y-4">
+                <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.25em] mb-1">
+                  {lang === 'ru' ? 'Сессия и дедлайны' : 'Session & Deadlines'}
+                </h3>
+                <div className="space-y-3">
+                    {user.exams
+                      .slice()
+                      .sort((a, b) => a.date.localeCompare(b.date))
+                      .map(exam => {
+                          const daysLeft = getDaysLeft(exam.date);
+                          const prog = calculateExamProgress(exam);
+                          let status: 'done' | 'in_progress' | 'burning';
+                          if (prog >= 90) status = 'done';
+                          else if (daysLeft <= 3 && prog < 70) status = 'burning';
+                          else status = 'in_progress';
+                          const colorClass =
+                            status === 'done'
+                              ? 'bg-emerald-500/15 border-emerald-500/40'
+                              : status === 'burning'
+                              ? 'bg-rose-500/15 border-rose-500/40'
+                              : 'bg-amber-500/10 border-amber-500/30';
+                          const statusLabel =
+                            status === 'done'
+                              ? (lang === 'ru' ? 'Готово' : 'Ready')
+                              : status === 'burning'
+                              ? (lang === 'ru' ? 'Горит' : 'Urgent')
+                              : (lang === 'ru' ? 'В работе' : 'In progress');
+                          const recommendation =
+                            status === 'done'
+                              ? (lang === 'ru' ? 'Можно слегка ослабить фокус и перейти к другим предметам.' : 'You can ease focus and shift to other subjects.')
+                              : status === 'burning'
+                              ? (lang === 'ru' ? 'Усиль подготовку по этому экзамену в ближайшие дни.' : 'Increase focus on this exam in the next days.')
+                              : (lang === 'ru' ? 'Продолжай текущий темп, не бросая другие сферы.' : 'Maintain pace without dropping other areas.');
+                          return (
+                            <div key={exam.id} className={`p-3 rounded-2xl border ${colorClass} flex items-start gap-3`}>
+                                <div className="w-1 rounded-full bg-gradient-to-b from-indigo-500/60 to-transparent h-full mt-1" />
+                                <div className="flex-1 min-w-0 space-y-1">
+                                    <div className="flex justify-between items-center gap-2">
+                                        <p className="text-sm font-bold text-[var(--text-primary)] truncate">{exam.subject}</p>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                                          {exam.date}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                                        <span className="px-2 py-0.5 rounded-full bg-white/10 text-[var(--text-secondary)]">
+                                          {daysLeft} {lang === 'ru' ? 'дн.' : 'days'}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded-full bg-white/5 text-[var(--text-secondary)]">
+                                          {statusLabel}
+                                        </span>
+                                        <span className="ml-auto text-[var(--text-secondary)]">{prog}%</span>
+                                    </div>
+                                    <p className="text-[11px] text-[var(--text-secondary)] leading-snug">
+                                      {recommendation}
+                                    </p>
+                                </div>
+                            </div>
+                          );
+                      })}
+                </div>
+            </GlassCard>
+        )}
+
+        {examViewMode === 'list' && user.exams?.map(exam => (
             <GlassCard key={exam.id} onClick={() => setActiveExam(exam)} className="p-6 rounded-[36px] bg-[var(--bg-card)] border-[var(--border-glass)] cursor-pointer hover:border-indigo-500/30 transition-all active:scale-[0.98] shadow-xl relative group">
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex-1 min-w-0 pr-4">
