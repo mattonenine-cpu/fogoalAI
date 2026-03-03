@@ -145,6 +145,8 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   const [explanationFeedback, setExplanationFeedback] = useState<string | null>(null);
   const [isCheckingExplanation, setIsCheckingExplanation] = useState(false);
 
+  const [examViewMode, setExamViewMode] = useState<'list' | 'session'>('list');
+
   if (!user) return null;
 
   const handleOpenKeySelection = async () => {
@@ -1183,8 +1185,6 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
           </div>
       );
   }
-
-  const [examViewMode, setExamViewMode] = useState<'list' | 'session'>('list');
 
   return (
     <div className="animate-fadeIn space-y-6 max-w-md mx-auto h-full flex flex-col">
