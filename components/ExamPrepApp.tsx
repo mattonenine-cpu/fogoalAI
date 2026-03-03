@@ -101,7 +101,9 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
   const isLightTheme = theme === 'white' || theme === 'ice';
 
-  const [showWizard, setShowWizard] = useState(user.exams ? user.exams.length === 0 : true);
+  const safeExams = user?.exams ?? [];
+  const [showWizard, setShowWizard] = useState(safeExams.length === 0);
+
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
   const [ticketMode, setTicketMode] = useState<'note' | 'quiz' | 'result'>('note');
   
@@ -143,6 +145,8 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   const [explanationFeedback, setExplanationFeedback] = useState<string | null>(null);
   const [isCheckingExplanation, setIsCheckingExplanation] = useState(false);
 
+  if (!user) return null;
+
   const handleOpenKeySelection = async () => {
     if (typeof (window as any).aistudio?.openSelectKey === 'function') {
       await (window as any).aistudio.openSelectKey();
@@ -176,7 +180,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
         : 'Are you sure you want to delete this exam and all related materials?';
 
       if (window.confirm(confirmMessage)) {
-          const updatedExams = (user.exams || []).filter(ex => ex.id !== id);
+          const updatedExams = safeExams.filter(ex => ex.id !== id);
           onUpdateProfile({ ...user, exams: updatedExams });
       }
   };
@@ -344,12 +348,12 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   };
 
   const handleFinalizeExam = () => {
-      if (!preparedExamData) return;
+      if (!preparedExamData || !user) return;
       const u = user.usageStats || getDefaultUsageStats();
       const ticketCountFinal = preparedExamData.tickets?.length ?? 1;
       onUpdateProfile({
         ...user,
-        exams: [...(user.exams || []), preparedExamData],
+        exams: [...safeExams, preparedExamData],
         usageStats: {
           ...u,
           ecosystem: {
@@ -371,17 +375,18 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
 
   const handlePlanSchedule = async (onlyRemaining: boolean = false) => {
       if (!activeExam) return;
-      const examCost = CreditsService.getActionCost('examCompletion', user.settings?.aiDetailLevel);
-      if (!CreditsService.canAfford(user.credits ?? CreditsService.initializeCredits(), examCost)) {
+      const tickets = activeExam.tickets ?? [];
+      const examCost = CreditsService.getActionCost('examCompletion', user?.settings?.aiDetailLevel);
+      if (!CreditsService.canAfford(user?.credits ?? CreditsService.initializeCredits(), examCost)) {
         alert(lang === 'ru'
           ? '❌ Недостаточно кредитов для распределения билетов по дням. Введите промокод в настройках для получения безлимитного доступа.'
           : '❌ Not enough credits to spread tickets across days. Enter promo code in settings for unlimited access.');
         return;
       }
-      if (user.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
+      if (user?.credits && !CreditsService.isSubscriptionActive(user.credits)) onDeductCredits?.(examCost);
 
       const todayIso = getLocalISODate();
-      const ticketsToPlan = activeExam.tickets.filter(t => {
+      const ticketsToPlan = tickets.filter(t => {
           if (!onlyRemaining) return true;
           // считаем "непройденными" билеты без результата
           return t.lastScore === undefined;
@@ -394,7 +399,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
 
           // маппинг номер билета -> ticketId
           const byNumber: Record<number, Ticket> = {};
-          activeExam.tickets.forEach(t => {
+          tickets.forEach(t => {
               const n = typeof t.number === 'number' ? t.number : Number(t.number) || 0;
               if (n) byNumber[n] = t;
           });
@@ -415,15 +420,15 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
           setActiveExam(updatedExam);
           onUpdateProfile({
               ...user,
-              exams: (user.exams || []).map(e => e.id === updatedExam.id ? updatedExam : e),
+              exams: safeExams.map(e => e.id === updatedExam.id ? updatedExam : e),
           });
 
           // создаём/обновляем задачи в глобальном списке
           const prefix = `exam_${updatedExam.id}_`;
-          onUpdateTasks(prev => {
-              const withoutOld = prev.filter(t => !t.id.startsWith(prefix));
+          onUpdateTasks?.(prev => {
+              const withoutOld = (prev ?? []).filter(t => !t.id.startsWith(prefix));
               const newTasks: Task[] = calendar.map(entry => {
-                  const ticket = updatedExam.tickets.find(t => t.id === entry.ticketId)!;
+                  const ticket = (updatedExam.tickets ?? []).find(t => t.id === entry.ticketId)!;
                   const baseTitle = lang === 'ru'
                       ? `Экзамен: билет ${ticket.number}`
                       : `Exam: ticket ${ticket.number}`;
@@ -451,14 +456,15 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       setActiveTicket(ticket);
       setTicketMode('note');
       setIsGeneratingNote(!ticket.note);
-      if (!ticket.note) {
+      if (!ticket.note && activeExam) {
           try {
-              const noteRaw = await generateTicketNote(ticket.question, activeExam!.subject, lang);
+              const noteRaw = await generateTicketNote(ticket.question, activeExam.subject, lang);
               const note = cleanTextOutput(noteRaw);
-              const updatedTickets = activeExam!.tickets.map(t => t.id === ticket.id ? { ...t, note } : t);
-              const updatedExam = { ...activeExam!, tickets: updatedTickets };
+              const ticketsList = activeExam.tickets ?? [];
+              const updatedTickets = ticketsList.map(t => t.id === ticket.id ? { ...t, note } : t);
+              const updatedExam = { ...activeExam, tickets: updatedTickets };
               setActiveExam(updatedExam);
-              onUpdateProfile({ ...user, exams: user.exams?.map(e => e.id === activeExam!.id ? updatedExam : e) });
+              onUpdateProfile({ ...user, exams: safeExams.map(e => e.id === activeExam.id ? updatedExam : e) });
               setActiveTicket({ ...ticket, note });
           } catch (e: any) { 
               if (e.status === 429) setErrorStatus(429);
@@ -488,14 +494,15 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
     
     if (isKnown) {
         // PERMANENT UPDATE: Mark as mastered in global state
-        const updatedFlashcards = activeExam.flashcards.map(f => 
+        const flashcards = activeExam.flashcards ?? [];
+        const updatedFlashcards = flashcards.map(f => 
             f.id === currentCard.id ? { ...f, status: 'mastered' as const } : f
         );
         const updatedExam = { ...activeExam, flashcards: updatedFlashcards };
         setActiveExam(updatedExam);
         onUpdateProfile({ 
             ...user, 
-            exams: user.exams?.map(e => e.id === activeExam.id ? updatedExam : e),
+            exams: safeExams.map(e => e.id === activeExam.id ? updatedExam : e),
             totalExperience: (user.totalExperience || 0) + 5
         });
 
@@ -529,9 +536,10 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
         status: 'new',
         ticketId: manualCard.ticketId || undefined
     };
-    const updatedExam = { ...activeExam, flashcards: [...(activeExam.flashcards || []), newCard] };
+    const flashcards = activeExam.flashcards ?? [];
+    const updatedExam = { ...activeExam, flashcards: [...flashcards, newCard] };
     setActiveExam(updatedExam);
-    onUpdateProfile({ ...user, exams: user.exams?.map(e => e.id === activeExam.id ? updatedExam : e) });
+    onUpdateProfile({ ...user, exams: safeExams.map(e => e.id === activeExam.id ? updatedExam : e) });
     setShowManualCardModal(false);
     setManualCard({ question: '', answer: '', ticketId: '' });
   };
@@ -539,7 +547,8 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   const getActiveCardMetadata = () => {
       const card = sessionQueue[currentCardIndex];
       if (!card || !activeExam) return null;
-      const ticket = activeExam.tickets.find(t => t.id === card.ticketId);
+      const ticketsList = activeExam.tickets ?? [];
+      const ticket = ticketsList.find(t => t.id === card.ticketId);
       return { 
           ticketNumber: ticket?.number || '?', 
           ticketQuestion: ticket?.question || activeExam.subject 
@@ -548,22 +557,23 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
 
   const resetCards = () => {
     if (!activeExam) return;
-    const reset = (activeExam.flashcards || []).map(f => ({ ...f, status: 'new' as const }));
+    const flashcards = activeExam.flashcards ?? [];
+    const reset = flashcards.map(f => ({ ...f, status: 'new' as const }));
     const updatedExam = { ...activeExam, flashcards: reset };
     setActiveExam(updatedExam);
-    onUpdateProfile({ ...user, exams: user.exams?.map(e => e.id === activeExam.id ? updatedExam : e) });
+    onUpdateProfile({ ...user, exams: safeExams.map(e => e.id === activeExam.id ? updatedExam : e) });
   };
 
   // Quiz Actions
   const handleStartQuiz = async () => {
-      if (!activeTicket) return;
+      if (!activeTicket || !activeExam) return;
       setIsGeneratingQuiz(true);
       setErrorStatus(null);
       setQuizScore(0);
       setAnswerFeedback(null); // Fix: Reset feedback state
       setSelectedAnswer(null); // Fix: Reset selected answer state
       try {
-          const raw = await generateQuiz(activeTicket.question, activeExam!.subject, lang, quizCount);
+          const raw = await generateQuiz(activeTicket.question, activeExam.subject, lang, quizCount);
           const normalized: { question: string; options: string[]; correctIndex: number; difficulty?: 'easy' | 'medium' | 'hard' }[] = (raw || []).map(q => ({
               question: q.question ?? '',
               options: Array.isArray(q.options) ? q.options : [],
@@ -587,7 +597,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
   };
 
   const handleNextQuestion = () => {
-      if (currentQuizStep === null) return;
+      if (currentQuizStep === null || !activeExam || !activeTicket) return;
       if (currentQuizStep < quizQuestions.length - 1) {
           setAnswerFeedback(null);
           setSelectedAnswer(null);
@@ -595,13 +605,14 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
       } else {
           const finalScore = Math.round((quizScore / quizQuestions.length) * 100);
           const earnedXp = Math.round(10 + (finalScore * 0.4));
-          const updatedTickets = activeExam!.tickets.map(t => t.id === activeTicket!.id ? { ...t, lastScore: finalScore } : t);
-          const updatedExam = { ...activeExam!, tickets: updatedTickets };
+          const ticketsList = activeExam.tickets ?? [];
+          const updatedTickets = ticketsList.map(t => t.id === activeTicket.id ? { ...t, lastScore: finalScore } : t);
+          const updatedExam = { ...activeExam, tickets: updatedTickets };
           setActiveExam(updatedExam);
           const u = user.usageStats || getDefaultUsageStats();
           onUpdateProfile({
             ...user,
-            exams: user.exams?.map(e => e.id === activeExam!.id ? updatedExam : e),
+            exams: safeExams.map(e => e.id === activeExam.id ? updatedExam : e),
             totalExperience: (user.totalExperience || 0) + earnedXp,
             usageStats: {
               ...u,
@@ -625,7 +636,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
           <div className="h-full flex flex-col animate-fadeIn bg-[var(--bg-main)] relative">
                 {/* ... Wizard Content (Unchanged) ... */}
                 <header className="flex justify-between items-center mb-6 shrink-0 px-2">
-                    {user.exams && user.exams.length > 0 ? (
+                    {safeExams.length > 0 ? (
                         <button onClick={() => setShowWizard(false)} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400"><X size={20} /></button>
                     ) : <div className="w-10" />}
                     <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">{t.examStep} {wizardStep}/4</span>
@@ -804,7 +815,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                             <h3 className="text-4xl font-black text-[var(--text-primary)] tracking-tighter">{calculateExamProgress(activeExam)}%</h3>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                           <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">{activeExam.tickets.filter(t => t.lastScore !== undefined).length} / {activeExam.tickets.length} {lang === 'ru' ? 'Билетов' : 'Tickets'}</span>
+                           <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">{(activeExam.tickets ?? []).filter(t => t.lastScore !== undefined).length} / {(activeExam.tickets ?? []).length} {lang === 'ru' ? 'Билетов' : 'Tickets'}</span>
                            <div className="w-24 h-2 bg-white/5 rounded-full overflow-hidden">
                               <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${calculateExamProgress(activeExam)}%` }} />
                            </div>
@@ -928,7 +939,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                                     <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">{lang === 'ru' ? 'Привязать к билету (опц)' : 'Link to Ticket'}</label>
                                     <select value={manualCard.ticketId} onChange={e => setManualCard({...manualCard, ticketId: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-xl h-10 px-4 text-white text-xs outline-none focus:border-indigo-500/50">
                                         <option value="">{lang === 'ru' ? 'Без билета' : 'No ticket'}</option>
-                                        {activeExam.tickets.map(t => <option key={t.id} value={t.id}>{lang === 'ru' ? 'Билет' : 'Ticket'} #{t.number}</option>)}
+                                        {(activeExam.tickets ?? []).map(t => <option key={t.id} value={t.id}>{lang === 'ru' ? 'Билет' : 'Ticket'} #{t.number}</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -1056,10 +1067,10 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
                                                       <button
                                                         disabled={!explanationText.trim() || isCheckingExplanation}
                                                         onClick={async () => {
-                                                            if (!activeTicket) return;
+                                                            if (!activeTicket || !activeExam) return;
                                                             setIsCheckingExplanation(true);
                                                             try {
-                                                                const feedback = await reviewTicketExplanation(activeTicket, activeExam!.subject, explanationText, lang);
+                                                                const feedback = await reviewTicketExplanation(activeTicket, activeExam.subject, explanationText, lang);
                                                                 setExplanationFeedback(cleanTextOutput(feedback || ''));
                                                             } catch (e) {
                                                                 setExplanationFeedback(lang === 'ru' ? 'Не удалось проверить ответ.' : 'Failed to review your explanation.');
@@ -1203,15 +1214,15 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
             </div>
         </div>
 
-        {examViewMode === 'session' && (user.exams && user.exams.length > 0) && (
+        {examViewMode === 'session' && safeExams.length > 0 && (
             <GlassCard className="p-5 rounded-[32px] bg-[var(--bg-card)] border-[var(--border-glass)] space-y-4">
                 <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.25em] mb-1">
                   {lang === 'ru' ? 'Сессия и дедлайны' : 'Session & Deadlines'}
                 </h3>
                 <div className="space-y-3">
-                    {user.exams
+                    {safeExams
                       .slice()
-                      .sort((a, b) => a.date.localeCompare(b.date))
+                      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
                       .map(exam => {
                           const daysLeft = getDaysLeft(exam.date);
                           const prog = calculateExamProgress(exam);
@@ -1267,7 +1278,7 @@ export const ExamPrepApp: React.FC<ExamPrepAppProps> = ({ user, lang, onUpdatePr
             </GlassCard>
         )}
 
-        {examViewMode === 'list' && user.exams?.map(exam => (
+        {examViewMode === 'list' && safeExams.map(exam => (
             <GlassCard key={exam.id} onClick={() => setActiveExam(exam)} className="p-6 rounded-[36px] bg-[var(--bg-card)] border-[var(--border-glass)] cursor-pointer hover:border-indigo-500/30 transition-all active:scale-[0.98] shadow-xl relative group">
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex-1 min-w-0 pr-4">
