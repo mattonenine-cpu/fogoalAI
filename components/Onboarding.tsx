@@ -59,6 +59,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [referralCodeInput, setReferralCodeInput] = useState('');
 
   // Setup State
   // Steps: 1=Goals, 2=Energy, 3=Drains, 4=Review
@@ -244,10 +245,28 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
         setIsAuthenticating(true);
         const enabledEcosystems = signals.filter(s => s.enabled);
         const ecosystemViews = enabledEcosystems.map(e => e.type);
-        
+        const baseUsername = (username || profile.name || '').trim();
+
+        const makeOwnReferralCode = (u: string) => `FOREF-${u.trim().toUpperCase()}`;
+        const parseInviterFromCode = (codeRaw: string): string | null => {
+          const code = (codeRaw || '').trim().toUpperCase();
+          const prefix = 'FOREF-';
+          if (!code.startsWith(prefix)) return null;
+          const userPart = code.slice(prefix.length).trim();
+          return userPart || null;
+        };
+
+        let inviterUsername: string | null = null;
+        if (referralCodeInput.trim()) {
+          const candidate = parseInviterFromCode(referralCodeInput);
+          if (candidate && (!baseUsername || candidate !== baseUsername.toUpperCase())) {
+            inviterUsername = candidate;
+          }
+        }
+
         const finalProfile: UserProfile = {
             ...profile,
-            username: username || profile.name,
+            username: baseUsername || profile.name || 'User',
             goals: profile.goals || [],
             isOnboarded: true,
             enabledEcosystems,
@@ -255,6 +274,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
             totalExperience: profile.totalExperience || 0,
             statsHistory: profile.statsHistory || [],
             usageStats: profile.usageStats || getDefaultUsageStats(),
+            referralCode: makeOwnReferralCode(baseUsername || profile.name || 'User'),
+            referredByCode: inviterUsername ? makeOwnReferralCode(inviterUsername) : undefined,
             settings: {
                 aiPersona: 'balanced',
                 aiDetailLevel: 'medium',
@@ -262,6 +283,19 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                 fontSize: 'large'
             }
         } as UserProfile;
+
+        // Инициализируем кредиты и добавляем бонус за реферальный код, если он введён корректно
+        if (!finalProfile.credits) {
+          let credits = CreditsService.initializeCredits();
+          if (inviterUsername) {
+            credits = {
+              ...credits,
+              totalCredits: credits.totalCredits + 500,
+              availableCredits: credits.availableCredits + 500,
+            };
+          }
+          finalProfile.credits = credits;
+        }
 
         // For Telegram users, update existing profile instead of creating new account
         if (isTelegramUser) {
@@ -310,7 +344,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                 notes: [],
                 folders: [],
                 stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral', sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: new Date().toISOString().split('T')[0] }
-            });
+            }, inviterUsername || undefined);
 
             if (res.success) {
                 onComplete(finalProfile);
@@ -393,6 +427,30 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                                 />
                             </div>
                         </div>
+                        {authMode === 'signup' && (
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase px-2" htmlFor="onboarding-referral">
+                              {lang === 'ru' ? 'Реферальный код (необязательно)' : 'Referral code (optional)'}
+                            </label>
+                            <div className="relative">
+                              <input
+                                id="onboarding-referral"
+                                type="text"
+                                value={referralCodeInput}
+                                onChange={e => setReferralCodeInput(e.target.value)}
+                                className="w-full bg-black/5 border border-white/10 rounded-2xl px-4 py-3 text-[13px] text-[var(--text-primary)] focus:outline-none focus:bg-black/10 focus:border-[var(--theme-accent)] transition-all duration-300 backdrop-blur-3xl placeholder-slate-400 hover:bg-black/10 pointer-events-auto"
+                                placeholder={lang === 'ru' ? 'Например: FOREF-IVAN' : 'Example: FOREF-ALICE'}
+                                readOnly={false}
+                                disabled={false}
+                              />
+                            </div>
+                            <p className="text-[10px] text-[var(--text-secondary)] px-2">
+                              {lang === 'ru'
+                                ? 'Если вы введёте код друга, вам начислится +500 токенов.'
+                                : 'If you enter a friend\'s code, you will get +500 tokens.'}
+                            </p>
+                          </div>
+                        )}
                         <div className="space-y-1">
                             <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase px-2" htmlFor="onboarding-password">{t.authPassword}</label>
                             <div className="relative">
