@@ -15,7 +15,7 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpdate, onLanguageChange, onClose }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
-  const [activeTab, setActiveTab] = useState<'interface' | 'ecosystems' | 'account' | 'referral'>('interface');
+  const [activeTab, setActiveTab] = useState<'interface' | 'ecosystems' | 'account'>('interface');
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
@@ -105,11 +105,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
   const menuItems = [
       { id: 'interface', icon: '🎨', label: lang === 'ru' ? 'ИНТЕРФЕЙС' : 'INTERFACE' },
       { id: 'ecosystems', icon: '⚛️', label: lang === 'ru' ? 'ЭКОСИСТЕМЫ' : 'ECOSYSTEMS' },
-      { id: 'referral', icon: '🤝', label: lang === 'ru' ? 'РЕФЕРАЛЫ' : 'REFERRALS' },
       { id: 'account', icon: '👤', label: lang === 'ru' ? 'АККАУНТ' : 'ACCOUNT' },
   ];
-
-  const referralCode = user.username || authService.getCurrentUser() || '';
 
   return (
     <div className="fixed inset-0 z-[700] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8 animate-fadeIn">
@@ -218,48 +215,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                 })}
                             </div>
                         </section>
-                    </div>
-                )}
-
-                {activeTab === 'referral' && (
-                    <div className="space-y-6 animate-fade-in-up">
-                        <h3 className="text-tiny font-black text-[var(--text-secondary)] uppercase tracking-widest">
-                            {lang === 'ru' ? 'РЕФЕРАЛЬНАЯ СИСТЕМА' : 'REFERRAL PROGRAM'}
-                        </h3>
-                        <GlassCard className="p-4 sm:p-8 border-[var(--border-glass)] bg-white/2 space-y-6 rounded-[32px] overflow-hidden">
-                            <div className="space-y-3">
-                                <p className="text-sm text-[var(--text-secondary)]">
-                                    {lang === 'ru'
-                                        ? 'Делитесь своим реферальным кодом: когда новый пользователь введёт его при регистрации, вы оба получите по 500 AI токенов на свои аккаунты.'
-                                        : 'Share your referral code: when a new user enters it during sign-up, you both receive 500 AI tokens on your accounts.'}
-                                </p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <h4 className="text-base sm:text-lg font-black text-[var(--text-primary)]">
-                                    {lang === 'ru' ? 'Ваш реферальный код' : 'Your referral code'}
-                                </h4>
-                                {referralCode ? (
-                                    <div className="flex flex-col sm:flex-row gap-2 items-stretch">
-                                        <div className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)] text-sm font-mono break-all">
-                                            {referralCode}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-[var(--text-secondary)]">
-                                        {lang === 'ru'
-                                            ? 'Реферальный код появится после регистрации логина.'
-                                            : 'Referral code will appear after you register a username.'}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="text-xs text-[var(--text-secondary)] mt-2">
-                                {lang === 'ru'
-                                    ? 'Подсказка: ваш логин в приложении используется как реферальный код.'
-                                    : 'Tip: your app username is used as your referral code.'}
-                            </div>
-                        </GlassCard>
                     </div>
                 )}
 
