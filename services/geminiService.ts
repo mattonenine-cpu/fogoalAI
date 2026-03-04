@@ -658,7 +658,10 @@ export async function generateFullTicketListFromSubject(subject: string, count: 
         .map((t: any, i: number) => ({ number: typeof t.number === 'number' ? t.number : i + 1, question: String(t.question).trim() }));
 }
 
-/** Split a ready-made summary into themes/tickets. Returns tickets with question = theme title, note = content. */
+/** Split a ready-made summary into themes/tickets. Returns tickets with question = theme title, note = full study content.
+ * AI анализирует конспект целиком, строит билеты на его основе и ДОПОЛНЯЕТ каждый билет своей экспертизой:
+ * определения, причинно-следственные связи, примеры — чтобы конспект по билету был полезным и не слишком коротким.
+ */
 export async function splitSummaryIntoThemes(
     summary: string,
     subject: string,
@@ -671,24 +674,32 @@ export async function splitSummaryIntoThemes(
         : (granularity === 'fine' ? 'Split into fine sub-themes; more tickets with narrow questions.' : granularity === 'coarse' ? 'Coarse blocks: fewer tickets, each covering a broad topic.' : 'Medium granularity: themes neither too fine nor too coarse.');
 
     const prompt = lang === 'ru'
-        ? `Ты эксперт по предмету "${subject}". У тебя готовый конспект (текст ниже). Разбей его на ровно ${numThemes} тем (билетов). ${granularityHint}
+        ? `Ты эксперт по предмету "${subject}". У тебя готовый конспект студента (текст ниже). Твоя задача — проанализировать его целиком и создать ровно ${numThemes} экзаменационных билетов (тем). ${granularityHint}
 
-Требования:
-- Верни ТОЛЬКО валидный JSON-массив. Каждый элемент: { "number" (число с 1), "question" (строка — краткое название темы/вопроса билета), "note" (строка — конспект по этой теме в Markdown: заголовки # ## ###, списки -, жирное **...) }.
-- "note" должен содержать только содержание этой темы, извлечённое из конспекта. Без лишнего текста.
-- Язык конспекта и формулировок: ${lang}.
+Важно:
+1) Основой каждого билета служит содержание конспекта: разбей конспект на логичные темы и извлеки из текста всё релевантное для каждой темы.
+2) НЕ оставляй билеты короткими. Для каждого билета поле "note" должно быть полноценным учебным конспектом: 250–600 слов (или эквивалент). Используй материал из конспекта и ДОПОЛНЯЙ от себя: чёткие определения, причинно-следственные связи, 1–2 примера где уместно, структуру (заголовки, списки). Цель — чтобы студент мог по этому тексту понять тему и ответить на экзамене.
+3) Формулируй "question" как чёткий экзаменационный вопрос или название темы.
+4) Язык конспекта и формулировок: русский.
+
+Формат ответа — ТОЛЬКО валидный JSON-массив. Каждый элемент:
+{ "number" (число с 1), "question" (строка — вопрос/название билета), "note" (строка — полный конспект по этой теме в Markdown: # ## ###, списки -, жирное **ключевые термины**) }.
 
 Конспект:
-${summary.substring(0, 12000)}`
-        : `You are an expert in "${subject}". You have a ready-made summary (text below). Split it into exactly ${numThemes} themes (tickets). ${granularityHint}
+${summary.substring(0, 14000)}`
+        : `You are an expert in "${subject}". You have a student's ready-made summary (text below). Your task is to analyze it fully and create exactly ${numThemes} exam tickets (themes). ${granularityHint}
 
 Requirements:
-- Return ONLY a valid JSON array. Each element: { "number" (integer from 1), "question" (string — short theme/question title), "note" (string — study note for this theme in Markdown: headers # ## ###, lists -, bold **...) }.
-- "note" must contain only the content for this theme extracted from the summary. No filler.
-- Language: ${lang}.
+1) Each ticket must be based on the summary: split the summary into logical themes and extract all relevant content for each.
+2) Do NOT keep tickets short. For each ticket, "note" must be a full study note: 250–600 words (or equivalent). Use the summary material and ADD your expertise: clear definitions, cause-effect links, 1–2 examples where useful, structure (headers, lists). The goal is that a student can understand the topic and answer on the exam from this text alone.
+3) "question" should be a clear exam question or theme title.
+4) Language: ${lang}.
+
+Return ONLY a valid JSON array. Each element:
+{ "number" (integer from 1), "question" (string), "note" (string — full Markdown study note: # ## ###, lists -, bold **key terms**) }.
 
 Summary:
-${summary.substring(0, 12000)}`;
+${summary.substring(0, 14000)}`;
 
     const result = await callApi('/api/generate', {
         model: AI_MODEL,
