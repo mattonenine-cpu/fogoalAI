@@ -13,6 +13,7 @@ export const THEMES: { id: AppTheme; color: string; label: string }[] = [
   { id: 'dark', color: '#09090b', label: 'Dark Void' },
   { id: 'white', color: '#FFFFFF', label: 'Clean White' },
   { id: 'ice', color: '#D6E6F3', label: 'Ice Blue' },
+  { id: 'pink', color: '#F5D6E8', label: 'Blush Pink' },
 ];
 
 export const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, onSelect, className = '' }) => {
