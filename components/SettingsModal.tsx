@@ -19,6 +19,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
+  const referralCode = user.referralCode || (user.username ? `FOREF-${user.username.toUpperCase()}` : '');
 
   const settings: UserSettings = user.settings || {
     aiPersona: 'balanced',
@@ -295,6 +296,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, lang, onUpda
                                 <div className="min-w-0 flex-1">
                                     <h4 className="text-lg sm:text-2xl font-black text-[var(--text-primary)] truncate">{user.name || 'Explorer'}</h4>
                                     <p className="text-mini font-black uppercase tracking-widest opacity-30 truncate">{user.occupation || 'FoGoal User'}</p>
+                                </div>
+                            </div>
+
+                            {/* Referral System */}
+                            <div className="space-y-3">
+                                <h4 className="text-base sm:text-lg font-black text-[var(--text-primary)]">
+                                    {lang === 'ru' ? 'Реферальная система' : 'Referral system'}
+                                </h4>
+                                <p className="text-xs text-[var(--text-secondary)]">
+                                    {lang === 'ru'
+                                      ? 'Поделитесь своим кодом с другом. Если он введёт его при регистрации, вы оба получите +500 токенов.'
+                                      : 'Share your code with a friend. If they use it on signup, you both get +500 tokens.'}
+                                </p>
+                                <div className="flex flex-col sm:flex-row gap-2 items-stretch">
+                                    <div className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-glass)] text-[var(--text-primary)] text-sm flex items-center justify-between">
+                                        <span className="truncate">
+                                            {referralCode || (lang === 'ru' ? 'Код появится после установки логина' : 'Code will appear after you set username')}
+                                        </span>
+                                    </div>
+                                    {referralCode && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          try {
+                                            navigator.clipboard?.writeText(referralCode);
+                                            setPromoMessage(lang === 'ru' ? 'Код скопирован в буфер обмена' : 'Code copied to clipboard');
+                                          } catch {
+                                            setPromoMessage(lang === 'ru' ? 'Не удалось скопировать код' : 'Failed to copy code');
+                                          }
+                                        }}
+                                        className="h-12 px-4 rounded-xl bg-[var(--theme-accent)] text-white font-medium hover:bg-[var(--theme-accent)]/90 transition-colors whitespace-nowrap shrink-0 flex items-center justify-center"
+                                      >
+                                        {lang === 'ru' ? 'Копировать' : 'Copy'}
+                                      </button>
+                                    )}
                                 </div>
                             </div>
                             <button onClick={handleLogout} className="w-full h-14 rounded-[28px] bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center gap-3 active:scale-[0.98] transition-all">
