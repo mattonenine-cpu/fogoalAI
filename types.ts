@@ -109,6 +109,12 @@ export interface UserProfile {
   usageStats?: UsageStats;
   /** Долгосрочные программы тренировок */
   workoutPrograms?: WorkoutProgram[];
+  /** Уникальный реферальный код пользователя (для приглашения друзей) */
+  referralCode?: string;
+  /** Какой реферальный код был использован при регистрации (если был) */
+  referredByCode?: string;
+  /** Список логинов приглашённых пользователей, за которых уже начислен бонус */
+  referralInvitees?: string[];
 }
 
 /** Частота напоминаний в Telegram */
