@@ -96,6 +96,13 @@ export default function App() {
                   totalGoalsCompleted: parsed.usageStats.totalGoalsCompleted ?? 0,
               };
           }
+          // Инициализируем реферальный код для существующих пользователей
+          if (!parsed.referralCode && parsed.username) {
+            const base = String(parsed.username).trim();
+            if (base) {
+              parsed.referralCode = `FOREF-${base.toUpperCase()}`;
+            }
+          }
           return parsed;
         }
       }
