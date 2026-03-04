@@ -57,7 +57,6 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
   });
   const [username, setUsername] = useState(initialProfile?.username || '');
   const [password, setPassword] = useState('');
-  const [referralCode, setReferralCode] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -264,48 +263,6 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
             }
         } as UserProfile;
 
-        // Initialize credits for new user
-        let newUserCredits = CreditsService.initializeCredits();
-
-        // Apply referral bonus if a valid code is provided (for regular signups)
-        const trimmedReferral = referralCode.trim();
-        if (!isTelegramUser && trimmedReferral) {
-            try {
-                const usersRaw = localStorage.getItem('cloud_users');
-                const users = usersRaw ? JSON.parse(usersRaw) : {};
-                if (users[trimmedReferral]) {
-                    // Bonus for referrer (if we have their data on this device)
-                    const refKey = `cloud_data_${trimmedReferral}`;
-                    const refRaw = localStorage.getItem(refKey);
-                    if (refRaw) {
-                        const refData: UserDataPayload = JSON.parse(refRaw);
-                        const baseRefCredits = refData.profile.credits || CreditsService.initializeCredits();
-                        const boostedRefCredits = {
-                            ...baseRefCredits,
-                            totalCredits: baseRefCredits.totalCredits + 500,
-                            availableCredits: baseRefCredits.availableCredits + 500,
-                        };
-                        refData.profile = {
-                            ...refData.profile,
-                            credits: boostedRefCredits,
-                        };
-                        localStorage.setItem(refKey, JSON.stringify(refData));
-                    }
-
-                    // Bonus for new user
-                    newUserCredits = {
-                        ...newUserCredits,
-                        totalCredits: newUserCredits.totalCredits + 500,
-                        availableCredits: newUserCredits.availableCredits + 500,
-                    };
-                }
-            } catch {
-                // ignore localStorage errors
-            }
-        }
-
-        (finalProfile as UserProfile).credits = newUserCredits;
-
         // For Telegram users, update existing profile instead of creating new account
         if (isTelegramUser) {
             const currentUser = authService.getCurrentUser();
@@ -453,31 +410,6 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                                 />
                             </div>
                         </div>
-
-                        {authMode === 'signup' && (
-                            <div className="space-y-1">
-                                <label className="text-[9px] font-black text-[var(--text-secondary)] uppercase px-2" htmlFor="onboarding-referral">
-                                    {lang === 'ru' ? 'Реферальный код (необязательно)' : 'Referral code (optional)'}
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        id="onboarding-referral"
-                                        type="text"
-                                        value={referralCode}
-                                        onChange={e => setReferralCode(e.target.value)}
-                                        className="w-full bg-black/5 border border-white/10 rounded-2xl px-4 py-3 text-[13px] text-[var(--text-primary)] focus:outline-none focus:bg-black/10 focus:border-[var(--theme-accent)] transition-all duration-300 backdrop-blur-3xl placeholder-slate-400 hover:bg-black/10 pointer-events-auto"
-                                        placeholder={lang === 'ru' ? 'Введите код друга...' : 'Enter your friend\'s code...'}
-                                        readOnly={false}
-                                        disabled={false}
-                                    />
-                                </div>
-                                <p className="text-[9px] text-[var(--text-secondary)] px-2">
-                                    {lang === 'ru'
-                                        ? 'Если ваш друг поделился логином, введите его здесь и вы оба получите по 500 AI токенов.'
-                                        : 'If a friend shared their username with you, enter it here and you both will get 500 AI tokens.'}
-                                </p>
-                            </div>
-                        )}
 
                         {authError && (
                             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold text-center animate-fade-in-up">
@@ -724,4 +656,3 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
     </div>
   );
 };
-
