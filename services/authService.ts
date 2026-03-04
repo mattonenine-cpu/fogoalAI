@@ -201,8 +201,9 @@ export const authService = {
     /**
      * Registers a new user.
      * Checks if username exists. If not, creates entry in `cloud_users` and saves initial data.
+     * Optionally принимает username пригласившего (referrerUsername) для начисления бонуса.
      */
-    register: async (username: string, password: string, initialData: UserDataPayload): Promise<{ success: boolean, message?: string }> => {
+    register: async (username: string, password: string, initialData: UserDataPayload, referrerUsername?: string): Promise<{ success: boolean, message?: string }> => {
         await delay(400);
 
         const usersRaw = localStorage.getItem('cloud_users');
@@ -229,6 +230,22 @@ export const authService = {
         authService.syncToActiveState(initialData);
 
         pushUserDataToSupabase(initialData);
+
+        // Если при регистрации использовали реферальный код — уведомим backend, чтобы начислить бонус пригласившему
+        if (referrerUsername) {
+            try {
+                const apiUrl = (typeof window !== 'undefined' && window.location?.origin)
+                    ? `${window.location.origin}/api/referral-bonus`
+                    : '/api/referral-bonus';
+                fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ inviter: referrerUsername, invitee: username }),
+                }).catch(() => {});
+            } catch {
+                // тихо игнорируем сбои начисления бонуса
+            }
+        }
 
         return { success: true };
     },
