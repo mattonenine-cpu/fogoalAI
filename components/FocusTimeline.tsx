@@ -206,9 +206,9 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
           </div>
 
           {/* Центральная колонка — линия дня и узлы */}
-          <div className="relative flex-1 pl-4">
+          <div className="relative flex-1 pl-6">
             {/* Базовая линия дня */}
-            <div className="absolute left-[32px] top-8 bottom-8 w-[2px] bg-[#2A2A2A] overflow-hidden rounded-full pointer-events-none">
+            <div className="absolute left-[72px] top-8 bottom-8 w-[3px] bg-[#2A2A2A] overflow-hidden rounded-full pointer-events-none">
               <div
                 className="w-full bg-[rgba(148,163,184,0.55)] origin-top"
                 style={{
@@ -221,7 +221,7 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
 
             {/* Прогресс по текущему времени */}
             <div
-              className="absolute left-[32px] top-8 bottom-8 w-[2px] rounded-full pointer-events-none"
+              className="absolute left-[72px] top-8 bottom-8 w-[3px] rounded-full pointer-events-none"
               style={{
                 background: showCurrentTime ? 'linear-gradient(to bottom, var(--theme-accent), rgba(148,163,184,0.5))' : 'transparent',
                 clipPath:
@@ -234,7 +234,7 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
             {/* Индикатор текущего времени */}
             {showCurrentTime && currentTimeTop !== null && (
               <div
-                className="absolute left-[32px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                className="absolute left-[72px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 style={{ top: currentTimeTop }}
               >
                 <div className="relative">
@@ -275,16 +275,9 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
                     transition: 'transform 220ms ease-out, opacity 200ms ease-out'
                   }}
                 >
-                  {/* Линия сверху/снизу вокруг узла остаётся частью центральной оси */}
-                  <div className="relative" style={{ marginLeft: 24 }}>
-                    <div
-                      className="w-3 h-[1px] bg-[rgba(148,163,184,0.55)] group-hover:bg-[rgba(248,250,252,0.7)] transition-colors"
-                    />
-                  </div>
-
                   {/* Карточка задачи */}
                   <div
-                    className="ml-1 flex items-center gap-3 px-3 py-2.5 rounded-[14px] bg-[rgba(15,23,42,0.96)] border border-[var(--border-glass)] text-left min-w-[190px] max-w-[260px] shadow-[0_18px_40px_rgba(0,0,0,0.6)]"
+                    className="ml-[90px] flex items-center gap-3 px-3 py-2.5 rounded-[14px] bg-[rgba(15,23,42,0.96)] border border-[var(--border-glass)] text-left min-w-[190px] max-w-[260px] shadow-[0_18px_40px_rgba(0,0,0,0.6)]"
                     style={{
                       transform: 'translateX(4px)',
                       opacity: 0,
@@ -328,13 +321,17 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
 
                   {/* Сам таймлайн‑узел (кружок) поверх оси */}
                   <div
-                    className="absolute left-[32px] -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full shadow-[0_0_16px_rgba(248,113,113,0.7)]"
+                    className="absolute left-[72px] -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full shadow-[0_0_22px_rgba(248,113,113,0.7)] flex items-center justify-center"
                     style={{
                       top,
-                      background: isPast ? 'var(--theme-accent)' : 'rgba(248,250,252,0.95)',
-                      border: isPast ? '1px solid rgba(248,113,113,0.9)' : '1px solid rgba(15,23,42,0.9)'
+                      background: isPast ? 'var(--theme-accent)' : 'rgba(30, 41, 59, 0.98)',
+                      border: isPast ? '2px solid rgba(248,113,113,0.95)' : '2px solid rgba(148,163,184,0.7)'
                     }}
-                  />
+                  >
+                    <div className="w-[26px] h-[26px] rounded-full bg-[var(--bg-main)]/40 flex items-center justify-center text-[15px]">
+                      {getTaskEmoji(task)}
+                    </div>
+                  </div>
                 </button>
               );
             })}
