@@ -4,7 +4,6 @@ import { Task, UserProfile, Language, TRANSLATIONS, Note, DailyStats } from '../
 import { GlassInput } from './GlassCard';
 import { Plus, Check, ChevronLeft, ChevronRight, Clock, Flag, Trash2, StickyNote, Edit2, Palette, X, Moon, Smile } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
-import FocusTimeline from './FocusTimeline';
 
 interface SchedulerProps {
   tasks: Task[];
@@ -145,15 +144,6 @@ export const Scheduler: React.FC<SchedulerProps> = ({
         return currentDate.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'long', weekday: 'long' });
     }, [currentDate, lang, viewMode]);
 
-    const monthYearLabel = useMemo(
-        () =>
-            currentDate.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', {
-                month: 'long',
-                year: 'numeric'
-            }),
-        [currentDate, lang]
-    );
-
     return (
         <div className="animate-fade-in-up space-y-5">
             <div className="flex items-center justify-center gap-2">
@@ -204,49 +194,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({
                     <button onClick={handleNext} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 text-[var(--text-secondary)] active:scale-90 transition-all"><ChevronRight size={20}/></button>
                 </div>
 
-                {viewMode === 'day' && (
-                    <div className="space-y-3 mt-1 px-1">
-                        <div className="flex items-baseline justify-between">
-                            <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)] capitalize">
-                                {monthYearLabel}
-                            </h2>
-                        </div>
-                        <div className="flex gap-1 overflow-x-auto scrollbar-hide py-1 -mx-1 px-1">
-                            {weekDays.map((wd, i) => {
-                                const iso = getLocalISODate(wd);
-                                const isActive = iso === selectedDateISO;
-                                const hasTasks = tasks.some(t => t.date === iso);
-                                return (
-                                    <button
-                                        key={i}
-                                        onClick={() => setCurrentDate(wd)}
-                                        className={`flex flex-col items-center justify-center px-2 py-1.5 rounded-2xl min-w-[44px] transition-all ${
-                                            isActive
-                                                ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-md scale-105'
-                                                : 'bg-white/5 text-[var(--text-primary)] opacity-80 hover:opacity-100'
-                                        }`}
-                                    >
-                                        <span className="text-[9px] font-black uppercase tracking-[0.18em] opacity-70">
-                                            {wd.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', {
-                                                weekday: 'short'
-                                            })}
-                                        </span>
-                                        <span className="text-sm font-semibold mt-0.5">{wd.getDate()}</span>
-                                        {hasTasks && (
-                                            <span
-                                                className={`mt-1 w-1 h-1 rounded-full ${
-                                                    isActive ? 'bg-[var(--bg-active-text)]' : 'bg-[var(--theme-accent)]'
-                                                }`}
-                                            />
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-            <div className="flex gap-2">
+                <div className="flex gap-2">
                     <div className="relative group flex-1">
                         <GlassInput 
                             value={newTaskTitle}
@@ -274,55 +222,6 @@ export const Scheduler: React.FC<SchedulerProps> = ({
             </div>
 
             <div className="px-1">
-                {viewMode === 'day' && (
-                    <div className="relative">
-                        <FocusTimeline
-                            tasks={tasks}
-                            selectedDateISO={selectedDateISO}
-                            lang={lang}
-                            onTaskClick={(task) => setEditingTask(tk => ({ ...(tk || task), ...task }))}
-                            onAddTaskAtTime={(time) => {
-                                const base: Task = {
-                                    id: Date.now().toString(),
-                                    title: lang === 'ru' ? 'Новая задача' : 'New Task',
-                                    category: 'focus',
-                                    durationMinutes: 30,
-                                    completed: false,
-                                    priority: 'Medium',
-                                    energyRequired: 'medium',
-                                    date: selectedDateISO,
-                                    status: 'planned',
-                                    scheduledTime: time,
-                                    color: 'transparent'
-                                };
-                                setEditingTask(base);
-                            }}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => {
-                                const base: Task = {
-                                    id: Date.now().toString(),
-                                    title: lang === 'ru' ? 'Новая задача' : 'New Task',
-                                    category: 'focus',
-                                    durationMinutes: 30,
-                                    completed: false,
-                                    priority: 'Medium',
-                                    energyRequired: 'medium',
-                                    date: selectedDateISO,
-                                    status: 'planned',
-                                    scheduledTime: '',
-                                    color: 'transparent'
-                                };
-                                setEditingTask(base);
-                            }}
-                            className="absolute right-4 bottom-6 w-14 h-14 rounded-full bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-[0_16px_40px_rgba(0,0,0,0.6)] flex items-center justify-center text-2xl font-bold active:scale-95 transition-transform"
-                        >
-                            +
-                        </button>
-                    </div>
-                )}
-
                 {viewMode === 'week' && (
                     <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-6">
                         {weekDays.map((wd, i) => {
