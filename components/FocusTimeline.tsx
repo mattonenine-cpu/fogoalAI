@@ -78,17 +78,41 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
   const contentHeight = MIN_CONTENT_HEIGHT;
 
   const positioned: PositionedTask[] = useMemo(() => {
-    const totalMinutes = (DAY_END - DAY_START) * 60;
     if (!dayTasks.length) return [];
 
-    const raw: PositionedTask[] = dayTasks.map(task => {
+    const timesMinutes = dayTasks.map(task => {
       const [hStr, mStr] = (task.scheduledTime || '12:00').split(':');
       const h = Number(hStr);
       const m = Number(mStr);
       const clampedH = Math.min(Math.max(h, DAY_START), DAY_END);
-      const minutesFromStart = (clampedH - DAY_START) * 60 + m;
-      const ratio = Math.min(Math.max(minutesFromStart / totalMinutes, 0), 1);
-      const top = 32 + ratio * (contentHeight - 96); // padding top/bottom
+      return (clampedH - DAY_START) * 60 + m;
+    });
+
+    const visualMinutes: number[] = [];
+    let acc = 0;
+    const MAX_GAP_MIN = 120; // визуально не больше 2х часов
+
+    timesMinutes.forEach((realMin, index) => {
+      if (index === 0) {
+        const fromStart = Math.min(realMin, MAX_GAP_MIN);
+        acc = fromStart;
+        visualMinutes.push(acc);
+      } else {
+        const diff = Math.max(0, realMin - timesMinutes[index - 1]);
+        const visualDiff = Math.min(diff, MAX_GAP_MIN);
+        acc += visualDiff || 30; // гарантируем небольшой шаг даже при одинаковом времени
+        visualMinutes.push(acc);
+      }
+    });
+
+    const maxVisual = visualMinutes[visualMinutes.length - 1] || 1;
+
+    const baseTop = 32;
+    const usable = contentHeight - 96;
+
+    const raw: PositionedTask[] = dayTasks.map((task, index) => {
+      const ratio = maxVisual > 0 ? visualMinutes[index] / maxVisual : 0;
+      const top = baseTop + ratio * usable;
       return { task, top };
     });
 
@@ -158,7 +182,7 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
   }, [showCurrentTime, currentTimeTop, selectedDateISO]);
 
   return (
-    <div className="mt-4 rounded-[32px] bg-[var(--bg-main)]/40 border border-[var(--border-glass)] overflow-hidden">
+    <div className="mt-4">
       <div className="px-4 pt-4 pb-3 flex items-center justify-between">
         <div className="flex flex-col">
           <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)]">
