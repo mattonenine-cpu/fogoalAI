@@ -133,7 +133,7 @@ export default async function handler(req: any, res: any) {
     }
     const { url, key } = config;
 
-    const resFetch = await fetch(`${url}/rest/v1/app_users?select=username,user_data`, {
+    const resFetch = await fetch(`${url}/rest/v1/app_users?select=username,user_data,created_at`, {
       method: 'GET',
       headers: { ...restHeaders(key), Range: '0-1999' },
     });
@@ -141,9 +141,11 @@ export default async function handler(req: any, res: any) {
       sendJson(res, 500, { ok: false, error: resFetch.statusText || 'Supabase error' });
       return;
     }
-    const rows: { username: string; user_data: any }[] = await resFetch.json();
+    const rows: { username: string; user_data: any; created_at?: string }[] = await resFetch.json();
     const aggregated = emptyAggregate();
-    const users: { username: string; displayName: string; usageStats: UsageStatsRow }[] = [];
+    const users: { username: string; displayName: string; usageStats: UsageStatsRow; isNew: boolean; createdAt?: string }[] = [];
+
+    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
     for (const row of rows || []) {
       const username = row?.username;
@@ -154,7 +156,15 @@ export default async function handler(req: any, res: any) {
       const telegramUsername = profile?.telegramUsername && typeof profile.telegramUsername === 'string' ? profile.telegramUsername.trim() : null;
       const name = profile?.name && typeof profile.name === 'string' ? profile.name.trim() : null;
       const displayName = telegramUsername ? (telegramUsername.startsWith('@') ? telegramUsername : `@${telegramUsername}`) : (name || String(username));
-      users.push({ username: String(username), displayName, usageStats });
+      const createdAtStr = typeof row.created_at === 'string' ? row.created_at : undefined;
+      let isNew = false;
+      if (createdAtStr) {
+        const createdAtTime = Date.parse(createdAtStr);
+        if (!Number.isNaN(createdAtTime)) {
+          isNew = Date.now() - createdAtTime < ONE_WEEK_MS;
+        }
+      }
+      users.push({ username: String(username), displayName, usageStats, isNew, createdAt: createdAtStr });
       addToAggregate(aggregated, usageStats);
     }
 
