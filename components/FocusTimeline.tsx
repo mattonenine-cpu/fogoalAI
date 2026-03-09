@@ -11,8 +11,9 @@ interface FocusTimelineProps {
 
 const DAY_START = 6;  // 06:00
 const DAY_END = 22;   // 22:00
-const MIN_CONTENT_HEIGHT = 560; // px
+const MIN_CONTENT_HEIGHT = 640; // px, чуть выше для более «полного» дня
 const MIN_NODE_SPACING = 40; // px between nodes
+const TIME_MARKERS = [6, 9, 12, 15, 18, 21];
 
 interface PositionedTask {
   task: Task;
@@ -158,7 +159,7 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
 
   return (
     <div className="mt-4 rounded-[32px] bg-[var(--bg-main)]/40 border border-[var(--border-glass)] overflow-hidden">
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
         <div className="flex flex-col">
           <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)]">
             {lang === 'ru' ? 'Лента дня' : 'Timeline'}
@@ -178,118 +179,166 @@ export const FocusTimeline: React.FC<FocusTimelineProps> = ({
 
       <div
         ref={scrollRef}
-        className="relative h-[420px] overflow-y-auto scrollbar-hide px-8 pb-6"
+        className="relative h-[460px] overflow-y-auto scrollbar-hide px-4 pb-6"
         onClick={handleBackgroundTap}
       >
         <div
-          className="relative mx-auto"
-          style={{ height: contentHeight, width: '100%', maxWidth: 360 }}
+          className="relative mx-auto flex"
+          style={{ height: contentHeight, width: '100%', maxWidth: 400 }}
         >
-          <div className="absolute left-1/2 -translate-x-1/2 top-8 bottom-8 w-[2px] bg-[rgba(148,163,184,0.45)] overflow-hidden rounded-full pointer-events-none">
-            <div
-              className="w-full bg-[var(--theme-accent)] origin-top"
-              style={{
-                transform: `scaleY(${lineAnimated ? 1 : 0})`,
-                opacity: lineAnimated ? 1 : 0,
-                transition: 'transform 600ms ease-out, opacity 400ms ease-out'
-              }}
-            />
+          {/* Левая колонка — метки времени */}
+          <div className="w-12 pr-2 pt-6 text-right text-[10px] font-medium text-[var(--text-secondary)] select-none">
+            {TIME_MARKERS.map((hour) => {
+              const minutesFromStart = (hour - DAY_START) * 60;
+              const totalMinutes = (DAY_END - DAY_START) * 60;
+              const ratio = Math.min(Math.max(minutesFromStart / totalMinutes, 0), 1);
+              const top = 32 + ratio * (contentHeight - 96);
+              return (
+                <div
+                  key={hour}
+                  className="absolute right-3"
+                  style={{ top }}
+                >
+                  {`${String(hour).padStart(2, '0')}:00`}
+                </div>
+              );
+            })}
           </div>
 
-          {showCurrentTime && currentTimeTop !== null && (
+          {/* Центральная колонка — линия дня и узлы */}
+          <div className="relative flex-1 pl-4">
+            {/* Базовая линия дня */}
+            <div className="absolute left-[32px] top-8 bottom-8 w-[2px] bg-[#2A2A2A] overflow-hidden rounded-full pointer-events-none">
+              <div
+                className="w-full bg-[rgba(148,163,184,0.55)] origin-top"
+                style={{
+                  transform: `scaleY(${lineAnimated ? 1 : 0})`,
+                  opacity: lineAnimated ? 1 : 0,
+                  transition: 'transform 600ms ease-out, opacity 400ms ease-out'
+                }}
+              />
+            </div>
+
+            {/* Прогресс по текущему времени */}
             <div
-              className="absolute left-1/2 -translate-x-1/2 w-[2px] bg-[var(--theme-accent)] rounded-full pointer-events-none"
+              className="absolute left-[32px] top-8 bottom-8 w-[2px] rounded-full pointer-events-none"
               style={{
-                top: 32,
-                height: currentTimeTop - 32
+                background: showCurrentTime ? 'linear-gradient(to bottom, var(--theme-accent), rgba(148,163,184,0.5))' : 'transparent',
+                clipPath:
+                  showCurrentTime && currentTimeTop != null
+                    ? `inset(0 0 ${Math.max(contentHeight - (currentTimeTop - 32), 0)}px 0)`
+                    : undefined
               }}
             />
-          )}
 
-          {showCurrentTime && currentTimeTop !== null && (
-            <div
-              className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-[var(--theme-accent)] shadow-[0_0_18px_rgba(248,113,113,0.6)] pointer-events-none"
-              style={{ top: currentTimeTop }}
-            />
-          )}
-
-          {positioned.map(({ task, top }, index) => {
-            const createdAgo = Date.now() - mountedAt;
-            const baseDelay = Math.min(createdAgo, 200);
-            const isPast = task.completed || (task.date === nowISO && (task.scheduledTime || '') < now.toTimeString().slice(0,5));
-
-            const nodeCenter = top;
-            const distance = Math.abs(nodeCenter - scrollCenter);
-            const norm = Math.min(distance / 220, 1);
-            const scale = 1 - norm * 0.06;
-            const opacity = 1 - norm * 0.15;
-
-            return (
-              <button
-                key={task.id}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTaskClick(task);
-                }}
-                className="group absolute left-1/2 -translate-x-1/2 flex items-center gap-4"
-                style={{
-                  top,
-                  transform: `translateX(-50%) scale(${scale})`,
-                  opacity,
-                  transformOrigin: 'center',
-                  transition: 'transform 220ms ease-out, opacity 200ms ease-out',
-                }}
+            {/* Индикатор текущего времени */}
+            {showCurrentTime && currentTimeTop !== null && (
+              <div
+                className="absolute left-[32px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ top: currentTimeTop }}
               >
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_1px_rgba(255,255,255,0.08)] relative"
-                  style={{
-                    background:
-                      task.completed || isPast
-                        ? 'radial-gradient(circle at 30% 30%, rgba(252,165,165,0.9), rgba(248,113,113,0.3))'
-                        : 'radial-gradient(circle at 30% 30%, rgba(252,211,77,0.9), rgba(248,113,113,0.25))',
-                    boxShadow: isPast
-                      ? '0 0 0 1px rgba(248,250,252,0.18)'
-                      : '0 0 18px rgba(248,113,113,0.5)'
-                  }}
-                >
-                  <span className="text-[15px] leading-none">
-                    {getTaskEmoji(task)}
-                  </span>
-                  <span
-                    className="absolute inset-[-6px] rounded-full border border-[rgba(248,113,113,0.0)] group-active:border-[rgba(248,113,113,0.85)] group-active:scale-110 transition-all duration-200 pointer-events-none"
-                  />
+                <div className="relative">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--theme-accent)] shadow-[0_0_18px_rgba(248,113,113,0.7)]" />
+                  <div className="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 w-[999px] border-t border-[var(--theme-accent)]/40 opacity-70" />
                 </div>
+              </div>
+            )}
 
-                <div
-                  className="px-3 py-2 rounded-2xl bg-[rgba(15,23,42,0.9)]/90 border border-[var(--border-glass)] text-left min-w-[180px] max-w-[230px]"
+            {/* Узлы и карточки задач */}
+            {positioned.map(({ task, top }, index) => {
+              const createdAgo = Date.now() - mountedAt;
+              const baseDelay = Math.min(createdAgo, 200);
+              const isPast =
+                task.completed ||
+                (task.date === nowISO && (task.scheduledTime || '') < now.toTimeString().slice(0, 5));
+
+              const nodeCenter = top;
+              const distance = Math.abs(nodeCenter - scrollCenter);
+              const norm = Math.min(distance / 240, 1);
+              const scale = 1.03 - norm * 0.07; // 1.03 → ~0.96
+              const opacity = 1 - norm * 0.12;
+
+              return (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTaskClick(task);
+                  }}
+                  className="group absolute left-0 right-0 flex items-center"
                   style={{
-                    boxShadow: '0 18px 40px rgba(0,0,0,0.45)',
-                    transform: 'translateX(0)',
-                    opacity: 0,
-                    animation: `fg-node-in 260ms ease-out forwards`,
-                    animationDelay: `${baseDelay + index * 40}ms`
+                    top,
+                    transform: `scale(${scale})`,
+                    opacity,
+                    transformOrigin: 'left center',
+                    transition: 'transform 220ms ease-out, opacity 200ms ease-out'
                   }}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">
-                      {task.title}
-                    </p>
-                    {task.scheduledTime && (
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                        {task.scheduledTime}
-                      </span>
-                    )}
+                  {/* Линия сверху/снизу вокруг узла остаётся частью центральной оси */}
+                  <div className="relative" style={{ marginLeft: 24 }}>
+                    <div
+                      className="w-3 h-[1px] bg-[rgba(148,163,184,0.55)] group-hover:bg-[rgba(248,250,252,0.7)] transition-colors"
+                    />
                   </div>
-                  {task.description && (
-                    <p className="mt-1 text-[11px] text-[var(--text-secondary)] line-clamp-2">
-                      {task.description}
-                    </p>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+
+                  {/* Карточка задачи */}
+                  <div
+                    className="ml-1 flex items-center gap-3 px-3 py-2.5 rounded-[14px] bg-[rgba(15,23,42,0.96)] border border-[var(--border-glass)] text-left min-w-[190px] max-w-[260px] shadow-[0_18px_40px_rgba(0,0,0,0.6)]"
+                    style={{
+                      transform: 'translateX(4px)',
+                      opacity: 0,
+                      animation: 'fg-node-in 260ms ease-out forwards',
+                      animationDelay: `${baseDelay + index * 40}ms`
+                    }}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-[0_0_0_1px_rgba(255,255,255,0.08)] relative transition-transform duration-160 group-active:scale-110"
+                      style={{
+                        background: isPast
+                          ? 'radial-gradient(circle at 30% 30%, rgba(252,165,165,0.9), rgba(248,113,113,0.32))'
+                          : 'radial-gradient(circle at 30% 30%, rgba(248,250,252,0.95), rgba(248,250,252,0.14))',
+                        boxShadow: isPast
+                          ? '0 0 0 1px rgba(248,250,252,0.34)'
+                          : '0 0 20px rgba(248,250,252,0.45)'
+                      }}
+                    >
+                      <span className="text-[17px] leading-none">
+                        {getTaskEmoji(task)}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                          {task.title || (lang === 'ru' ? 'Без названия' : 'Untitled')}
+                        </p>
+                        {task.scheduledTime && (
+                          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                            {task.scheduledTime}
+                          </span>
+                        )}
+                      </div>
+                      {task.description && (
+                        <p className="mt-1 text-[11px] text-[var(--text-secondary)] line-clamp-2">
+                          {task.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Сам таймлайн‑узел (кружок) поверх оси */}
+                  <div
+                    className="absolute left-[32px] -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full shadow-[0_0_16px_rgba(248,113,113,0.7)]"
+                    style={{
+                      top,
+                      background: isPast ? 'var(--theme-accent)' : 'rgba(248,250,252,0.95)',
+                      border: isPast ? '1px solid rgba(248,113,113,0.9)' : '1px solid rgba(15,23,42,0.9)'
+                    }}
+                  />
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
