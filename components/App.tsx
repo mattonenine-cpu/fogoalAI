@@ -73,7 +73,7 @@ export default function App() {
 
 const [theme, setTheme] = useState<AppTheme>(() => {
     const saved = localStorage.getItem('focu_theme');
-    const valid: AppTheme[] = ['dark', 'white', 'ice'];
+    const valid: AppTheme[] = ['dark', 'white', 'ice', 'pink'];
     return (saved && valid.includes(saved as AppTheme)) ? (saved as AppTheme) : 'dark';
   });
 
@@ -160,9 +160,10 @@ const [theme, setTheme] = useState<AppTheme>(() => {
       safeSave('focu_theme', theme);
       const root = document.documentElement;
       const themeConfigs: Record<string, any> = {
-          dark: { bgMain: '#09090b', bgCard: 'rgba(255, 255, 255, 0.05)', bgActive: '#FFFFFF', bgActiveText: '#000000', accent: '#6366f1', border: 'rgba(255, 255, 255, 0.08)', textPrimary: '#FAFAFA', textSecondary: 'rgba(255, 255, 255, 0.4)' },
-          white: { bgMain: '#F8F9FA', bgCard: '#FFFFFF', bgActive: '#18181b', bgActiveText: '#FFFFFF', accent: '#18181b', border: 'rgba(0, 0, 0, 0.06)', textPrimary: '#18181b', textSecondary: 'rgba(24, 24, 27, 0.4)' },
-          ice: { bgMain: '#D6E6F3', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#0F52BA', bgActiveText: '#FFFFFF', accent: '#0F52BA', border: 'rgba(0, 9, 38, 0.06)', textPrimary: '#000926', textSecondary: 'rgba(0, 9, 38, 0.4)' }
+          dark: { bgMain: '#09090b', bgCard: 'rgba(255, 255, 255, 0.05)', bgActive: '#FFFFFF', bgActiveText: '#000000', accent: '#6366f1', border: 'rgba(255, 255, 255, 0.08)', textPrimary: '#FAFAFA', textSecondary: 'rgba(255, 255, 255, 0.4)', themeGlow: 'rgba(99, 102, 241, 0.1)' },
+          white: { bgMain: '#F8F9FA', bgCard: '#FFFFFF', bgActive: '#18181b', bgActiveText: '#FFFFFF', accent: '#18181b', border: 'rgba(0, 0, 0, 0.06)', textPrimary: '#18181b', textSecondary: 'rgba(24, 24, 27, 0.4)', themeGlow: 'rgba(24, 24, 27, 0.08)' },
+          ice: { bgMain: '#D6E6F3', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#0F52BA', bgActiveText: '#FFFFFF', accent: '#0F52BA', border: 'rgba(0, 9, 38, 0.06)', textPrimary: '#000926', textSecondary: 'rgba(0, 9, 38, 0.4)', themeGlow: 'rgba(15, 82, 186, 0.12)' },
+          pink: { bgMain: '#F5D6E8', bgCard: 'rgba(255, 255, 255, 0.5)', bgActive: '#BE185D', bgActiveText: '#FFFFFF', accent: '#BE185D', border: 'rgba(126, 34, 86, 0.1)', textPrimary: '#37152a', textSecondary: 'rgba(55, 21, 42, 0.5)', themeGlow: 'rgba(190, 24, 93, 0.12)' }
       };
       const c = themeConfigs[theme] || themeConfigs.dark;
       root.style.setProperty('--bg-main', c.bgMain);
@@ -173,6 +174,7 @@ const [theme, setTheme] = useState<AppTheme>(() => {
       root.style.setProperty('--text-primary', c.textPrimary);
       root.style.setProperty('--text-secondary', c.textSecondary);
       root.style.setProperty('--border-glass', c.border);
+      if (c.themeGlow) root.style.setProperty('--theme-glow', c.themeGlow);
       document.body.style.background = c.bgMain;
 
       const fontScales = {
@@ -324,7 +326,7 @@ const [theme, setTheme] = useState<AppTheme>(() => {
           onFinish={() => {
             setShowEducation(false);
             if (!profile.hasSeenEducation) {
-              handleUpdateProfile({ ...profile, hasSeenEducation: true });
+              setProfile({ ...profile, hasSeenEducation: true });
             }
           }}
         />
