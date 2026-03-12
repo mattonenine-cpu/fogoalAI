@@ -117,6 +117,8 @@ export interface UserProfile {
   referralInvitees?: string[];
   /** Показывали ли пользователю обучающий тур по приложениям-блокам */
   hasSeenEducation?: boolean;
+  /** Маленькие обучающие подсказки по экосистемам: work/sport/study/health */
+  ecosystemEducation?: Partial<Record<EcosystemType, boolean>>;
 }
 
 /** Частота напоминаний в Telegram */
@@ -714,6 +716,14 @@ export const TRANSLATIONS: any = {
     ecoTasksTitle: "Задачи сферы",
     ecoHistoryTitle: "Активность",
     ecoPractices: "Практики",
+    ecoWorkEduTitle: "Как использовать рабочую сферу",
+    ecoWorkEduBody: "Здесь фокус — на задачах и прогрессе. Записывай короткие отчёты в поле ниже, чтобы FoGoal перевёл их в XP, прогресс по целям и историю действий.",
+    ecoSportEduTitle: "Как использовать спорт‑сферу",
+    ecoSportEduBody: "Сначала создай фитнес‑профиль, дальше — генерируй тренировки и программы. Отмечай выполненные упражнения — это даёт XP, историю и подсказки по технике.",
+    ecoStudyEduTitle: "Как использовать учебную сферу",
+    ecoStudyEduBody: "Через Exam Academy создавай экзамены, билеты и карточки. Начни с предмета и материала, затем учись по билетам и чек‑листам прогресса.",
+    ecoHealthEduTitle: "Как использовать сферу здоровья",
+    ecoHealthEduBody: "Каждый день отмечай сон, энергию, стресс и фокус. На графиках FoGoal показывает тренды, а за заполнение чек‑ина ты получаешь опыт и аналитику.",
     zoneMorning: "Утро",
     zoneMidday: "День",
     zoneEvening: "Вечер",
