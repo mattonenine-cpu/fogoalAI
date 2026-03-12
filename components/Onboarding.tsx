@@ -269,7 +269,6 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
             username: baseUsername || profile.name || 'User',
             goals: profile.goals || [],
             isOnboarded: true,
-            hasSeenEducation: false,
             enabledEcosystems,
             level: profile.level || 1,
             totalExperience: profile.totalExperience || 0,
