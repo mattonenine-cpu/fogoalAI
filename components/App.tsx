@@ -26,7 +26,7 @@ import { Logo } from './Logo';
 import { ThemeSelector } from './ThemeSelector';
 import { SettingsModal } from './SettingsModal';
 import { ContextHelpOverlay } from './ContextHelpOverlay';
-import { FoGoalEducation } from './FoGoalEducation';
+import FoGoalEducation from './FoGoalEducation';
 import { SlidersHorizontal } from 'lucide-react';
 import { getLocalISODate } from '../services/geminiService';
 import { authService } from '../services/authService';
