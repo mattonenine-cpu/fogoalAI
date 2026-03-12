@@ -115,6 +115,8 @@ export interface UserProfile {
   referredByCode?: string;
   /** Список логинов приглашённых пользователей, за которых уже начислен бонус */
   referralInvitees?: string[];
+  /** Показывали ли пользователю обучающий тур по приложениям-блокам */
+  hasSeenEducation?: boolean;
 }
 
 /** Частота напоминаний в Telegram */
@@ -583,7 +585,18 @@ export const TRANSLATIONS: any = {
     viewInList: "Back to list",
     noDateSection: "No date",
     onGridSection: "Scheduled",
-    addTask: "Add task"
+    addTask: "Add task",
+    eduTitle1: "Hi, I'm FoGoal",
+    eduSubtitle1: "In 3 short cards I'll show where everything lives here.",
+    eduTitle2: "Blocks of your life",
+    eduSubtitle2: "Dashboard, Planner and Smart Planner help turn goals into a clear day plan.",
+    eduTitle3: "Spheres Sport / Study / Health",
+    eduSubtitle3: "Each sphere has its own tools: workouts, exam prep, health check-ins — all in one place.",
+    eduTitle4: "FoGoal chat and Notes",
+    eduSubtitle4: "Ask FoGoal to plan, rephrase and explain. Save ideas and drafts in Notes.",
+    eduSkipAll: "Skip tutorial",
+    eduNext: "Next",
+    eduDone: "Start using"
   },
   ru: {
     navHome: "Главная",
@@ -796,6 +809,17 @@ export const TRANSLATIONS: any = {
     viewInList: "К списку",
     noDateSection: "Без даты",
     onGridSection: "На сетке",
-    addTask: "Добавить задачу"
+    addTask: "Добавить задачу",
+    eduTitle1: "Привет, я FoGoal",
+    eduSubtitle1: "За 3 коротких экрана покажу, где что лежит в приложении.",
+    eduTitle2: "Блоки под твой день",
+    eduSubtitle2: "Главная, Планировщик и Умный планер собирают твои цели в понятный план дня.",
+    eduTitle3: "Сферы Sport / Study / Health",
+    eduSubtitle3: "В каждой сфере свои инструменты: тренировки, экзамены, здоровье — всё в одном месте.",
+    eduTitle4: "Чат с FoGoal и заметки",
+    eduSubtitle4: "Попроси FoGoal спланировать, переформулировать и объяснить. Храни идеи и конспекты в Заметках.",
+    eduSkipAll: "Пропустить обучение",
+    eduNext: "Дальше",
+    eduDone: "Начать пользоваться"
   }
 };
