@@ -66,7 +66,8 @@ const renderMessageContent = (text: string, isUser: boolean) => {
 };
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang, tasks, onSetTasks, onDeductCredits, onUpdateProfile }) => {
-  const t = TRANSLATIONS[lang];
+  const normalizedLang: Language = (lang === 'ru' || lang === 'en') ? lang : 'ru';
+  const t = TRANSLATIONS[normalizedLang] || TRANSLATIONS['ru'];
   const MAX_HISTORY = 50;
   
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -94,10 +95,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
   useEffect(() => {
     if (messages.length === 0) {
       const name = userProfile.name?.trim();
-      let initText = t.chatInit.replace('{name}', name || (lang === 'ru' ? 'друг' : 'friend'));
+      const fallbackName = normalizedLang === 'ru' ? 'друг' : 'friend';
+      const initText = t.chatInit.replace('{name}', name || fallbackName);
       setMessages([{ id: 'init', role: 'model', text: initText, timestamp: new Date() }]);
     }
-  }, [userProfile.name, lang, t.chatInit, messages.length]);
+  }, [userProfile.name, normalizedLang, t.chatInit, messages.length]);
 
   useEffect(() => {
     try {
@@ -112,8 +114,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, lang,
   const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); };
 
   const handleClearHistory = () => {
-    if (window.confirm(lang === 'ru' ? "Очистить историю чата?" : "Clear chat history?")) {
-      const name = userProfile.name?.trim() || (lang === 'ru' ? 'друг' : 'friend');
+    if (window.confirm(normalizedLang === 'ru' ? "Очистить историю чата?" : "Clear chat history?")) {
+      const name = userProfile.name?.trim() || (normalizedLang === 'ru' ? 'друг' : 'friend');
       setMessages([{ id: 'init', role: 'model', text: t.chatInit.replace('{name}', name), timestamp: new Date() }]);
       try { 
           localStorage.removeItem('focu_chat_history'); 
