@@ -82,7 +82,12 @@ export default function App() {
 
   const [language, setLanguage] = useState<Language | null>(() => {
     const saved = localStorage.getItem('focu_language');
-    return (saved as Language) || null;
+    // Нормализуем сохранённое значение (убираем возможные кавычки) и по умолчанию ставим 'ru'
+    if (saved) {
+      const normalized = saved.replace(/^"+|"+$/g, '') as Language;
+      if (normalized === 'ru' || normalized === 'en') return normalized;
+    }
+    return 'ru';
   });
 
   const [theme, setTheme] = useState<AppTheme>(() => {
