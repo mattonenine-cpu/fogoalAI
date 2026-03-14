@@ -35,6 +35,10 @@ const getLogoMood = (dailyMood: 'Happy' | 'Neutral' | 'Sad'): 'Great' | 'Good' |
   }
 };
 
+const VALID_ECOSYSTEM_TYPES: EcosystemType[] = ['work', 'sport', 'study', 'health'];
+const isValidEcosystemType = (t: string): t is EcosystemType =>
+  VALID_ECOSYSTEM_TYPES.includes(t as EcosystemType);
+
 export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(() => {
     try {
@@ -256,7 +260,7 @@ const [theme, setTheme] = useState<AppTheme>(() => {
       case AppView.CHAT:
         return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} />;
       case AppView.ECOSYSTEM:
-        return activeEcosystem ? <EcosystemView 
+        return activeEcosystem && isValidEcosystemType(activeEcosystem) ? <EcosystemView 
             type={activeEcosystem} user={profile} tasks={tasks} lang={language!} 
             onUpdateTasks={setTasks} onUpdateProfile={handleUpdateProfile} onNavigate={setCurrentView} theme={theme}
         /> : null;
@@ -323,14 +327,17 @@ const [theme, setTheme] = useState<AppTheme>(() => {
            <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
            <div className="flex items-center gap-2">
              <ThemeSelector currentTheme={theme} onSelect={setTheme} />
+             {profile.telegramPhotoUrl ? (
+               <img src={profile.telegramPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-[var(--border-glass)] shrink-0" />
+             ) : null}
              <button 
                 onClick={() => setShowSettings(true)}
                 className="w-10 h-10 rounded-full glass-liquid flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-90"
              >
                 <SlidersHorizontal size={18} />
              </button>
-             <button onClick={handleLanguageCycle} className="px-3 py-1.5 rounded-full glass-liquid text-mini font-bold tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-               {language.toUpperCase()}
+             <button onClick={handleLanguageCycle} className="px-3 py-1.5 rounded-full glass-liquid text-[10px] font-bold tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors min-w-[2.5rem]">
+               {(language && String(language).trim().toUpperCase().slice(0, 2)) || 'EN'}
              </button>
            </div>
         </header>
@@ -344,9 +351,11 @@ const [theme, setTheme] = useState<AppTheme>(() => {
             <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
             <NavBtn active={currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('scheduler')} />
             <NavBtn active={currentView === AppView.SMART_PLANNER} onClick={() => { setCurrentView(AppView.SMART_PLANNER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
-            {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map(eco => (
+            {(profile.enabledEcosystems || [])
+              .filter(e => visibleNavItems.includes(e.type) && isValidEcosystemType(e.type))
+              .map(eco => (
                 <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
-            ))}
+              ))}
             {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
             {visibleNavItems.includes('chat') && <NavBtn active={currentView === AppView.CHAT} onClick={() => { setCurrentView(AppView.CHAT); setActiveEcosystem(null); }} emoji={getNavEmoji('chat')} />}
           </div>
