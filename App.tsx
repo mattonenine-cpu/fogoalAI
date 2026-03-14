@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from './types';
 import { Onboarding } from './components/Onboarding';
+import { TelegramAuthWidget } from './components/TelegramAuthWidget';
+import { parseTelegramCallbackFromUrl } from './services/telegramAuth';
 import { Dashboard } from './components/Dashboard';
 import { Scheduler } from './components/Scheduler';
 import SmartPlanner from './components/SmartPlanner';
@@ -80,7 +82,9 @@ const [theme, setTheme] = useState<AppTheme>(() => {
   const [activeEcosystem, setActiveEcosystem] = useState<EcosystemType | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [helpContext, setHelpContext] = useState<HelpContext | null>(null);
-  
+  const [telegramPayloadFromUrl, setTelegramPayloadFromUrl] = useState<ReturnType<typeof parseTelegramCallbackFromUrl>>(null);
+  const [showTelegramWidget, setShowTelegramWidget] = useState(false);
+
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
       const saved = localStorage.getItem('focu_tasks');
@@ -117,6 +121,24 @@ const [theme, setTheme] = useState<AppTheme>(() => {
   useEffect(() => {
       const user = authService.getCurrentUser();
       if (!user && profile) setProfile(null);
+  }, []);
+
+  // Parse Telegram callback from URL after redirect from Telegram Login Widget
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const payload = parseTelegramCallbackFromUrl();
+    if (payload) {
+      setTelegramPayloadFromUrl(payload);
+      window.history.replaceState({}, '', window.location.pathname || '/');
+    }
+    if (params.get('show_telegram_widget') === 'login') {
+      setShowTelegramWidget(true);
+      params.delete('show_telegram_widget');
+      const newSearch = params.toString();
+      const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+      window.history.replaceState({}, '', newUrl);
+    }
   }, []);
 
   useEffect(() => {
@@ -239,7 +261,31 @@ const [theme, setTheme] = useState<AppTheme>(() => {
   };
 
   if (!language) return <LanguageSelector onSelect={setLanguage} />;
-  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} />;
+  if (!profile || !profile.isOnboarded) {
+    return (
+      <>
+        <Onboarding
+          onComplete={setProfile}
+          lang={language}
+          currentTheme={theme}
+          onSetTheme={setTheme}
+          telegramPayload={telegramPayloadFromUrl}
+          onTelegramAuto={() => setShowTelegramWidget(true)}
+        />
+        {showTelegramWidget && (
+          <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden">
+              <TelegramAuthWidget
+                mode="login"
+                lang={language || 'ru'}
+                onCancel={() => setShowTelegramWidget(false)}
+              />
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   const getNavEmoji = (type: string) => {
     switch(type) {
