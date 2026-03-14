@@ -5,6 +5,7 @@ import {
   Task,
   DailyStats,
   Language,
+  TRANSLATIONS,
   EcosystemType,
   Note,
   NoteFolder,
@@ -12,27 +13,26 @@ import {
   HelpContext,
   AppFontSize,
   EcosystemConfig,
-} from './types';
-import { Onboarding } from './components/Onboarding';
-import { Dashboard } from './components/Dashboard';
-import { Scheduler } from './components/Scheduler';
-import SmartPlanner from './components/SmartPlanner';
-import { ChatInterface } from './components/ChatInterface';
-import { EcosystemView } from './components/EcosystemView';
-import { NotesView } from './components/NotesView';
-import { LanguageSelector } from './components/LanguageSelector';
-import { Logo } from './components/Logo';
-import { ThemeSelector } from './components/ThemeSelector';
-import { SettingsModal } from './components/SettingsModal';
-import { ContextHelpOverlay } from './components/ContextHelpOverlay';
-import FoGoalEducation from './components/FoGoalEducation';
+} from '../types';
+import { Onboarding } from './Onboarding';
+import { Dashboard } from './Dashboard';
+import { Scheduler } from './Scheduler';
+import SmartPlanner from './SmartPlanner';
+import { ChatInterface } from './ChatInterface';
+import { EcosystemView } from './EcosystemView';
+import { NotesView } from './NotesView';
+import { LanguageSelector } from './LanguageSelector';
+import { Logo } from './Logo';
+import { ThemeSelector } from './ThemeSelector';
+import { SettingsModal } from './SettingsModal';
+import { ContextHelpOverlay } from './ContextHelpOverlay';
+import FoGoalEducation from './FoGoalEducation';
 import { SlidersHorizontal } from 'lucide-react';
-import { getLocalISODate } from './services/geminiService';
-import { authService, type TelegramAuthPayload } from './services/authService';
-import { parseTelegramCallbackFromUrl } from './services/telegramAuth';
-import { TelegramAuthWidget } from './components/TelegramAuthWidget';
+import { getLocalISODate } from '../services/geminiService';
+import { authService } from '../services/authService';
 
-const safeSave = (key: string, data: unknown) => {
+// Safe storage helper to prevent QuotaExceededError from crashing the app
+const safeSave = (key: string, data: any) => {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
@@ -59,15 +59,19 @@ export default function App() {
           if (parsed.totalExperience === undefined) parsed.totalExperience = 0;
           if (!Array.isArray(parsed.statsHistory)) parsed.statsHistory = [];
           if (!Array.isArray(parsed.goals)) parsed.goals = [];
+          
           if (!parsed.settings) {
-            parsed.settings = {
-              aiPersona: 'balanced',
-              aiDetailLevel: 'medium',
-              visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'],
-              fontSize: 'normal'
-            };
-          } else if (parsed.settings.visibleViews && !parsed.settings.visibleViews.includes('smart_planner')) {
-            parsed.settings.visibleViews.push('smart_planner');
+              parsed.settings = {
+                  aiPersona: 'balanced',
+                  aiDetailLevel: 'medium',
+                  visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health', 'creativity'],
+                  fontSize: 'normal'
+              };
+          } else {
+              // Ensure smart_planner is enabled for existing users
+              if (parsed.settings.visibleViews && !parsed.settings.visibleViews.includes('smart_planner')) {
+                  parsed.settings.visibleViews.push('smart_planner');
+              }
           }
           return parsed;
         }
@@ -78,6 +82,7 @@ export default function App() {
 
   const [language, setLanguage] = useState<Language | null>(() => {
     const saved = localStorage.getItem('focu_language');
+    // Нормализуем сохранённое значение (убираем возможные кавычки) и по умолчанию ставим 'ru'
     if (saved) {
       const normalized = saved.replace(/^"+|"+$/g, '') as Language;
       if (normalized === 'ru' || normalized === 'en') return normalized;
@@ -96,9 +101,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [helpContext, setHelpContext] = useState<HelpContext | null>(null);
   const [showEducation, setShowEducation] = useState(false);
-  const [showTelegramWidget, setShowTelegramWidget] = useState(false);
-  const [telegramPayloadForRegister, setTelegramPayloadForRegister] = useState<TelegramAuthPayload | null>(null);
-
+  
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
       const saved = localStorage.getItem('focu_tasks');
@@ -133,45 +136,14 @@ export default function App() {
   });
 
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    if (!user && profile) setProfile(null);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const showWidget = params.get('show_telegram_widget') === 'login';
-    const payload = parseTelegramCallbackFromUrl();
-
-    if (showWidget) {
-      setShowTelegramWidget(true);
-      window.history.replaceState({}, '', window.location.pathname || '/');
-      return;
-    }
-
-    if (payload && !payload.link) {
-      window.history.replaceState({}, '', window.location.pathname || '/');
-      (async () => {
-        const res = await authService.loginWithTelegram(payload);
-        if (res.success) {
-          try {
-            const saved = localStorage.getItem('focu_profile');
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              if (parsed) setProfile(parsed);
-            }
-          } catch { /* ignore */ }
-        } else if (res.needRegister) {
-          setTelegramPayloadForRegister(payload);
-        }
-      })();
-    }
+      const user = authService.getCurrentUser();
+      if (!user && profile) setProfile(null);
   }, []);
 
   useEffect(() => {
     if (profile) {
-      safeSave('focu_profile', profile);
-      authService.syncToCloud({ profile, tasks, notes, folders, stats: dailyStats });
+        safeSave('focu_profile', profile);
+        authService.syncToCloud({ profile, tasks, notes, folders, stats: dailyStats });
     }
   }, [profile, tasks, notes, folders, dailyStats]);
 
@@ -183,64 +155,82 @@ export default function App() {
     }
   }, [profile]);
 
-  useEffect(() => { safeSave('focu_tasks', tasks); }, [tasks]);
-  useEffect(() => { safeSave('focu_notes', notes); }, [notes]);
-  useEffect(() => { safeSave('focu_folders', folders); }, [folders]);
-  useEffect(() => { safeSave('focu_stats', dailyStats); }, [dailyStats]);
-  useEffect(() => { if (language) safeSave('focu_language', language); }, [language]);
+  useEffect(() => {
+    safeSave('focu_tasks', tasks);
+  }, [tasks]);
 
   useEffect(() => {
-    safeSave('focu_theme', theme);
-    const root = document.documentElement;
-    const themeConfigs: Record<string, { bgMain: string; bgCard: string; bgActive: string; bgActiveText: string; accent: string; border: string; textPrimary: string; textSecondary: string; themeGlow?: string }> = {
-      dark: { bgMain: '#09090b', bgCard: 'rgba(255, 255, 255, 0.05)', bgActive: '#FFFFFF', bgActiveText: '#000000', accent: '#6366f1', border: 'rgba(255, 255, 255, 0.08)', textPrimary: '#FAFAFA', textSecondary: 'rgba(255, 255, 255, 0.4)', themeGlow: 'rgba(99, 102, 241, 0.1)' },
-      white: { bgMain: '#F8F9FA', bgCard: '#FFFFFF', bgActive: '#18181b', bgActiveText: '#FFFFFF', accent: '#18181b', border: 'rgba(0, 0, 0, 0.06)', textPrimary: '#18181b', textSecondary: 'rgba(24, 24, 27, 0.4)', themeGlow: 'rgba(24, 24, 27, 0.08)' },
-      ice: { bgMain: '#D6E6F3', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#0F52BA', bgActiveText: '#FFFFFF', accent: '#0F52BA', border: 'rgba(0, 9, 38, 0.06)', textPrimary: '#000926', textSecondary: 'rgba(0, 9, 38, 0.4)', themeGlow: 'rgba(15, 82, 186, 0.12)' },
-      pink: { bgMain: '#F5D6E8', bgCard: 'rgba(255, 255, 255, 0.5)', bgActive: '#BE185D', bgActiveText: '#FFFFFF', accent: '#BE185D', border: 'rgba(126, 34, 86, 0.1)', textPrimary: '#37152a', textSecondary: 'rgba(55, 21, 42, 0.5)', themeGlow: 'rgba(190, 24, 93, 0.12)' }
-    };
-    const c = themeConfigs[theme] || themeConfigs.dark;
-    root.style.setProperty('--bg-main', c.bgMain);
-    root.style.setProperty('--bg-card', c.bgCard);
-    root.style.setProperty('--bg-active', c.bgActive);
-    root.style.setProperty('--bg-active-text', c.bgActiveText);
-    root.style.setProperty('--theme-accent', c.accent);
-    root.style.setProperty('--text-primary', c.textPrimary);
-    root.style.setProperty('--text-secondary', c.textSecondary);
-    root.style.setProperty('--border-glass', c.border);
-    if (c.themeGlow) root.style.setProperty('--theme-glow', c.themeGlow);
-    document.body.style.background = c.bgMain;
+    safeSave('focu_notes', notes);
+  }, [notes]);
+  
+  useEffect(() => {
+    safeSave('focu_folders', folders);
+  }, [folders]);
 
-    const fontScales: Record<AppFontSize, string> = {
-      small: '0.95',
-      normal: '1.05',
-      medium: '1.15',
-      large: '1.25',
-      xlarge: '1.4'
-    };
-    const currentFontSize: AppFontSize = (profile?.settings?.fontSize as AppFontSize) || 'large';
-    const scale = fontScales[currentFontSize] ?? '1.15';
-    root.style.setProperty('--font-scale', scale);
+  useEffect(() => {
+    safeSave('focu_stats', dailyStats);
+  }, [dailyStats]);
+
+  useEffect(() => {
+    if (language) safeSave('focu_language', language);
+  }, [language]);
+
+  useEffect(() => {
+      safeSave('focu_theme', theme);
+      const root = document.documentElement;
+      const themeConfigs: Record<string, any> = {
+          dark: { bgMain: '#09090b', bgCard: 'rgba(255, 255, 255, 0.05)', bgActive: '#FFFFFF', bgActiveText: '#000000', accent: '#6366f1', border: 'rgba(255, 255, 255, 0.08)', textPrimary: '#FAFAFA', textSecondary: 'rgba(255, 255, 255, 0.4)', themeGlow: 'rgba(99, 102, 241, 0.1)' },
+          white: { bgMain: '#F8F9FA', bgCard: '#FFFFFF', bgActive: '#18181b', bgActiveText: '#FFFFFF', accent: '#18181b', border: 'rgba(0, 0, 0, 0.06)', textPrimary: '#18181b', textSecondary: 'rgba(24, 24, 27, 0.4)', themeGlow: 'rgba(24, 24, 27, 0.08)' },
+          ice: { bgMain: '#D6E6F3', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#0F52BA', bgActiveText: '#FFFFFF', accent: '#0F52BA', border: 'rgba(0, 9, 38, 0.06)', textPrimary: '#000926', textSecondary: 'rgba(0, 9, 38, 0.4)', themeGlow: 'rgba(15, 82, 186, 0.12)' },
+          pink: { bgMain: '#F5D6E8', bgCard: 'rgba(255, 255, 255, 0.5)', bgActive: '#BE185D', bgActiveText: '#FFFFFF', accent: '#BE185D', border: 'rgba(126, 34, 86, 0.1)', textPrimary: '#37152a', textSecondary: 'rgba(55, 21, 42, 0.5)', themeGlow: 'rgba(190, 24, 93, 0.12)' }
+      };
+      const c = themeConfigs[theme] || themeConfigs.dark;
+      root.style.setProperty('--bg-main', c.bgMain);
+      root.style.setProperty('--bg-card', c.bgCard);
+      root.style.setProperty('--bg-active', c.bgActive);
+      root.style.setProperty('--bg-active-text', c.bgActiveText);
+      root.style.setProperty('--theme-accent', c.accent);
+      root.style.setProperty('--text-primary', c.textPrimary);
+      root.style.setProperty('--text-secondary', c.textSecondary);
+      root.style.setProperty('--border-glass', c.border);
+      if (c.themeGlow) root.style.setProperty('--theme-glow', c.themeGlow);
+      document.body.style.background = c.bgMain;
+
+      const fontScales: Record<AppFontSize, string> = {
+          small: '0.95',
+          normal: '1.05',
+          medium: '1.15',
+          large: '1.25',
+          xlarge: '1.4'
+      };
+      const currentFontSize: AppFontSize = (profile?.settings?.fontSize as AppFontSize) || 'large';
+      const scale = fontScales[currentFontSize] || '1.15';
+      root.style.setProperty('--font-scale', scale);
+
   }, [theme, profile?.settings?.fontSize]);
 
   const handleUpdateProfile = (newProfile: UserProfile) => {
-    if (!authService.getCurrentUser() && localStorage.getItem('session_user') === null) {
-      setProfile(null);
-    } else {
-      setProfile(newProfile);
-    }
+      if (!authService.getCurrentUser() && localStorage.getItem('session_user') === null) {
+          setProfile(null);
+      } else {
+          setProfile(newProfile);
+      }
   };
 
   const handleLanguageCycle = () => {
-    const languages: Language[] = ['en', 'ru'];
-    const currentIndex = languages.indexOf(language || 'en');
-    const nextIndex = (currentIndex + 1) % languages.length;
-    setLanguage(languages[nextIndex]);
+      const languages: Language[] = ['en', 'ru'];
+      const currentIndex = languages.indexOf(language || 'en');
+      const nextIndex = (currentIndex + 1) % languages.length;
+      setLanguage(languages[nextIndex]);
   };
 
   const handleTrackRequest = (taskId: string) => {
-    const task = tasks.find((t: Task) => t.id === taskId);
+    const task = tasks.find(t => t.id === taskId);
     if (task) {
-      setHelpContext({ blockName: 'Scheduler Task', taskText: task.title });
+      setHelpContext({
+        blockName: 'Scheduler Task',
+        taskText: task.title
+      });
     }
   };
 
@@ -253,99 +243,37 @@ export default function App() {
     if (!profile) return null;
     switch (currentView) {
       case AppView.DASHBOARD:
-        return (
-          <Dashboard
-            user={profile}
-            stats={dailyStats}
-            lang={language!}
-            tasks={tasks}
-            onUpdateProfile={handleUpdateProfile}
-            onUpdateStats={setDailyStats}
-            onNavigate={setCurrentView}
-            onAddTasks={(newTasks: Task[]) => setTasks((prev: Task[]) => [...prev, ...newTasks])}
-          />
-        );
+        return <Dashboard 
+          user={profile} stats={dailyStats} lang={language!} tasks={tasks} 
+          onUpdateProfile={handleUpdateProfile} onUpdateStats={setDailyStats} onNavigate={setCurrentView}
+          onAddTasks={(newTasks: Task[]) => setTasks(prev => [...prev, ...newTasks])}
+        />;
       case AppView.SCHEDULER:
-        return (
-          <Scheduler
-            tasks={tasks}
-            setTasks={setTasks}
-            userProfile={profile}
-            setUserProfile={handleUpdateProfile}
-            lang={language!}
-            onTrackRequest={handleTrackRequest}
-            notes={notes}
-            onUpdateNotes={setNotes}
-            currentStats={dailyStats}
-          />
-        );
+        return <Scheduler 
+          tasks={tasks} setTasks={setTasks} userProfile={profile} setUserProfile={handleUpdateProfile} 
+          lang={language!} onTrackRequest={handleTrackRequest} notes={notes} onUpdateNotes={setNotes}
+          currentStats={dailyStats}
+        />;
       case AppView.SMART_PLANNER:
         return <SmartPlanner tasks={tasks} setTasks={setTasks} lang={language!} />;
       case AppView.CHAT:
         return <ChatInterface userProfile={profile} lang={language!} tasks={tasks} onSetTasks={setTasks} />;
       case AppView.ECOSYSTEM:
-        return activeEcosystem ? (
-          <EcosystemView
-            type={activeEcosystem}
-            user={profile}
-            tasks={tasks}
-            lang={language!}
-            onUpdateTasks={setTasks}
-            onUpdateProfile={handleUpdateProfile}
-            onNavigate={setCurrentView}
-            theme={theme}
-          />
-        ) : null;
+        return activeEcosystem ? <EcosystemView 
+            type={activeEcosystem} user={profile} tasks={tasks} lang={language!} 
+            onUpdateTasks={setTasks} onUpdateProfile={handleUpdateProfile} onNavigate={setCurrentView} theme={theme}
+        /> : null;
       case AppView.NOTES:
         return <NotesView notes={notes} folders={folders} onUpdateNotes={setNotes} onUpdateFolders={setFolders} lang={language!} />;
-      default:
-        return null;
+      default: return null;
     }
   };
 
   if (!language) return <LanguageSelector onSelect={setLanguage} />;
-
-  const onboardingInitialProfile = telegramPayloadForRegister
-    ? {
-        name: telegramPayloadForRegister.first_name || telegramPayloadForRegister.username || String(telegramPayloadForRegister.id),
-        telegramId: telegramPayloadForRegister.id,
-        telegramUsername: telegramPayloadForRegister.username,
-        telegramPhotoUrl: telegramPayloadForRegister.photo_url,
-      }
-    : undefined;
-
-  if (!profile || !profile.isOnboarded) {
-    return (
-      <>
-        <Onboarding
-          onComplete={(p: UserProfile) => {
-            setProfile(p);
-            setTelegramPayloadForRegister(null);
-          }}
-          lang={language}
-          currentTheme={theme}
-          onSetTheme={setTheme}
-          initialProfile={onboardingInitialProfile}
-          telegramPayload={telegramPayloadForRegister}
-          onTelegramAuto={() => setShowTelegramWidget(true)}
-        />
-        {showTelegramWidget && (
-          <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden">
-              <TelegramAuthWidget
-                mode="login"
-                lang={language === 'ru' ? 'ru' : 'en'}
-                onCancel={() => setShowTelegramWidget(false)}
-              />
-            </div>
-          </div>
-        )}
-      </>
-    );
-  }
+  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} />;
 
   const getNavEmoji = (type: string) => {
-    switch (type) {
+    switch(type) {
       case 'dashboard': return '🏠';
       case 'scheduler': return '📅';
       case 'smart_planner': return '🧩';
@@ -364,19 +292,19 @@ export default function App() {
     <div className="min-h-screen text-[var(--text-primary)] overflow-hidden font-sans transition-colors duration-500 flex flex-col">
       <div className="w-full sm:max-w-md mx-auto h-[100dvh] flex flex-col relative z-10 overflow-hidden">
         <header className="p-3 sm:p-5 pb-2 flex justify-between items-center z-40 relative">
-          <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
-          <div className="flex items-center gap-2">
-            <ThemeSelector currentTheme={theme} onSelect={setTheme} />
-            <button
-              onClick={() => setShowSettings(true)}
-              className="w-10 h-10 rounded-full glass-liquid flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-90"
-            >
-              <SlidersHorizontal size={18} />
-            </button>
-            <button onClick={handleLanguageCycle} className="px-3 py-1.5 rounded-full glass-liquid text-mini font-bold tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-              {language.toUpperCase()}
-            </button>
-          </div>
+           <Logo height={32} mood={getLogoMood(dailyStats.mood)} level={profile.level} />
+           <div className="flex items-center gap-2">
+             <ThemeSelector currentTheme={theme} onSelect={setTheme} />
+             <button 
+                onClick={() => setShowSettings(true)}
+                className="w-10 h-10 rounded-full glass-liquid flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-90"
+             >
+                <SlidersHorizontal size={18} />
+             </button>
+             <button onClick={handleLanguageCycle} className="px-3 py-1.5 rounded-full glass-liquid text-mini font-bold tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+               {language.toUpperCase()}
+             </button>
+           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto px-3 py-2 scrollbar-hide pb-[120px]">
@@ -397,33 +325,28 @@ export default function App() {
                   onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }}
                   emoji={getNavEmoji(eco.type)}
                 />
-              ))}
+            ))}
             {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
             {visibleNavItems.includes('chat') && <NavBtn active={currentView === AppView.CHAT} onClick={() => { setCurrentView(AppView.CHAT); setActiveEcosystem(null); }} emoji={getNavEmoji('chat')} />}
           </div>
         </nav>
       </div>
 
-      {showSettings && (
-        <SettingsModal
-          user={profile}
-          lang={language}
-          onUpdate={handleUpdateProfile}
-          onLanguageChange={setLanguage}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
+      {showSettings && <SettingsModal 
+        user={profile} lang={language} onUpdate={handleUpdateProfile} 
+        onLanguageChange={setLanguage} onClose={() => setShowSettings(false)} 
+      />}
 
       {helpContext && profile && (
         <ContextHelpOverlay
-          context={helpContext}
-          profile={profile}
-          lang={language || 'en'}
-          onClose={() => setHelpContext(null)}
+            context={helpContext}
+            profile={profile}
+            lang={language || 'en'}
+            onClose={() => setHelpContext(null)}
         />
       )}
 
-      {profile?.isOnboarded && showEducation && (
+      {profile && profile.isOnboarded && showEducation && (
         <FoGoalEducation
           lang={language}
           onFinish={() => {
@@ -438,11 +361,8 @@ export default function App() {
   );
 }
 
-const NavBtn: React.FC<{ active: boolean; onClick: () => void; emoji: string }> = ({ active, onClick, emoji }) => (
-  <button
-    onClick={onClick}
-    className={`w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-[14px] sm:rounded-[22px] flex items-center justify-center transition-all duration-300 relative ${active ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg scale-110' : 'grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:bg-white/5'}`}
-  >
+const NavBtn: React.FC<{ active: boolean, onClick: () => void, emoji: string }> = ({ active, onClick, emoji }) => (
+  <button onClick={onClick} className={`w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-[14px] sm:rounded-[22px] flex items-center justify-center transition-all duration-300 relative ${active ? 'bg-[var(--bg-active)] text-[var(--bg-active-text)] shadow-lg scale-110' : 'grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:bg-white/5'}`}>
     <span className="text-sm sm:text-xl">{emoji}</span>
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
   </button>
