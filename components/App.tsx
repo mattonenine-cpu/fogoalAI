@@ -1,35 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  UserProfile,
-  AppView,
-  Task,
-  DailyStats,
-  Language,
-  TRANSLATIONS,
-  EcosystemType,
-  Note,
-  NoteFolder,
-  AppTheme,
-  HelpContext,
-  AppFontSize,
-  EcosystemConfig,
-} from '../types';
-import { Onboarding } from './Onboarding';
-import { Dashboard } from './Dashboard';
-import { Scheduler } from './Scheduler';
-import SmartPlanner from './SmartPlanner';
-import { ChatInterface } from './ChatInterface';
-import { EcosystemView } from './EcosystemView';
-import { NotesView } from './NotesView';
-import { LanguageSelector } from './LanguageSelector';
-import { Logo } from './Logo';
-import { ThemeSelector } from './ThemeSelector';
-import { SettingsModal } from './SettingsModal';
-import { ContextHelpOverlay } from './ContextHelpOverlay';
-import FoGoalEducation from './FoGoalEducation';
-import { SlidersHorizontal } from 'lucide-react';
-import { getLocalISODate } from '../services/geminiService';
-import { authService } from '../services/authService';
+import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from './types';
+import { Onboarding } from './components/Onboarding';
+import { TelegramAuthWidget } from './components/TelegramAuthWidget';
+import { parseTelegramCallbackFromUrl } from './services/telegramAuth';
+import { Dashboard } from './components/Dashboard';
+import { Scheduler } from './components/Scheduler';
+import SmartPlanner from './components/SmartPlanner';
+import { ChatInterface } from './components/ChatInterface';
+import { EcosystemView } from './components/EcosystemView';
+import { NotesView } from './components/NotesView';
+import { LanguageSelector } from './components/LanguageSelector';
+import { Logo } from './components/Logo';
+import { ThemeSelector } from './components/ThemeSelector';
+import { SettingsModal } from './components/SettingsModal';
+import { ContextHelpOverlay } from './components/ContextHelpOverlay';
+import { SlidersHorizontal, Globe, Box, Activity, Library, HeartPulse, Shapes, UserRound } from 'lucide-react';
+import { getLocalISODate } from './services/geminiService';
+import { authService } from './services/authService';
 
 // Safe storage helper to prevent QuotaExceededError from crashing the app
 const safeSave = (key: string, data: any) => {
@@ -82,17 +69,12 @@ export default function App() {
 
   const [language, setLanguage] = useState<Language | null>(() => {
     const saved = localStorage.getItem('focu_language');
-    // Нормализуем сохранённое значение (убираем возможные кавычки) и по умолчанию ставим 'ru'
-    if (saved) {
-      const normalized = saved.replace(/^"+|"+$/g, '') as Language;
-      if (normalized === 'ru' || normalized === 'en') return normalized;
-    }
-    return 'ru';
+    return (saved as Language) || null;
   });
 
-  const [theme, setTheme] = useState<AppTheme>(() => {
+const [theme, setTheme] = useState<AppTheme>(() => {
     const saved = localStorage.getItem('focu_theme');
-    const valid: AppTheme[] = ['dark', 'white', 'ice', 'pink'];
+    const valid: AppTheme[] = ['dark', 'white', 'ice'];
     return (saved && valid.includes(saved as AppTheme)) ? (saved as AppTheme) : 'dark';
   });
 
@@ -100,8 +82,9 @@ export default function App() {
   const [activeEcosystem, setActiveEcosystem] = useState<EcosystemType | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [helpContext, setHelpContext] = useState<HelpContext | null>(null);
-  const [showEducation, setShowEducation] = useState(false);
-  
+  const [telegramPayloadFromUrl, setTelegramPayloadFromUrl] = useState<ReturnType<typeof parseTelegramCallbackFromUrl>>(null);
+  const [showTelegramWidget, setShowTelegramWidget] = useState(false);
+
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
       const saved = localStorage.getItem('focu_tasks');
@@ -140,20 +123,30 @@ export default function App() {
       if (!user && profile) setProfile(null);
   }, []);
 
+  // Parse Telegram callback from URL after redirect from Telegram Login Widget
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const payload = parseTelegramCallbackFromUrl();
+    if (payload) {
+      setTelegramPayloadFromUrl(payload);
+      window.history.replaceState({}, '', window.location.pathname || '/');
+    }
+    if (params.get('show_telegram_widget') === 'login') {
+      setShowTelegramWidget(true);
+      params.delete('show_telegram_widget');
+      const newSearch = params.toString();
+      const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
+
   useEffect(() => {
     if (profile) {
         safeSave('focu_profile', profile);
         authService.syncToCloud({ profile, tasks, notes, folders, stats: dailyStats });
     }
   }, [profile, tasks, notes, folders, dailyStats]);
-
-  useEffect(() => {
-    if (profile && profile.isOnboarded) {
-      setShowEducation(!profile.hasSeenEducation);
-    } else {
-      setShowEducation(false);
-    }
-  }, [profile]);
 
   useEffect(() => {
     safeSave('focu_tasks', tasks);
@@ -179,10 +172,9 @@ export default function App() {
       safeSave('focu_theme', theme);
       const root = document.documentElement;
       const themeConfigs: Record<string, any> = {
-          dark: { bgMain: '#09090b', bgCard: 'rgba(255, 255, 255, 0.05)', bgActive: '#FFFFFF', bgActiveText: '#000000', accent: '#6366f1', border: 'rgba(255, 255, 255, 0.08)', textPrimary: '#FAFAFA', textSecondary: 'rgba(255, 255, 255, 0.4)', themeGlow: 'rgba(99, 102, 241, 0.1)' },
-          white: { bgMain: '#F8F9FA', bgCard: '#FFFFFF', bgActive: '#18181b', bgActiveText: '#FFFFFF', accent: '#18181b', border: 'rgba(0, 0, 0, 0.06)', textPrimary: '#18181b', textSecondary: 'rgba(24, 24, 27, 0.4)', themeGlow: 'rgba(24, 24, 27, 0.08)' },
-          ice: { bgMain: '#D6E6F3', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#0F52BA', bgActiveText: '#FFFFFF', accent: '#0F52BA', border: 'rgba(0, 9, 38, 0.06)', textPrimary: '#000926', textSecondary: 'rgba(0, 9, 38, 0.4)', themeGlow: 'rgba(15, 82, 186, 0.12)' },
-          pink: { bgMain: '#F5D6E8', bgCard: 'rgba(255, 255, 255, 0.5)', bgActive: '#BE185D', bgActiveText: '#FFFFFF', accent: '#BE185D', border: 'rgba(126, 34, 86, 0.1)', textPrimary: '#37152a', textSecondary: 'rgba(55, 21, 42, 0.5)', themeGlow: 'rgba(190, 24, 93, 0.12)' }
+          dark: { bgMain: '#09090b', bgCard: 'rgba(255, 255, 255, 0.05)', bgActive: '#FFFFFF', bgActiveText: '#000000', accent: '#6366f1', border: 'rgba(255, 255, 255, 0.08)', textPrimary: '#FAFAFA', textSecondary: 'rgba(255, 255, 255, 0.4)' },
+          white: { bgMain: '#F8F9FA', bgCard: '#FFFFFF', bgActive: '#18181b', bgActiveText: '#FFFFFF', accent: '#18181b', border: 'rgba(0, 0, 0, 0.06)', textPrimary: '#18181b', textSecondary: 'rgba(24, 24, 27, 0.4)' },
+          ice: { bgMain: '#D6E6F3', bgCard: 'rgba(255, 255, 255, 0.4)', bgActive: '#0F52BA', bgActiveText: '#FFFFFF', accent: '#0F52BA', border: 'rgba(0, 9, 38, 0.06)', textPrimary: '#000926', textSecondary: 'rgba(0, 9, 38, 0.4)' }
       };
       const c = themeConfigs[theme] || themeConfigs.dark;
       root.style.setProperty('--bg-main', c.bgMain);
@@ -193,17 +185,16 @@ export default function App() {
       root.style.setProperty('--text-primary', c.textPrimary);
       root.style.setProperty('--text-secondary', c.textSecondary);
       root.style.setProperty('--border-glass', c.border);
-      if (c.themeGlow) root.style.setProperty('--theme-glow', c.themeGlow);
       document.body.style.background = c.bgMain;
 
-      const fontScales: Record<AppFontSize, string> = {
+      const fontScales = {
           small: '0.95',
           normal: '1.05',
           medium: '1.15',
           large: '1.25',
           xlarge: '1.4'
       };
-      const currentFontSize: AppFontSize = (profile?.settings?.fontSize as AppFontSize) || 'large';
+      const currentFontSize = profile?.settings?.fontSize || 'large';
       const scale = fontScales[currentFontSize] || '1.15';
       root.style.setProperty('--font-scale', scale);
 
@@ -246,7 +237,7 @@ export default function App() {
         return <Dashboard 
           user={profile} stats={dailyStats} lang={language!} tasks={tasks} 
           onUpdateProfile={handleUpdateProfile} onUpdateStats={setDailyStats} onNavigate={setCurrentView}
-          onAddTasks={(newTasks: Task[]) => setTasks(prev => [...prev, ...newTasks])}
+          onAddTasks={(newTasks) => setTasks(prev => [...prev, ...newTasks])}
         />;
       case AppView.SCHEDULER:
         return <Scheduler 
@@ -270,7 +261,31 @@ export default function App() {
   };
 
   if (!language) return <LanguageSelector onSelect={setLanguage} />;
-  if (!profile || !profile.isOnboarded) return <Onboarding onComplete={setProfile} lang={language} currentTheme={theme} onSetTheme={setTheme} />;
+  if (!profile || !profile.isOnboarded) {
+    return (
+      <>
+        <Onboarding
+          onComplete={setProfile}
+          lang={language}
+          currentTheme={theme}
+          onSetTheme={setTheme}
+          telegramPayload={telegramPayloadFromUrl}
+          onTelegramAuto={() => setShowTelegramWidget(true)}
+        />
+        {showTelegramWidget && (
+          <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-[var(--bg-card)] border border-[var(--border-glass)] rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden">
+              <TelegramAuthWidget
+                mode="login"
+                lang={language || 'ru'}
+                onCancel={() => setShowTelegramWidget(false)}
+              />
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   const getNavEmoji = (type: string) => {
     switch(type) {
@@ -316,15 +331,8 @@ export default function App() {
             <NavBtn active={currentView === AppView.DASHBOARD} onClick={() => { setCurrentView(AppView.DASHBOARD); setActiveEcosystem(null); }} emoji={getNavEmoji('dashboard')} />
             <NavBtn active={currentView === AppView.SCHEDULER} onClick={() => { setCurrentView(AppView.SCHEDULER); setActiveEcosystem(null); }} emoji={getNavEmoji('scheduler')} />
             <NavBtn active={currentView === AppView.SMART_PLANNER} onClick={() => { setCurrentView(AppView.SMART_PLANNER); setActiveEcosystem(null); }} emoji={getNavEmoji('smart_planner')} />
-            {(profile.enabledEcosystems || [])
-              .filter((e: EcosystemConfig) => visibleNavItems.includes(e.type))
-              .map((eco: EcosystemConfig) => (
-                <NavBtn
-                  key={eco.type}
-                  active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type}
-                  onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }}
-                  emoji={getNavEmoji(eco.type)}
-                />
+            {(profile.enabledEcosystems || []).filter(e => visibleNavItems.includes(e.type)).map(eco => (
+                <NavBtn key={eco.type} active={currentView === AppView.ECOSYSTEM && activeEcosystem === eco.type} onClick={() => { setCurrentView(AppView.ECOSYSTEM); setActiveEcosystem(eco.type); }} emoji={getNavEmoji(eco.type)} />
             ))}
             {visibleNavItems.includes('notes') && <NavBtn active={currentView === AppView.NOTES} onClick={() => { setCurrentView(AppView.NOTES); setActiveEcosystem(null); }} emoji={getNavEmoji('notes')} />}
             {visibleNavItems.includes('chat') && <NavBtn active={currentView === AppView.CHAT} onClick={() => { setCurrentView(AppView.CHAT); setActiveEcosystem(null); }} emoji={getNavEmoji('chat')} />}
@@ -345,18 +353,6 @@ export default function App() {
             onClose={() => setHelpContext(null)}
         />
       )}
-
-      {profile && profile.isOnboarded && showEducation && (
-        <FoGoalEducation
-          lang={language}
-          onFinish={() => {
-            setShowEducation(false);
-            if (!profile.hasSeenEducation) {
-              setProfile({ ...profile, hasSeenEducation: true });
-            }
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -367,3 +363,4 @@ const NavBtn: React.FC<{ active: boolean, onClick: () => void, emoji: string }> 
     {active && <div className="absolute -bottom-1.5 w-1 h-1 bg-[var(--theme-accent)] rounded-full shadow-[0_0_8px_var(--theme-accent)]" />}
   </button>
 );
+
