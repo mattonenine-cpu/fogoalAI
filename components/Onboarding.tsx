@@ -4,7 +4,7 @@ import { UserProfile, Language, TRANSLATIONS, EnergyProfile, Goal, EcosystemConf
 import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassButton } from './GlassCard';
 import { analyzeEcosystemSignals } from '../services/geminiService';
-import { authService, type UserDataPayload } from '../services/authService';
+import { authService, type UserDataPayload, type TelegramAuthPayload } from '../services/authService';
 import { CreditsService } from '../services/creditsService';
 import { ThemeSelector } from './ThemeSelector';
 import { Mascot } from './Mascot';
@@ -17,7 +17,8 @@ interface OnboardingProps {
   currentTheme: AppTheme;
   onSetTheme: (theme: AppTheme) => void;
   initialProfile?: Partial<UserProfile>;
-    onTelegramAuto?: () => void;
+  telegramPayload?: TelegramAuthPayload | null;
+  onTelegramAuto?: () => void;
 }
 
 const ECO_CONFIG: Record<string, { color: string, icon: any }> = {
@@ -44,7 +45,7 @@ const ECO_DETAILS: Record<string, { en: { inside: string, whom: string }, ru: { 
 
 const ONBOARDING_GOAL_COLORS = ['#6366f1', '#ef4444', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'];
 
-export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, currentTheme, onSetTheme, initialProfile, onTelegramAuto }) => {
+export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, currentTheme, onSetTheme, initialProfile, telegramPayload, onTelegramAuto }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   
   // Check if this is a Telegram-registered user
@@ -336,6 +337,28 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                     }
                 }
             }
+        } else if (telegramPayload) {
+            // New registration via Telegram: create account with registerWithTelegram
+            const payload: UserDataPayload = {
+                profile: finalProfile,
+                tasks: [],
+                notes: [],
+                folders: [],
+                stats: { focusScore: 0, tasksCompleted: 0, streakDays: 0, mood: 'Neutral', sleepHours: 7.5, activityHistory: [], apiRequestsCount: 0, lastRequestDate: new Date().toISOString().split('T')[0] }
+            };
+            const res = await authService.registerWithTelegram(telegramPayload, payload);
+            if (res.success) {
+                onComplete(finalProfile);
+            } else {
+                if (res.message === 'exists') {
+                    setAuthMode('login');
+                    setAuthError(null);
+                } else {
+                    setAuthError(res.message || 'Registration failed');
+                    setAuthMode('signup');
+                    setStep(1);
+                }
+            }
         } else {
             // For regular users, create new account
             const res = await authService.register(username, password, {
@@ -484,7 +507,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                             {authMode === 'login' ? t.authLogin : t.authCreate}
                         </button>
 
-                        {authMode === 'login' && (
+                        {(authMode === 'login' || authMode === 'signup') && (
                             <>
                                 <button
                                     type="button"
@@ -492,14 +515,16 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                                     className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-full border border-[var(--theme-accent)]/40 text-[var(--theme-accent)] text-[11px] font-bold hover:bg-[var(--theme-accent)]/10 transition-all"
                                 >
                                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.69 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.79-1.15 3.37-1.35 3.65-1.35.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
-                                    {lang === 'ru' ? 'Использовать профиль Telegram' : 'Use my Telegram profile'}
+                                    {authMode === 'login'
+                                      ? (lang === 'ru' ? 'Войти через Telegram' : 'Log in with Telegram')
+                                      : (lang === 'ru' ? 'Регистрация через Telegram' : 'Register with Telegram')}
                                 </button>
 
                                 <a
                                     href={`${typeof window !== 'undefined' ? window.location.origin + (window.location.pathname || '') : ''}?show_telegram_widget=login`}
                                     className="mt-3 block text-center text-[10px] text-[var(--text-secondary)] underline"
                                 >
-                                    {lang === 'ru' ? 'Если автоматический вход не работает, открыть виджет' : 'If auto-login fails, open the widget'}
+                                    {lang === 'ru' ? 'Если виджет не открылся, нажмите здесь' : 'If the widget did not open, click here'}
                                 </a>
                             </>
                         )}
