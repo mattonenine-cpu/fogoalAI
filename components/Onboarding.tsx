@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Language, TRANSLATIONS, EnergyProfile, Goal, EcosystemConfig, AppTheme, EcosystemType } from '../types';
 import { getDefaultUsageStats } from '../types';
 import { GlassCard, GlassInput, GlassButton } from './GlassCard';
@@ -61,6 +61,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [referralCodeInput, setReferralCodeInput] = useState('');
+  const telegramProcessedRef = useRef(false);
 
   // Setup State
   // Steps: 1=Goals, 2=Energy, 3=Drains, 4=Review
@@ -109,6 +110,68 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
       }
     };
   });
+
+  // When we have Telegram callback from URL: try login or switch to registration setup
+  useEffect(() => {
+    if (!telegramPayload || telegramProcessedRef.current || (authMode !== 'login' && authMode !== 'signup')) return;
+    telegramProcessedRef.current = true;
+    setIsAuthenticating(true);
+    setAuthError(null);
+    authService.loginWithTelegram(telegramPayload).then(res => {
+      setIsAuthenticating(false);
+      if (res.success) {
+        try {
+          const loadedProfileStr = localStorage.getItem('focu_profile');
+          if (loadedProfileStr) {
+            const profileToApply = JSON.parse(loadedProfileStr);
+            if (profileToApply && typeof profileToApply === 'object') {
+              profileToApply.isOnboarded = true;
+              if (!profileToApply.credits) profileToApply.credits = CreditsService.initializeCredits();
+              onComplete(profileToApply);
+              return;
+            }
+          }
+        } catch { /* ignore */ }
+        const today = new Date().toISOString().split('T')[0];
+        onComplete({
+          name: telegramPayload.first_name,
+          username: `tg_${telegramPayload.id}`,
+          occupation: '',
+          level: 1,
+          totalExperience: 0,
+          goals: [],
+          bedtime: '23:00',
+          wakeTime: '07:00',
+          activityHistory: [today],
+          energyProfile: { energyPeaks: [], energyDips: [], recoverySpeed: 'average', resistanceTriggers: [] },
+          isOnboarded: true,
+          enabledEcosystems: [
+            { type: 'sport', label: 'Sport', icon: '⚽', enabled: true, justification: '' },
+            { type: 'study', label: 'Study', icon: '📚', enabled: true, justification: '' },
+            { type: 'health', label: 'Health', icon: '❤️', enabled: true, justification: '' },
+          ],
+          statsHistory: [],
+          settings: { aiPersona: 'balanced', aiDetailLevel: 'medium', visibleViews: ['dashboard', 'scheduler', 'smart_planner', 'chat', 'notes', 'sport', 'study', 'health'], fontSize: 'normal' },
+          credits: CreditsService.initializeCredits(),
+          usageStats: getDefaultUsageStats(),
+          telegramId: telegramPayload.id,
+          telegramUsername: telegramPayload.username,
+          telegramPhotoUrl: telegramPayload.photo_url,
+        } as UserProfile);
+        return;
+      }
+      if (res.needRegister) {
+        setAuthMode('setup');
+        setStep(1);
+        setProfile(prev => ({ ...prev, name: telegramPayload.first_name || prev.name }));
+        return;
+      }
+      setAuthError(res.message || (lang === 'ru' ? 'Ошибка входа через Telegram' : 'Telegram login failed'));
+    }).catch(() => {
+      setIsAuthenticating(false);
+      setAuthError(lang === 'ru' ? 'Ошибка входа через Telegram' : 'Telegram login failed');
+    });
+  }, [telegramPayload, authMode, lang, onComplete]);
 
   /** С любой вкладки: сначала пробуем войти по логину и паролю. Удалось — пускаем в аккаунт. Не удалось и вкладка «Регистрация» — переход в онбординг. */
   const handleSubmitAuth = async () => {
@@ -520,12 +583,13 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, lang, curren
                                       : (lang === 'ru' ? 'Регистрация через Telegram' : 'Register with Telegram')}
                                 </button>
 
-                                <a
-                                    href={`${typeof window !== 'undefined' ? window.location.origin + (window.location.pathname || '') : ''}?show_telegram_widget=login`}
-                                    className="mt-3 block text-center text-[10px] text-[var(--text-secondary)] underline"
+                                <button
+                                    type="button"
+                                    onClick={() => onTelegramAuto?.()}
+                                    className="mt-3 w-full text-center text-[10px] text-[var(--text-secondary)] underline hover:text-[var(--text-primary)]"
                                 >
                                     {lang === 'ru' ? 'Если виджет не открылся, нажмите здесь' : 'If the widget did not open, click here'}
-                                </a>
+                                </button>
                             </>
                         )}
                     </form>
