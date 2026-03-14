@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, AppView, Task, DailyStats, Language, TRANSLATIONS, EcosystemType, Note, NoteFolder, AppTheme, HelpContext } from './types';
 import { Onboarding } from './components/Onboarding';
 import { TelegramAuthWidget } from './components/TelegramAuthWidget';
-import { parseTelegramCallbackFromUrl } from './services/telegramAuth';
+import { parseTelegramCallbackFromUrl, getTelegramUserFromWebApp } from './services/telegramAuth';
 import { Dashboard } from './components/Dashboard';
 import { Scheduler } from './components/Scheduler';
 import SmartPlanner from './components/SmartPlanner';
@@ -123,14 +123,20 @@ const [theme, setTheme] = useState<AppTheme>(() => {
       if (!user && profile) setProfile(null);
   }, []);
 
-  // Parse Telegram callback from URL after redirect from Telegram Login Widget
+  // Telegram: URL callback after Login Widget redirect, или авто-определение при открытии внутри Telegram (Web App)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    const payload = parseTelegramCallbackFromUrl();
-    if (payload) {
-      setTelegramPayloadFromUrl(payload);
+    const urlPayload = parseTelegramCallbackFromUrl();
+    if (urlPayload) {
+      setTelegramPayloadFromUrl(urlPayload);
       window.history.replaceState({}, '', window.location.pathname || '/');
+      return;
+    }
+    const webAppUser = getTelegramUserFromWebApp();
+    if (webAppUser) {
+      setTelegramPayloadFromUrl(webAppUser);
+      return;
     }
     if (params.get('show_telegram_widget') === 'login') {
       setShowTelegramWidget(true);
@@ -270,7 +276,14 @@ const [theme, setTheme] = useState<AppTheme>(() => {
           currentTheme={theme}
           onSetTheme={setTheme}
           telegramPayload={telegramPayloadFromUrl}
-          onTelegramAuto={() => setShowTelegramWidget(true)}
+          onTelegramAuto={() => {
+            const webAppUser = getTelegramUserFromWebApp();
+            if (webAppUser) {
+              setTelegramPayloadFromUrl(webAppUser);
+            } else {
+              setShowTelegramWidget(true);
+            }
+          }}
         />
         {showTelegramWidget && (
           <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
