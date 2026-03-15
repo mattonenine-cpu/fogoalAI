@@ -1,13 +1,12 @@
 /**
- * Text generation API — Groq (GPT OSS 20B).
+ * Text generation API — Groq (Llama 3.1 8B Instant).
  * Accepts the same request shape as before (contents + config) for compatibility.
- * Free tier: get API key at https://console.groq.com
  */
 
 declare const process: { env: { [key: string]: string | undefined } };
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const DEFAULT_MODEL = "openai/gpt-oss-20b";
+const DEFAULT_MODEL = "llama-3.1-8b-instant";
 
 function geminiContentsToGroqMessages(
   contents: any[],
@@ -78,7 +77,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const usedModel =
-      model && typeof model === "string" && model.trim() ? model.trim() : DEFAULT_MODEL;
+      model && typeof model === "string" && model.includes("llama") ? model : DEFAULT_MODEL;
     const body: any = {
       model: usedModel,
       messages,
