@@ -1,8 +1,8 @@
 
 import { UserProfile, Task, Language, Goal, EcosystemType, HelpContext, EcosystemConfig, HealthDailyLog, WorkoutPlan, WorkoutProgram, Ticket, Exam } from '../types';
 
-// Groq model (change here to switch model, e.g. llama-3.3-70b-versatile)
-const AI_MODEL = 'llama-3.1-8b-instant';
+// Groq model — GPT OSS 20B (free tier at console.groq.com)
+const AI_MODEL = 'openai/gpt-oss-20b';
 
 // Helper for type compatibility without importing the full SDK
 export const Type = {
